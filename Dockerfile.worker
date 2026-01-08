@@ -27,15 +27,22 @@ RUN pip install -r /tmp/requirements.txt
 
 # Custom nodes
 WORKDIR ${COMFYUI_ROOT}/custom_nodes
-RUN git clone --depth 1 https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git comfyui-videohelpersuite && \
-    git clone --depth 1 https://github.com/Fannovel16/comfyui-frame-interpolation.git comfyui-frame-interpolation && \
-    git clone --depth 1 https://github.com/kijai/ComfyUI-KJNodes.git comfyui-kjnodes && \
-    git clone --depth 1 https://github.com/city96/ComfyUI-GGUF.git comfyui-gguf && \
-    git clone --depth 1 https://github.com/rgthree/rgthree-comfy.git rgthree-comfy && \
-    git clone --depth 1 https://github.com/cgorseye/cg-use-everywhere.git cg-use-everywhere && \
-    git clone --depth 1 https://github.com/cubiq/ComfyUI_essentials.git comfyui_essentials && \
-    git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Impact-Pack.git comfyui-impact-pack && \
-    git clone --depth 1 https://github.com/Acly/comfyui-image-saver.git comfyui-image-saver
+RUN --mount=type=secret,id=github_token,required=false set -eux; \
+    token_file="/run/secrets/github_token"; \
+    if [ -f "$token_file" ] && [ -s "$token_file" ]; then \
+      base="https://x-access-token:$(cat $token_file)@github.com"; \
+    else \
+      base="https://github.com"; \
+    fi; \
+    git clone --depth 1 "$base/Kosinkadink/ComfyUI-VideoHelperSuite.git" comfyui-videohelpersuite && \
+    git clone --depth 1 "$base/Fannovel16/comfyui-frame-interpolation.git" comfyui-frame-interpolation && \
+    git clone --depth 1 "$base/kijai/ComfyUI-KJNodes.git" comfyui-kjnodes && \
+    git clone --depth 1 "$base/city96/ComfyUI-GGUF.git" comfyui-gguf && \
+    git clone --depth 1 "$base/rgthree/rgthree-comfy.git" rgthree-comfy && \
+    git clone --depth 1 "$base/cgorseye/cg-use-everywhere.git" cg-use-everywhere && \
+    git clone --depth 1 "$base/cubiq/ComfyUI_essentials.git" comfyui_essentials && \
+    git clone --depth 1 "$base/ltdrdata/ComfyUI-Impact-Pack.git" comfyui-impact-pack && \
+    git clone --depth 1 "$base/Acly/comfyui-image-saver.git" comfyui-image-saver
 
 # Dotahovanie zavislosti custom nodes
 RUN set -eux; \

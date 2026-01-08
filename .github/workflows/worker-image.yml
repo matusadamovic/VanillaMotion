@@ -45,3 +45,5 @@ jobs:
           file: Dockerfile.worker
           push: true
           tags: matthewtg/vanilla-motion:latest
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
