@@ -12,6 +12,7 @@ from psycopg2.extras import RealDictCursor
 TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 RUNPOD_API_KEY = os.environ["RUNPOD_API_KEY"]
 RUNPOD_ENDPOINT_ID = os.environ["RUNPOD_ENDPOINT_ID"]
+RUNPOD_API_BASE = os.environ.get("RUNPOD_API_BASE", "https://api.runpod.ai")
 DATABASE_URL = os.environ["DATABASE_URL"]
 MAX_IMAGE_BYTES = int(os.environ.get("MAX_IMAGE_BYTES", str(10 * 1024 * 1024)))
 RATE_LIMIT_SECONDS = int(os.environ.get("RATE_LIMIT_SECONDS", "30"))
@@ -33,7 +34,7 @@ async def send_placeholder(chat_id: int) -> int:
 
 
 async def submit_runpod(payload: Dict[str, Any]) -> str:
-    url = f"https://api.runpod.io/v2/{RUNPOD_ENDPOINT_ID}/run"
+    url = f"{RUNPOD_API_BASE}/v2/{RUNPOD_ENDPOINT_ID}/run"
     headers = {"Authorization": f"Bearer {RUNPOD_API_KEY}"}
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(url, headers=headers, json={"input": payload})
