@@ -6,6 +6,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import threading
 import time
 import uuid
 from typing import Any, Dict, Optional
@@ -22,6 +23,7 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 WORKFLOW_PATH = "/app/workflow.json"
 COMFY_ROOT = "/app/ComfyUI"
 COMFY_PORT = int(os.environ.get("COMFY_PORT", "8188"))
+COMFY_START_TIMEOUT = int(os.environ.get("COMFY_START_TIMEOUT", "600"))
 PLACEHOLDER_DONE = {"COMPLETED", "FAILED", "CANCELLED"}
 
 
@@ -100,18 +102,37 @@ def start_comfy(output_dir: pathlib.Path, temp_dir: pathlib.Path) -> subprocess.
         "--temp-directory",
         str(temp_dir),
     ]
-    proc = subprocess.Popen(cmd, cwd=COMFY_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    wait_until = time.time() + 120
+    proc = subprocess.Popen(
+        cmd,
+        cwd=COMFY_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    if proc.stdout is not None:
+        threading.Thread(target=_stream_comfy_logs, args=(proc.stdout,), daemon=True).start()
+    wait_until = time.time() + COMFY_START_TIMEOUT
+    last_exc: Optional[Exception] = None
     while time.time() < wait_until:
+        if proc.poll() is not None:
+            raise RuntimeError(
+                f"ComfyUI exited early (code={proc.returncode}). Check COMFY logs above."
+            )
         try:
-            requests.get(f"http://127.0.0.1:{COMFY_PORT}/history", timeout=2)
-            return proc
-        except Exception:
-            if proc.poll() is not None:
-                raise RuntimeError("ComfyUI exited early")
-            time.sleep(2)
+            resp = requests.get(f"http://127.0.0.1:{COMFY_PORT}/history", timeout=2)
+            if resp.status_code == 200:
+                return proc
+        except Exception as exc:
+            last_exc = exc
+        time.sleep(2)
     proc.kill()
-    raise RuntimeError("ComfyUI server did not start")
+    raise RuntimeError(f"ComfyUI server did not start (timeout). Last error: {last_exc}")
+
+
+def _stream_comfy_logs(stream):
+    for line in stream:
+        logging.info("COMFY %s", line.rstrip())
 
 
 def stop_comfy(proc: subprocess.Popen):
@@ -203,7 +224,6 @@ def handler(event):
     payload = event.get("input", {})
     job_id = payload["job_id"]
     chat_id = int(payload["chat_id"])
-    placeholder_id = int(payload["placeholder_message_id"])
     file_id = payload["input_file_id"]
 
     job_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"job_{job_id}_", dir="/tmp"))
