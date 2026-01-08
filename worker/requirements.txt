@@ -10,9 +10,9 @@ tqdm==4.66.1
 websockets==12.0
 async-timeout==4.0.3
 # ComfyUI dependencies
-torch==2.1.2
-torchaudio==2.1.2
-torchvision==0.16.2
+torch==2.1.2+cu121
+torchaudio==2.1.2+cu121
+torchvision==0.16.2+cu121
 einops==0.7.0
 transformers==4.36.2
 safetensors==0.4.2

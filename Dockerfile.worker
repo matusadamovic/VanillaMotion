@@ -18,12 +18,13 @@ WORKDIR ${COMFYUI_ROOT}
 RUN python3 -m venv /venv
 ENV PATH=/venv/bin:$PATH
 RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN printf "torch==2.1.2+cu121\ntorchaudio==2.1.2+cu121\ntorchvision==0.16.2+cu121\n" > /tmp/torch-constraints.txt
+RUN pip install --index-url https://download.pytorch.org/whl/cu121 --extra-index-url https://pypi.org/simple -c /tmp/torch-constraints.txt -r requirements.txt
 
 
 # Pinned requirements (ComfyUI + infra)
 COPY worker/requirements.txt /tmp/requirements.txt
-RUN pip install -r /tmp/requirements.txt
+RUN pip install --index-url https://download.pytorch.org/whl/cu121 --extra-index-url https://pypi.org/simple -c /tmp/torch-constraints.txt -r /tmp/requirements.txt
 
 # Custom nodes
 WORKDIR ${COMFYUI_ROOT}/custom_nodes
@@ -47,7 +48,11 @@ RUN --mount=type=secret,id=github_token,required=false set -eux; \
 # Dotahovanie zavislosti custom nodes
 RUN set -eux; \
     for req in */requirements.txt; do \
-      if [ -f "$req" ]; then pip install -r "$req"; fi; \
+      if [ -f "$req" ]; then \
+        tmp="/tmp/requirements.$(basename $(dirname "$req")).txt"; \
+        grep -viE '^(torch|torchaudio|torchvision|nvidia-)' "$req" > "$tmp" || true; \
+        if [ -s "$tmp" ]; then pip install -r "$tmp"; fi; \
+      fi; \
     done
 
 # Workflow a skripty
