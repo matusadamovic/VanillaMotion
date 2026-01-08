@@ -1,10 +1,10 @@
 fastapi==0.110.0
 uvicorn==0.23.2
 python-telegram-bot==20.7
-httpx==0.26.0
+httpx==0.25.2
 psycopg2-binary==2.9.9
 runpod==1.5.2
-pydantic==1.10.14
+pydantic==2.6.4
 requests==2.31.0
 tqdm==4.66.1
 websockets==12.0

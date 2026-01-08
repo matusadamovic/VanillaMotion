@@ -1,0 +1,65 @@
+Modely a odkazy na stiahnutie
+
+Diffusion Models
+- wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors
+  https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors
+- wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors
+  https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors
+
+GGUF Models (Civitai)
+- DasiwaWAN22I2V14BTastysinV8_q8High.gguf
+  https://civitai.com/models/2190659?modelVersionId=2466604
+- DasiwaWAN22I2V14BTastysinV8_q8Low.gguf
+  https://civitai.com/models/2190659?modelVersionId=2466822
+
+Lightning LoRA (pre non-GGUF checkpointy)
+- wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors
+  https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors
+- wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors
+  https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors
+
+VAE
+- wan_2.1_vae.safetensors
+  https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors
+
+Text Encoder
+- umt5_xxl_fp8_e4m3fn_scaled.safetensors
+  https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors
+
+Upscale / interpolation modely
+- remacri_original.pth
+  https://huggingface.co/LyliaEngine/remacri_original/resolve/main/remacri_original.pth
+- rife49.pth
+  https://huggingface.co/Isi99999/Frame_Interpolation_Models/resolve/main/rife49.pth
+
+Optional (NSFW)
+- NSFW-22-H-e8.safetensors
+  https://huggingface.co/rahul7star/wan2.2Lora/resolve/1d1e553d07c1bb0e91765752413c4857e31df299/wan2.2/NSFW-22-H-e8.safetensors
+- NSFW-22-L-e8.safetensors
+  https://huggingface.co/rahul7star/wan2.2Lora/resolve/main/NSFW-22-L-e8.safetensors
+
+------------------------------------------------------------
+
+Odporucane ulozenie do HF bundle (podla docs/HF_BUNDLE.md):
+models/
+  checkpoints/
+    wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors
+    wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors
+  checkpoints_gguf/
+    DasiwaWAN22I2V14BTastysinV8_q8High.gguf
+    DasiwaWAN22I2V14BTastysinV8_q8Low.gguf
+  loras/
+    wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors
+    wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors
+  clip/
+    umt5_xxl_fp8_e4m3fn_scaled.safetensors
+  vae/
+    wan_2.1_vae.safetensors
+  upscale_models/
+    remacri_original.pth
+    rife49.pth
+  controlnet/
+  embeddings/
+  optional/
+    NSFW-22-H-e8.safetensors
+    NSFW-22-L-e8.safetensors
