@@ -2,13 +2,13 @@ name: Build worker image
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ "main" ]
-    paths:
-      - "Dockerfile.worker"
-      - "worker/**"
-      - "i2v_WAN22_6step_3Samplers_GGUF_FirstLast.json"
-      - ".github/workflows/worker-image.yml"
+  # push:
+  #   branches: [ "main" ]
+  #   paths:
+  #     - "Dockerfile.worker"
+  #     - "worker/**"
+  #     - "i2v_WAN22_6step_3Samplers_GGUF_FirstLast.json"
+  #     - ".github/workflows/worker-image.yml"
 
 jobs:
   build-and-push:
