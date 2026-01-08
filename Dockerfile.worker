@@ -55,6 +55,7 @@ RUN set -eux; \
       fi; \
     done
 
+
 # Workflow a skripty
 WORKDIR /app
 COPY i2v_WAN22_6step_3Samplers_GGUF_FirstLast.json /app/workflow.json
