@@ -42,7 +42,7 @@ RUN --mount=type=secret,id=github_token,required=false set -eux; \
     git clone --depth 1 "$base/chrisgoringe/cg-use-everywhere.git" cg-use-everywhere && \
     git clone --depth 1 "$base/cubiq/ComfyUI_essentials.git" comfyui_essentials && \
     git clone --depth 1 "$base/ltdrdata/ComfyUI-Impact-Pack.git" comfyui-impact-pack && \
-    git clone --depth 1 "$base/Acly/comfyui-image-saver.git" comfyui-image-saver
+    git clone --depth 1 "$base/farizrifqi/ComfyUI-Image-Saver.git" comfyui-image-saver
 
 # Dotahovanie zavislosti custom nodes
 RUN set -eux; \
