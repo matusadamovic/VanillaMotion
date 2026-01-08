@@ -16,7 +16,7 @@ CONTEXT / GOALS
 ABSOLUTE DATA RETENTION REQUIREMENT
 - We DO NOT want to store/persist user inputs or user outputs on our infrastructure:
   - NO S3/R2/B2
-  - NO storing binaries on VPS disk
+  - NO storing binaries on VPS disks
   - NO storing binaries on RunPod Network Volumes
   - NO storing binaries in databases
 - Telegram will be the ONLY storage/transport for user files:
