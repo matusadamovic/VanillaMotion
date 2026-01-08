@@ -1,0 +1,24 @@
+{
+  "name": "imgvidbot-worker",
+  "imageName": "your-registry/imgvidbot-worker:latest",
+  "gpuTypeId": "NVIDIA RTX A4000",
+  "memoryInGb": 24,
+  "containerDiskInGb": 20,
+  "minWorkers": 0,
+  "maxWorkers": 1,
+  "idleTimeout": 300000,
+  "networking": "HTTP",
+  "ports": [],
+  "env": [
+    { "key": "TELEGRAM_BOT_TOKEN", "value": "<secret>", "secret": true },
+    { "key": "RUNPOD_API_KEY", "value": "<secret>", "secret": true },
+    { "key": "DATABASE_URL", "value": "<secret>", "secret": true },
+    { "key": "MODEL_BUNDLE_PATH", "value": "/opt/runpod/cache/models" }
+  ],
+  "gpuCount": 1,
+  "executionTimeoutMs": 900000,
+  "scalerType": "QUEUE_DEPTH",
+  "scalerValue": 1,
+  "volumeInGb": 0,
+  "multiLocation": true
+}

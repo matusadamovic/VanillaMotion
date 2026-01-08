@@ -1,0 +1,150 @@
+You are OpenAI Codex acting as a senior DevOps/MLOps + backend engineer. Produce an end-to-end, production-ready implementation plan (phases + exact steps) and generate the concrete code/config artifacts.
+
+LANGUAGE
+- Write everything in Slovak.
+
+CONTEXT / GOALS
+- We have an existing ComfyUI img2video workflow that must produce the SAME outputs as our current setup.
+- We want a Telegram bot: user sends an image; bot returns a generated ~5s video.
+- Each generation takes ~5–10 minutes depending on GPU.
+- We have ~100GB of custom models and LoRAs (and growing).
+- GPU workers/pods may be terminated at any time. The system must recover automatically and not lose state.
+- When idle (no generation), compute should scale down (stop).
+- When backlog exists (waiting image request), system should create/start additional worker capacity (but initial max parallelism is 1).
+- We prefer robustness over “keeping a pod alive”. Ephemeral workers are fine.
+
+ABSOLUTE DATA RETENTION REQUIREMENT
+- We DO NOT want to store/persist user inputs or user outputs on our infrastructure:
+  - NO S3/R2/B2
+  - NO storing binaries on VPS disk
+  - NO storing binaries on RunPod Network Volumes
+  - NO storing binaries in databases
+- Telegram will be the ONLY storage/transport for user files:
+  - Input image is already stored by Telegram; we will reference it via Telegram `file_id`.
+  - Output video must be uploaded back to Telegram immediately.
+- Workers may use temporary local files in `/tmp` during processing ONLY, and MUST delete them after upload completes (best-effort plus cleanup on start).
+- In DB we store ONLY metadata (job state, chat_id, message_id, input_file_id, timing, error info), never file bytes.
+
+INPUTS YOU ALREADY HAVE
+- ComfyUI workflow JSON file: i2v_WAN22_6step_3Samplers_GGUF_FirstLast.json (this is the single source of truth).
+- Workflow references model files (ensure plan covers mapping into ComfyUI expected paths):
+  - DasiwaWAN22I2V14BV8V1_midnightflirtHighV7.safetensors
+  - DasiwaWAN22I2V14BV8V1_midnightflirtLowV7.safetensors
+  - DasiwaWAN22I2V14BTastysinV8_q8High.gguf
+  - DasiwaWAN22I2V14BTastysinV8_q8Low.gguf
+  - wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors
+  - wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors
+  - umt5_xxl_fp8_e4m3fn_scaled.safetensors
+  - wan_2.1_vae.safetensors
+  - wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors
+  - wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors
+  - remacri_original.pth
+  - rife49.pth
+  - (optional) NSFW-22-H-e8.safetensors, NSFW-22-L-e8.safetensors
+- Workflow depends on these custom nodes packages (must be installed/pinned reproducibly):
+  - comfyui-videohelpersuite
+  - comfyui-frame-interpolation
+  - comfyui-kjnodes
+  - comfyui-gguf
+  - rgthree-comfy
+  - cg-use-everywhere
+  - comfyui_essentials
+  - comfyui-impact-pack
+  - comfyui-image-saver
+
+MODEL DISTRIBUTION REQUIREMENT
+- We have a Hugging Face account and can use a PRIVATE HF repo.
+- Use RunPod Serverless “Cached Models” approach by bundling all required model assets into ONE HF repo (because endpoint supports one cached model).
+- Provide HF repo structure recommendations matching ComfyUI model directories.
+- Provide git-lfs upload commands and verification steps.
+- Worker must locate the cached HF bundle path and map it into ComfyUI (symlinks or bind) so the workflow loads correctly.
+
+RUNPOD EXECUTION REQUIREMENT
+- Use RunPod Serverless for workers (async jobs), not long-lived pods as the primary runtime.
+- Configure:
+  - workersMin = 0 (scale to zero)
+  - workersMax = 1 initially (later adjustable)
+  - executionTimeoutMs sufficiently high for 10-minute jobs (recommend a safe value and justify)
+  - scalerType and scalerValue so queued jobs trigger worker creation (even if max=1)
+  - multi-datacenter strategy (don’t bind to a single DC)
+- Do NOT use Network Volumes for user inputs/outputs.
+
+TELEGRAM FLOW REQUIREMENTS
+- Bot uses Telegram webhook.
+- On receiving an image:
+  - Extract input `file_id` and `chat_id`.
+  - Immediately send a “Processing…” placeholder message and store its `message_id`.
+  - Create a job record in Postgres (metadata only).
+  - Submit an async RunPod job with payload containing: job_id, chat_id, placeholder_message_id, input_file_id, any parameters (seed, etc).
+- Worker steps:
+  - Use Telegram Bot API to download the image from `input_file_id` to `/tmp/<job_id>/input.png`.
+  - Run ComfyUI headless with the provided workflow JSON and write output video to `/tmp/<job_id>/out.mp4`.
+  - Upload output to Telegram by editing the placeholder message (preferred): use `editMessageMedia` to replace the placeholder with the video, OR use `sendVideo` if edit is too complex.
+  - Update Postgres job state to COMPLETED/FAILED.
+  - Delete `/tmp/<job_id>` directory.
+- Idempotency:
+  - If the same job_id is retried (worker killed), do not send duplicates.
+  - Prefer `editMessageMedia` on the same placeholder message_id to ensure only one final video appears.
+  - Job state machine must enforce at-most-once finalization.
+
+PERSISTENCE / QUEUE
+- Use Postgres for job metadata and state machine.
+- Use a queue mechanism:
+  - Either rely on RunPod serverless queueing + job status polling, OR implement Redis queue if necessary.
+- Provide a clear state machine:
+  - QUEUED -> RUNNING -> COMPLETED
+  - QUEUED/RUNNING -> FAILED (with retries)
+  - CANCELLED
+- Provide retry strategy, backoff, and max attempts.
+
+SECURITY / ABUSE CONTROLS
+- Secrets: Telegram bot token, RunPod API key, HF token. Must be stored as environment variables / secrets, never logged.
+- Validate inputs: max image size, allowed formats, basic rate limiting per chat_id.
+- Ensure temporary files are deleted; include startup cleanup for orphaned /tmp dirs.
+
+WHAT YOU MUST DELIVER (STRUCTURE)
+1) Executive Summary (1–2 paragraphs)
+2) Architecture Overview (ASCII diagram + explanation)
+3) Phased Plan (Phase 0..N). Each phase includes:
+   - Objective
+   - Step-by-step tasks
+   - Exact commands / configs
+   - Acceptance criteria
+   - Rollback plan
+   - Risks & mitigations
+4) Implementation Artifacts (fully written, copy/paste ready):
+   - Dockerfile for GPU worker image (includes ComfyUI + pinned custom nodes)
+   - requirements/lock strategy for custom nodes dependencies
+   - Worker bootstrap script:
+     - finds HF cached model bundle path
+     - sets up ComfyUI model directory mapping
+     - ensures cleanup of /tmp
+   - Worker runner script:
+     - downloads Telegram file_id
+     - runs ComfyUI headless with the provided workflow JSON
+     - uploads video back to Telegram (edit placeholder message preferred)
+     - updates Postgres metadata
+   - Telegram bot service (FastAPI preferred):
+     - webhook endpoint
+     - creates placeholder message
+     - creates job in Postgres
+     - submits RunPod async job
+     - optional: polling endpoint for status/admin
+   - Postgres schema + migrations (SQL)
+   - RunPod serverless endpoint configuration template (JSON or step-by-step UI settings)
+   - HF bundle repo structure example and git-lfs commands
+   - Operational runbook (how to deploy, rotate secrets, increase workersMax)
+5) Testing Plan:
+   - Local/unit tests for bot logic (without GPU)
+   - Integration test plan (Telegram -> RunPod job -> Telegram)
+   - Failure tests (kill worker mid-run; ensure retry edits same message)
+   - Determinism/seed notes to keep outputs consistent with the workflow
+
+NON-NEGOTIABLES
+- No persistence of user binaries outside Telegram.
+- Scale to zero when idle.
+- Safe under worker termination.
+- Idempotent finalization (no duplicate videos).
+- Same output relative to the given workflow JSON.
+
+Now produce the complete plan and all artifacts. Do not ask clarifying questions; choose sensible defaults and state them explicitly.
