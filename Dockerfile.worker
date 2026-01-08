@@ -39,7 +39,7 @@ RUN --mount=type=secret,id=github_token,required=false set -eux; \
     git clone --depth 1 "$base/kijai/ComfyUI-KJNodes.git" comfyui-kjnodes && \
     git clone --depth 1 "$base/city96/ComfyUI-GGUF.git" comfyui-gguf && \
     git clone --depth 1 "$base/rgthree/rgthree-comfy.git" rgthree-comfy && \
-    git clone --depth 1 "$base/cgorseye/cg-use-everywhere.git" cg-use-everywhere && \
+    git clone --depth 1 "$base/chrisgoringe/cg-use-everywhere.git" cg-use-everywhere && \
     git clone --depth 1 "$base/cubiq/ComfyUI_essentials.git" comfyui_essentials && \
     git clone --depth 1 "$base/ltdrdata/ComfyUI-Impact-Pack.git" comfyui-impact-pack && \
     git clone --depth 1 "$base/Acly/comfyui-image-saver.git" comfyui-image-saver
