@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+FROM runpod/worker-comfyui:5.7.1-base-cuda12.8.1
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -12,19 +12,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git wget curl ffmpeg libgl1 python3 python3-pip python3-venv python3-dev build-essential ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ComfyUI
-RUN git clone https://github.com/comfyanonymous/ComfyUI.git ${COMFYUI_ROOT}
+# ComfyUI (use base image installation)
+RUN if [ -d "/workspace/ComfyUI" ] && [ ! -e "${COMFYUI_ROOT}" ]; then ln -s /workspace/ComfyUI "${COMFYUI_ROOT}"; fi \
+    && if [ ! -d "${COMFYUI_ROOT}" ]; then echo "ComfyUI not found at ${COMFYUI_ROOT} or /workspace/ComfyUI" >&2; exit 1; fi
 WORKDIR ${COMFYUI_ROOT}
-RUN python3 -m venv /venv
+RUN if [ ! -d /venv ]; then python3 -m venv /venv; fi
 ENV PATH=/venv/bin:$PATH
 RUN pip install --upgrade pip
-RUN printf "torch==2.1.2+cu121\ntorchaudio==2.1.2+cu121\ntorchvision==0.16.2+cu121\n" > /tmp/torch-constraints.txt
-RUN pip install --index-url https://download.pytorch.org/whl/cu121 --extra-index-url https://pypi.org/simple -c /tmp/torch-constraints.txt -r requirements.txt
 
 
-# Pinned requirements (ComfyUI + infra)
+# Pinned requirements (worker runtime)
 COPY worker/requirements.txt /tmp/requirements.txt
-RUN pip install --index-url https://download.pytorch.org/whl/cu121 --extra-index-url https://pypi.org/simple -c /tmp/torch-constraints.txt -r /tmp/requirements.txt
+RUN set -eux; \
+    grep -viE '^(torch|torchaudio|torchvision|nvidia-)' /tmp/requirements.txt > /tmp/requirements.filtered.txt; \
+    if [ -s /tmp/requirements.filtered.txt ]; then pip install -r /tmp/requirements.filtered.txt; fi
 
 # Custom nodes
 WORKDIR ${COMFYUI_ROOT}/custom_nodes
