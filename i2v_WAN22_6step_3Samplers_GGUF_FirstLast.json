@@ -3384,18 +3384,18 @@
         },
         "aux_id": "Kosinkadink/ComfyUI-VideoHelperSuite"
       },
-      "widgets_values": {
-        "frame_rate": 60,
-        "loop_count": 0,
-        "filename_prefix": "%date:yyyy-MM-dd%/i2v/Closeup/Closeup",
-        "format": "video/h264-mp4",
-        "pix_fmt": "yuv420p",
-        "crf": 19,
-        "save_metadata": true,
-        "trim_to_audio": false,
-        "pingpong": false,
-        "save_output": true,
-        "videopreview": {
+      "widgets_values": [
+        60,
+        0,
+        "%date:yyyy-MM-dd%/i2v/Closeup/Closeup",
+        "video/h264-mp4",
+        "yuv420p",
+        19,
+        true,
+        false,
+        false,
+        true,
+        {
           "hidden": false,
           "paused": true,
           "params": {
@@ -3409,7 +3409,7 @@
           },
           "muted": false
         }
-      }
+      ]
     },
     {
       "id": 79,
