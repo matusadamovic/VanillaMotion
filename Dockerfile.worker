@@ -1,4 +1,4 @@
-FROM runpod/worker-comfyui:5.7.1-base-cuda12.8.1
+FROM runpod/worker-comfyui:5.5.1-base
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -8,9 +8,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
 WORKDIR /app
 
 # Zakladne baliky
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git wget curl ffmpeg libgl1 python3 python3-pip python3-venv python3-dev build-essential ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+      git wget curl ffmpeg libgl1 python3 python3-pip python3-venv python3-dev build-essential ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # ComfyUI (use base image installation)
 RUN if [ -d "/workspace/ComfyUI" ] && [ ! -e "${COMFYUI_ROOT}" ]; then ln -s /workspace/ComfyUI "${COMFYUI_ROOT}"; fi \
