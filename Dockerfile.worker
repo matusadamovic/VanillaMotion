@@ -3,7 +3,7 @@ FROM runpod/worker-comfyui:5.5.1-base
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    COMFYUI_ROOT=/app/ComfyUI
+    COMFYUI_ROOT=/comfyui
 
 WORKDIR /app
 
@@ -16,8 +16,7 @@ RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # ComfyUI (use base image installation)
-RUN if [ -d "/workspace/ComfyUI" ] && [ ! -e "${COMFYUI_ROOT}" ]; then ln -s /workspace/ComfyUI "${COMFYUI_ROOT}"; fi \
-    && if [ ! -d "${COMFYUI_ROOT}" ]; then echo "ComfyUI not found at ${COMFYUI_ROOT} or /workspace/ComfyUI" >&2; exit 1; fi
+RUN if [ ! -d "${COMFYUI_ROOT}" ]; then echo "ComfyUI not found at ${COMFYUI_ROOT}" >&2; exit 1; fi
 WORKDIR ${COMFYUI_ROOT}
 RUN if [ ! -d /venv ]; then python3 -m venv /venv; fi
 ENV PATH=/venv/bin:$PATH
