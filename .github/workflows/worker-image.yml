@@ -2,13 +2,13 @@ name: Build worker image
 
 on:
   workflow_dispatch:
-   push:
-     branches: [ "main" ]
-     paths:
-       - "Dockerfile.worker"
-       - "worker/**"
-       - "i2v_WAN22_6step_3Samplers_GGUF_FirstLast.json"
-       - ".github/workflows/worker-image.yml"
+  push:
+    branches: [ "main" ]
+    paths:
+      - "Dockerfile.worker"
+      - "worker/**"
+      - "i2v_WAN22_6step_3Samplers_GGUF_FirstLast.json"
+      - ".github/workflows/worker-image.yml"
 
 jobs:
   build-and-push:
@@ -16,6 +16,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,8 +27,7 @@ jobs:
           sudo rm -rf /usr/local/share/boost
           sudo docker system prune -af
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      # QEMU removed because you're not building multi-arch (no "platforms:" specified)
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -47,3 +47,6 @@ jobs:
           tags: matthewtg/vanilla-motion:latest
           secrets: |
             github_token=${{ secrets.GITHUB_TOKEN }}
+          # Enable BuildKit layer caching between GitHub Actions runs
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
