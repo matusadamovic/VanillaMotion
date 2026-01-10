@@ -13,7 +13,7 @@ CONTEXT / GOALS
 - When backlog exists (waiting image request), system should create/start additional worker capacity (but initial max parallelism is 1).
 - We prefer robustness over “keeping a pod alive”. Ephemeral workers are fine.
 
-ABSOLUTE DATA RETENTION REQUIREMENT
+ABSOLUTE DATA RETENTION REQUIREMENTt
 - We DO NOT want to store/persist user inputs or user outputs on our infrastructure:
   - NO S3/R2/B2
   - NO storing binaries on VPS diskss
