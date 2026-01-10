@@ -82,9 +82,21 @@ ln -s "$MODEL_BUNDLE/upscale_models"   "$COMFY_ROOT/models/upscale_models"
 ln -s "$MODEL_BUNDLE/embeddings"       "$COMFY_ROOT/models/embeddings"
 ln -s "$MODEL_BUNDLE/checkpoints_gguf" "$COMFY_ROOT/models/checkpoints_gguf"
 
-# FIX: workflow používa UNETLoader -> ten štandardne listuje z /models/unet
-# Keďže v tvojom bundle nemáš unet/ adresár, namapuj ho na checkpoints (kde tie UNET .safetensors reálne máš)
-ln -s "$MODEL_BUNDLE/checkpoints" "$COMFY_ROOT/models/unet"
+# Build /models/unet as a real directory that contains both .safetensors and .gguf
+rm -rf "$COMFY_ROOT/models/unet"
+mkdir -p "$COMFY_ROOT/models/unet"
+
+# Symlink all safetensors UNETs into unet/
+for f in "$MODEL_BUNDLE/checkpoints"/*.safetensors; do
+  [ -e "$f" ] || continue
+  ln -s "$f" "$COMFY_ROOT/models/unet/$(basename "$f")"
+done
+
+# Symlink all GGUF UNETs into unet/
+for f in "$MODEL_BUNDLE/checkpoints_gguf"/*.gguf; do
+  [ -e "$f" ] || continue
+  ln -s "$f" "$COMFY_ROOT/models/unet/$(basename "$f")"
+done
 
 
 # FIX: base image expects /runpod-volume/models/*
