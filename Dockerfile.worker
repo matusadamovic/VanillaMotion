@@ -11,23 +11,24 @@ WORKDIR /app
 RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-      git wget curl ffmpeg libgl1 python3 python3-pip python3-venv python3-dev build-essential ca-certificates \
+      git wget curl ffmpeg libgl1 ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # ComfyUI (use base image installation)
 RUN if [ ! -d "${COMFYUI_ROOT}" ]; then echo "ComfyUI not found at ${COMFYUI_ROOT}" >&2; exit 1; fi
 WORKDIR ${COMFYUI_ROOT}
-RUN if [ ! -d /venv ]; then python3 -m venv /venv; fi
-ENV PATH=/venv/bin:$PATH
+# base image already provides /venv for ComfyUI; do not recreate or mutate it
+# Separate venv for worker runtime (do not pollute ComfyUI /venv)
+ENV WORKER_VENV=/worker-venv
+RUN python -m venv ${WORKER_VENV}
+ENV PATH=${WORKER_VENV}/bin:$PATH
 RUN pip install --upgrade pip
-
 
 # Pinned requirements (worker runtime)
 COPY worker/requirements.txt /tmp/requirements.txt
-RUN set -eux; \
-    grep -viE '^(torch|torchaudio|torchvision|nvidia-)' /tmp/requirements.txt > /tmp/requirements.filtered.txt; \
-    if [ -s /tmp/requirements.filtered.txt ]; then pip install -r /tmp/requirements.filtered.txt; fi
+RUN pip install -r /tmp/requirements.txt
+
 
 # Custom nodes
 WORKDIR ${COMFYUI_ROOT}/custom_nodes

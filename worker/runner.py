@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 DATABASE_URL = os.environ["DATABASE_URL"]
 WORKFLOW_PATH = "/app/workflow.json"
-COMFY_ROOT = "/app/ComfyUI"
+COMFY_ROOT = "/comfyui"
 COMFY_PORT = int(os.environ.get("COMFY_PORT", "8188"))
 COMFY_START_TIMEOUT = int(os.environ.get("COMFY_START_TIMEOUT", "600"))
 PLACEHOLDER_DONE = {"COMPLETED", "FAILED", "CANCELLED"}

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-COMFY_ROOT="/app/ComfyUI"
+COMFY_ROOT="/comfyui"
 TMP_ROOT="/tmp"
 
 # RunPod Cached Models root (nie Network Volume; cached models sú tu podľa docs)
@@ -15,6 +15,10 @@ HF_MODEL_NAME="${HF_MODEL_NAME:-matadamovic/vanillamotionbotmodels}"
 MODEL_BUNDLE="${MODEL_BUNDLE_PATH:-}"
 
 echo "BOOT: starting"
+echo "BOOT: worker python=$(which python)"
+python -c "import sys; print('BOOT: worker sys.executable=', sys.executable)"
+/venv/bin/python -c "import sys; print('BOOT: comfy sys.executable=', sys.executable)"
+/venv/bin/python -c "import transformers; print('BOOT: comfy transformers=', transformers.__version__)"
 echo "BOOT: HF_CACHE_ROOT=$HF_CACHE_ROOT"
 echo "BOOT: HF_MODEL_NAME=$HF_MODEL_NAME"
 echo "BOOT: MODEL_BUNDLE_PATH=${MODEL_BUNDLE_PATH:-<empty>}"
@@ -77,4 +81,4 @@ ln -sfn "$MODEL_BUNDLE/checkpoints_gguf"  "$COMFY_ROOT/models/checkpoints_gguf"
 echo "BOOT: symlinks ready"
 ls -lah "$COMFY_ROOT/models" | head -n 200 || true
 
-exec /venv/bin/python /app/runner.py
+exec /worker-venv/bin/python /app/runner.py
