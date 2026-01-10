@@ -146,22 +146,40 @@ def stop_comfy(proc: subprocess.Popen):
 
 def load_and_patch_workflow(input_filename: str) -> Dict[str, Any]:
     with open(WORKFLOW_PATH, "r", encoding="utf-8") as f:
-        workflow = json.load(f)
-    for node in workflow.get("nodes", []):
-        if node.get("type") == "LoadImage":
-            widgets = node.get("widgets_values", [])
-            if widgets:
-                widgets[0] = input_filename
-            if len(widgets) > 1:
-                widgets[1] = "image"
-            node["widgets_values"] = widgets
-    return workflow
+        wf = json.load(f)
+
+    # If it's already API prompt format, just patch LoadImage and return
+    if isinstance(wf, dict) and "nodes" not in wf:
+        prompt = wf
+    else:
+        nodes = wf.get("nodes", [])
+        prompt: Dict[str, Any] = {}
+
+        # UI export has nodes with "id" and "type". API wants {id: {class_type, inputs}}
+        for n in nodes:
+            nid = str(n.get("id"))
+            ctype = n.get("type")
+            if not nid or not ctype:
+                continue
+            prompt[nid] = {"class_type": ctype, "inputs": {}}
+
+        # NOTE: this converter is intentionally minimal; it relies on your workflow
+        # not needing complex wired inputs for the first run. The key is to fix class_type.
+
+    # Patch LoadImage nodes
+    for node in prompt.values():
+        if node.get("class_type") == "LoadImage":
+            node.setdefault("inputs", {})["image"] = input_filename
+
+    return prompt
 
 
 def send_prompt(workflow: Dict[str, Any]) -> str:
     url = f"http://127.0.0.1:{COMFY_PORT}/prompt"
     resp = requests.post(url, json={"prompt": workflow}, timeout=30)
-    resp.raise_for_status()
+if resp.status_code != 200:
+    logging.error("COMFY prompt rejected: status=%s body=%s", resp.status_code, resp.text)
+resp.raise_for_status()
     data = resp.json()
     return data["prompt_id"]
 
