@@ -553,7 +553,7 @@
     },
     "73": {
         "inputs": {
-            "unet_name": "DasiwaWAN22I2V14BTastysinV8_q8High.gguf"
+            "unet_name": "wan22EnhancedNSFWCameraPrompt_nsfwV2Q8High.gguf"
         },
         "class_type": "UnetLoaderGGUF",
         "_meta": {
@@ -562,7 +562,7 @@
     },
     "74": {
         "inputs": {
-            "unet_name": "DasiwaWAN22I2V14BTastysinV8_q8Low.gguf"
+            "unet_name": "wan22EnhancedNSFWCameraPrompt_nsfwV2Q8Low.gguf"
         },
         "class_type": "UnetLoaderGGUF",
         "_meta": {
