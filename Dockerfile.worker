@@ -48,15 +48,18 @@ RUN --mount=type=secret,id=github_token,required=false set -eux; \
     git clone --depth 1 "$base/ltdrdata/ComfyUI-Impact-Pack.git" comfyui-impact-pack && \
     git clone --depth 1 "$base/farizrifqi/ComfyUI-Image-Saver.git" comfyui-image-saver
 
-# Dotahovanie zavislosti custom nodes
-RUN set -eux; \
-    for req in */requirements.txt; do \
-      if [ -f "$req" ]; then \
-        tmp="/tmp/requirements.$(basename $(dirname "$req")).txt"; \
-        grep -viE '^(torch|torchaudio|torchvision|nvidia-)' "$req" > "$tmp" || true; \
-        if [ -s "$tmp" ]; then pip install -r "$tmp"; fi; \
-      fi; \
-    done
+# Dotahovanie zavislosti custom nodes (optional; can be large)
+ARG INSTALL_CUSTOM_NODE_DEPS=false
+RUN if [ "$INSTALL_CUSTOM_NODE_DEPS" = "true" ]; then \
+      set -eux; \
+      for req in */requirements.txt; do \
+        if [ -f "$req" ]; then \
+          tmp="/tmp/requirements.$(basename $(dirname "$req")).txt"; \
+          grep -viE '^(torch|torchaudio|torchvision|nvidia-)' "$req" > "$tmp" || true; \
+          if [ -s "$tmp" ]; then pip install -r "$tmp"; fi; \
+        fi; \
+      done; \
+    fi
 
 
 
