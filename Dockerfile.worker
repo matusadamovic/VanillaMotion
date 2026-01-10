@@ -71,4 +71,4 @@ COPY worker/bootstrap.sh /app/bootstrap.sh
 COPY worker/runner.py /app/runner.py
 RUN chmod +x /app/bootstrap.sh
 
-ENTRYPOINT ["/app/bootstrap.sh"]
+# WENTRYPOINT ["/app/bootstrap.sh"]
