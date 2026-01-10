@@ -146,27 +146,13 @@ def stop_comfy(proc: subprocess.Popen):
 
 def load_and_patch_workflow(input_filename: str) -> Dict[str, Any]:
     with open(WORKFLOW_PATH, "r", encoding="utf-8") as f:
-        wf = json.load(f)
+        prompt = json.load(f)
 
-    # If it's already API prompt format, just patch LoadImage and return
-    if isinstance(wf, dict) and "nodes" not in wf:
-        prompt = wf
-    else:
-        nodes = wf.get("nodes", [])
-        prompt: Dict[str, Any] = {}
+    # Fail fast: must be API prompt (node_id -> {class_type, inputs})
+    if not isinstance(prompt, dict) or "nodes" in prompt:
+        raise ValueError("WORKFLOW_PATH must be ComfyUI API prompt JSON (not UI workflow export).")
 
-        # UI export has nodes with "id" and "type". API wants {id: {class_type, inputs}}
-        for n in nodes:
-            nid = str(n.get("id"))
-            ctype = n.get("type")
-            if not nid or not ctype:
-                continue
-            prompt[nid] = {"class_type": ctype, "inputs": {}}
-
-        # NOTE: this converter is intentionally minimal; it relies on your workflow
-        # not needing complex wired inputs for the first run. The key is to fix class_type.
-
-    # Patch LoadImage nodes
+    # Patch all LoadImage nodes to use the downloaded input file
     for node in prompt.values():
         if node.get("class_type") == "LoadImage":
             node.setdefault("inputs", {})["image"] = input_filename

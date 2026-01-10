@@ -7,7 +7,7 @@ on:
     paths:
       - "Dockerfile.worker"
       - "worker/**"
-      - "i2v_WAN22_6step_3Samplers_GGUF_FirstLast.json"
+      - "workflow_api.json"
       - ".github/workflows/worker-image.yml"
 
 jobs:

@@ -18,7 +18,7 @@ RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
 # ComfyUI (use base image installation)
 RUN if [ ! -d "${COMFYUI_ROOT}" ]; then echo "ComfyUI not found at ${COMFYUI_ROOT}" >&2; exit 1; fi
 WORKDIR ${COMFYUI_ROOT}
-RUN /opt/venv/bin/pip install --no-cache-dir gguf piexif opencv-python-headless imageio-ffmpeg
+RUN /opt/venv/bin/pip install --no-cache-dir gguf piexif opencv-python-headless imageio-ffmpeg scikit-image
 # base image already provides /venv for ComfyUI; do not recreate or mutate it
 # Separate venv for worker runtime (do not pollute ComfyUI /venv)
 ENV WORKER_VENV=/worker-venv
@@ -67,7 +67,7 @@ RUN if [ "$INSTALL_CUSTOM_NODE_DEPS" = "true" ]; then \
 
 # Workflow a skripty
 WORKDIR /app
-COPY i2v_WAN22_6step_3Samplers_GGUF_FirstLast.json /app/workflow.json
+COPY workflow_api.json /app/workflow.json
 COPY worker/bootstrap.sh /app/bootstrap.sh
 COPY worker/runner.py /app/runner.py
 RUN chmod +x /app/bootstrap.sh
