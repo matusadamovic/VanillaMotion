@@ -17,8 +17,8 @@ MODEL_BUNDLE="${MODEL_BUNDLE_PATH:-}"
 echo "BOOT: starting"
 echo "BOOT: worker python=$(which python)"
 python -c "import sys; print('BOOT: worker sys.executable=', sys.executable)"
-/venv/bin/python -c "import sys; print('BOOT: comfy sys.executable=', sys.executable)"
-/venv/bin/python -c "import transformers; print('BOOT: comfy transformers=', transformers.__version__)"
+python3 -c "import sys; print('BOOT: python3 sys.executable=', sys.executable)" || true
+python3 -c "import transformers; print('BOOT: python3 transformers=', transformers.__version__)" || true
 echo "BOOT: HF_CACHE_ROOT=$HF_CACHE_ROOT"
 echo "BOOT: HF_MODEL_NAME=$HF_MODEL_NAME"
 echo "BOOT: MODEL_BUNDLE_PATH=${MODEL_BUNDLE_PATH:-<empty>}"
@@ -81,4 +81,5 @@ ln -sfn "$MODEL_BUNDLE/checkpoints_gguf"  "$COMFY_ROOT/models/checkpoints_gguf"
 echo "BOOT: symlinks ready"
 ls -lah "$COMFY_ROOT/models" | head -n 200 || true
 
+export COMFY_PYTHON="$(command -v python3 || command -v python)"
 exec /worker-venv/bin/python /app/runner.py

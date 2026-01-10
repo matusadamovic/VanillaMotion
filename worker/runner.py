@@ -89,8 +89,9 @@ def download_telegram_file(file_id: str, dest_path: pathlib.Path, max_size: int 
 
 
 def start_comfy(output_dir: pathlib.Path, temp_dir: pathlib.Path) -> subprocess.Popen:
+    comfy_python = os.environ.get("COMFY_PYTHON") or shutil.which("python3") or shutil.which("python") or "python3"
     cmd = [
-        "/venv/bin/python",
+        comfy_python,
         f"{COMFY_ROOT}/main.py",
         "--disable-auto-launch",
         "--listen",

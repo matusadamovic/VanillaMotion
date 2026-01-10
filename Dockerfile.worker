@@ -1,33 +1,74 @@
-# clean base image containing only comfyui, comfy-cli and comfyui-manager
 FROM runpod/worker-comfyui:5.5.1-base
 
-# install custom nodes into comfyui (first node with --mode remote to fetch updated cache)
-RUN comfy node install --exit-on-fail "Anything Everywhere" --mode remote
-RUN comfy node install --exit-on-fail "LazySwitchKJ"
-RUN comfy node install --exit-on-fail "INTConstant"
-RUN comfy node install --exit-on-fail "BOOLConstant"
-RUN comfy node install --exit-on-fail "ImageResizeKJv2"
-RUN comfy node install --exit-on-fail "UnetLoaderGGUF"
-RUN comfy node install --exit-on-fail "Width/Height Literal (Image Saver)"
-RUN comfy node install --exit-on-fail "RIFE VFI"
-RUN comfy node install --exit-on-fail "SimpleMath+"
-RUN comfy node install --exit-on-fail "Power Lora Loader (rgthree)"
-RUN comfy node install --exit-on-fail "VHS_VideoCombine"
-RUN comfy node install --exit-on-fail "ImpactCombineConditionings"
-# Could not install "Bookmark (rgthree)" - node resolution failed
-# Could not install "MarkdownNote" - node resolution failed
-# Could not install "Note" - node resolution failed
-# Could not install "Fast Groups Bypasser (rgthree)" - node resolution failed
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    COMFYUI_ROOT=/comfyui
 
-# download models into comfyui
-RUN comfy model download --url https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors --relative-path models/embeddings --filename umt5_xxl_fp8_e4m3fn_scaled.safetensors
-RUN comfy model download --url https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors --relative-path models/vae --filename wan_2.1_vae.safetensors
-# RUN # Could not find URL for remacri_original.pth
-# RUN # Could not find URL for DasiwaWAN22I2V14BTastysinV8_q8Low.gguf
-# RUN # Could not find URL for DasiwaWAN22I2V14BTastysinV8_q8High.gguf
-# RUN # Could not find URL for DasiwaWAN22I2V14BV8V1_midnightflirtHighV7.safetensors
-# RUN # Could not find URL for DasiwaWAN22I2V14BV8V1_midnightflirtLowV7.safetensors
-# RUN # Could not find URL for rife49.pth
+WORKDIR /app
 
-# copy all input data (like images or videos) into comfyui (uncomment and adjust if needed)
-# COPY input/ /comfyui/input/
+# Zakladne baliky
+RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+      git wget curl ffmpeg libgl1 ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
+# ComfyUI (use base image installation)
+RUN if [ ! -d "${COMFYUI_ROOT}" ]; then echo "ComfyUI not found at ${COMFYUI_ROOT}" >&2; exit 1; fi
+WORKDIR ${COMFYUI_ROOT}
+# base image already provides /venv for ComfyUI; do not recreate or mutate it
+# Separate venv for worker runtime (do not pollute ComfyUI /venv)
+ENV WORKER_VENV=/worker-venv
+RUN python -m venv ${WORKER_VENV}
+# (do not prepend worker venv to PATH; it breaks base runtime)
+RUN ${WORKER_VENV}/bin/pip install --upgrade pip
+
+# Pinned requirements (worker runtime)
+COPY worker/requirements.txt /tmp/requirements.txt
+RUN ${WORKER_VENV}/bin/pip install -r /tmp/requirements.txt
+
+
+# Custom nodes
+WORKDIR ${COMFYUI_ROOT}/custom_nodes
+RUN --mount=type=secret,id=github_token,required=false set -eux; \
+    token_file="/run/secrets/github_token"; \
+    if [ -f "$token_file" ] && [ -s "$token_file" ]; then \
+      base="https://x-access-token:$(cat $token_file)@github.com"; \
+    else \
+      base="https://github.com"; \
+    fi; \
+    git clone --depth 1 "$base/Kosinkadink/ComfyUI-VideoHelperSuite.git" comfyui-videohelpersuite && \
+    git clone --depth 1 "$base/Fannovel16/comfyui-frame-interpolation.git" comfyui-frame-interpolation && \
+    git clone --depth 1 "$base/kijai/ComfyUI-KJNodes.git" comfyui-kjnodes && \
+    git clone --depth 1 "$base/city96/ComfyUI-GGUF.git" comfyui-gguf && \
+    git clone --depth 1 "$base/rgthree/rgthree-comfy.git" rgthree-comfy && \
+    git clone --depth 1 "$base/chrisgoringe/cg-use-everywhere.git" cg-use-everywhere && \
+    git clone --depth 1 "$base/cubiq/ComfyUI_essentials.git" comfyui_essentials && \
+    git clone --depth 1 "$base/ltdrdata/ComfyUI-Impact-Pack.git" comfyui-impact-pack && \
+    git clone --depth 1 "$base/farizrifqi/ComfyUI-Image-Saver.git" comfyui-image-saver
+
+# Dotahovanie zavislosti custom nodes (optional; can be large)
+ARG INSTALL_CUSTOM_NODE_DEPS=false
+RUN if [ "$INSTALL_CUSTOM_NODE_DEPS" = "true" ]; then \
+      set -eux; \
+      for req in */requirements.txt; do \
+        if [ -f "$req" ]; then \
+          tmp="/tmp/requirements.$(basename $(dirname "$req")).txt"; \
+          grep -viE '^(torch|torchaudio|torchvision|nvidia-)' "$req" > "$tmp" || true; \
+          if [ -s "$tmp" ]; then ${WORKER_VENV}/bin/pip install -r "$tmp"; fi; \
+        fi; \
+      done; \
+    fi
+
+
+
+# Workflow a skripty
+WORKDIR /app
+COPY i2v_WAN22_6step_3Samplers_GGUF_FirstLast.json /app/workflow.json
+COPY worker/bootstrap.sh /app/bootstrap.sh
+COPY worker/runner.py /app/runner.py
+RUN chmod +x /app/bootstrap.sh
+
+ENTRYPOINT ["/app/bootstrap.sh"]
