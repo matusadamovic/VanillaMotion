@@ -238,7 +238,7 @@ def handler(event):
     temp_dir = job_dir / "temp"
     output_dir.mkdir(parents=True, exist_ok=True)
     temp_dir.mkdir(parents=True, exist_ok=True)
-    comfy_input_dir = pathlib.Path(COMFY_ROOT) / "input" / "image"
+    comfy_input_dir = pathlib.Path(COMFY_ROOT) / "input"
 
     try:
         state_row = mark_running(job_id)

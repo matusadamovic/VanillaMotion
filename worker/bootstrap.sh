@@ -68,15 +68,29 @@ for d in checkpoints loras vae clip checkpoints_gguf; do
   fi
 done
 
-# Mapovanie modelov do ComfyUI
-ln -sfn "$MODEL_BUNDLE/checkpoints"       "$COMFY_ROOT/models/checkpoints"
-ln -sfn "$MODEL_BUNDLE/loras"             "$COMFY_ROOT/models/loras"
-ln -sfn "$MODEL_BUNDLE/vae"               "$COMFY_ROOT/models/vae"
-ln -sfn "$MODEL_BUNDLE/clip"              "$COMFY_ROOT/models/clip"
-ln -sfn "$MODEL_BUNDLE/controlnet"        "$COMFY_ROOT/models/controlnet"
-ln -sfn "$MODEL_BUNDLE/upscale_models"    "$COMFY_ROOT/models/upscale_models"
-ln -sfn "$MODEL_BUNDLE/embeddings"        "$COMFY_ROOT/models/embeddings"
-ln -sfn "$MODEL_BUNDLE/checkpoints_gguf"  "$COMFY_ROOT/models/checkpoints_gguf"
+# FIX: Replace model dirs (do NOT nest symlinks inside existing directories)
+for d in checkpoints loras vae clip controlnet upscale_models embeddings checkpoints_gguf unet; do
+  rm -rf "$COMFY_ROOT/models/$d"
+done
+
+ln -s "$MODEL_BUNDLE/checkpoints"      "$COMFY_ROOT/models/checkpoints"
+ln -s "$MODEL_BUNDLE/loras"            "$COMFY_ROOT/models/loras"
+ln -s "$MODEL_BUNDLE/vae"              "$COMFY_ROOT/models/vae"
+ln -s "$MODEL_BUNDLE/clip"             "$COMFY_ROOT/models/clip"
+ln -s "$MODEL_BUNDLE/controlnet"       "$COMFY_ROOT/models/controlnet"
+ln -s "$MODEL_BUNDLE/upscale_models"   "$COMFY_ROOT/models/upscale_models"
+ln -s "$MODEL_BUNDLE/embeddings"       "$COMFY_ROOT/models/embeddings"
+ln -s "$MODEL_BUNDLE/checkpoints_gguf" "$COMFY_ROOT/models/checkpoints_gguf"
+
+# FIX: workflow používa UNETLoader -> ten štandardne listuje z /models/unet
+# Keďže v tvojom bundle nemáš unet/ adresár, namapuj ho na checkpoints (kde tie UNET .safetensors reálne máš)
+ln -s "$MODEL_BUNDLE/checkpoints" "$COMFY_ROOT/models/unet"
+
+
+# FIX: base image expects /runpod-volume/models/*
+rm -rf /runpod-volume/models || true
+ln -s /comfyui/models /runpod-volume/models
+
 
 echo "BOOT: symlinks ready"
 ls -lah "$COMFY_ROOT/models" | head -n 200 || true
