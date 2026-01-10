@@ -177,9 +177,11 @@ def load_and_patch_workflow(input_filename: str) -> Dict[str, Any]:
 def send_prompt(workflow: Dict[str, Any]) -> str:
     url = f"http://127.0.0.1:{COMFY_PORT}/prompt"
     resp = requests.post(url, json={"prompt": workflow}, timeout=30)
-if resp.status_code != 200:
-    logging.error("COMFY prompt rejected: status=%s body=%s", resp.status_code, resp.text)
-resp.raise_for_status()
+
+    if resp.status_code != 200:
+        logging.error("COMFY prompt rejected: status=%s body=%s", resp.status_code, resp.text)
+
+    resp.raise_for_status()
     data = resp.json()
     return data["prompt_id"]
 
