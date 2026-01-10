@@ -17,8 +17,12 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 MAX_IMAGE_BYTES = int(os.environ.get("MAX_IMAGE_BYTES", str(10 * 1024 * 1024)))
 RATE_LIMIT_SECONDS = int(os.environ.get("RATE_LIMIT_SECONDS", "30"))
 
+# If you want to guard against webhook re-deliveries in-memory (best effort)
+DEDUP_TTL_SECONDS = int(os.environ.get("DEDUP_TTL_SECONDS", "600"))
+
 app = FastAPI()
 rate_limit_cache: Dict[int, float] = {}
+dedup_cache: Dict[int, float] = {}  # update_id -> timestamp
 
 
 def db_conn():
@@ -28,9 +32,19 @@ def db_conn():
 async def send_placeholder(chat_id: int) -> int:
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(url, data={"chat_id": chat_id, "text": "Spracuvam video..."})
+        resp = await client.post(url, data={"chat_id": chat_id, "text": "Spracúvam video..."})
         resp.raise_for_status()
         return resp.json()["result"]["message_id"]
+
+
+async def edit_placeholder(chat_id: int, message_id: int, text: str) -> None:
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/editMessageText"
+    async with httpx.AsyncClient(timeout=30) as client:
+        # best-effort
+        try:
+            await client.post(url, data={"chat_id": chat_id, "message_id": message_id, "text": text})
+        except Exception:
+            pass
 
 
 async def submit_runpod(payload: Dict[str, Any]) -> str:
@@ -43,14 +57,38 @@ async def submit_runpod(payload: Dict[str, Any]) -> str:
         return data.get("id") or data.get("jobId") or ""
 
 
-def save_job(job_id: str, chat_id: int, placeholder_id: int, file_id: str, runpod_id: Optional[str]):
+def save_job_queued(job_id: str, chat_id: int, placeholder_id: int, file_id: str) -> None:
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO jobs (id, chat_id, placeholder_message_id, input_file_id, state, runpod_request_id)
-            VALUES (%s, %s, %s, %s, 'QUEUED', %s)
+            VALUES (%s, %s, %s, %s, 'QUEUED', NULL)
             """,
-            (job_id, chat_id, placeholder_id, file_id, runpod_id),
+            (job_id, chat_id, placeholder_id, file_id),
+        )
+
+
+def set_runpod_request_id(job_id: str, runpod_id: str) -> None:
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE jobs
+            SET runpod_request_id = %s, updated_at = NOW()
+            WHERE id = %s
+            """,
+            (runpod_id, job_id),
+        )
+
+
+def fail_job(job_id: str, error: str) -> None:
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE jobs
+            SET state = 'FAILED', error = %s, updated_at = NOW()
+            WHERE id = %s
+            """,
+            (error, job_id),
         )
 
 
@@ -78,7 +116,27 @@ def extract_file(update: Dict[str, Any]) -> Dict[str, Any]:
     return {"chat_id": chat_id, "file_id": file_id}
 
 
+def _dedup(update: Dict[str, Any]) -> None:
+    update_id = update.get("update_id")
+    if update_id is None:
+        return
+    now = time.time()
+
+    # cleanup
+    if dedup_cache:
+        cutoff = now - DEDUP_TTL_SECONDS
+        for k, ts in list(dedup_cache.items()):
+            if ts < cutoff:
+                dedup_cache.pop(k, None)
+
+    if update_id in dedup_cache:
+        raise HTTPException(status_code=200, detail="Duplicate update ignored")
+    dedup_cache[update_id] = now
+
+
 async def process_update(update: Dict[str, Any]) -> Dict[str, Any]:
+    _dedup(update)
+
     file_info = extract_file(update)
     chat_id = int(file_info["chat_id"])
     rate_limit(chat_id)
@@ -86,16 +144,31 @@ async def process_update(update: Dict[str, Any]) -> Dict[str, Any]:
     placeholder_id = await send_placeholder(chat_id)
     job_id = str(uuid.uuid4())
 
+    # IMPORTANT: insert job first to avoid worker race (worker calls mark_running)
+    try:
+        save_job_queued(job_id, chat_id, placeholder_id, file_info["file_id"])
+    except Exception as exc:
+        await edit_placeholder(chat_id, placeholder_id, f"Chyba: nepodarilo sa uložiť job do DB.\n{exc}")
+        raise
+
     payload = {
         "job_id": job_id,
         "chat_id": chat_id,
-        "placeholder_message_id": placeholder_id,
+        "placeholder_message_id": placeholder_id,  # worker môže ignorovať, nechávame kvôli kompatibilite
         "input_file_id": file_info["file_id"],
         "seed": None,
     }
-    runpod_id = await submit_runpod(payload)
-    save_job(job_id, chat_id, placeholder_id, file_info["file_id"], runpod_id)
-    return {"job_id": job_id, "runpod_request_id": runpod_id}
+
+    try:
+        runpod_id = await submit_runpod(payload)
+        if runpod_id:
+            set_runpod_request_id(job_id, runpod_id)
+        return {"job_id": job_id, "runpod_request_id": runpod_id}
+    except Exception as exc:
+        err = f"RunPod submit failed: {exc}"
+        fail_job(job_id, err)
+        await edit_placeholder(chat_id, placeholder_id, "Chyba: nepodarilo sa spustiť render. Skús znova o chvíľu.")
+        raise
 
 
 def clear_webhook():
@@ -119,6 +192,10 @@ async def poll_loop():
                 offset = update["update_id"] + 1
                 try:
                     await process_update(update)
+                except HTTPException as exc:
+                    # ignore dedup / rate limit etc.
+                    if exc.status_code not in (200, 429):
+                        print(f"polling http error: {exc.detail}")
                 except Exception as exc:
                     print(f"polling error: {exc}")
             await asyncio.sleep(1)
@@ -132,8 +209,17 @@ def run_long_polling():
 @app.post("/webhook")
 async def webhook(request: Request):
     update = await request.json()
-    result = await process_update(update)
-    return {"ok": True, **result}
+
+    # Fast-ack: schedule processing and return immediately
+    async def _bg():
+        try:
+            await process_update(update)
+        except Exception as exc:
+            # log only; Telegram already got 200
+            print(f"webhook background error: {exc}")
+
+    asyncio.create_task(_bg())
+    return {"ok": True}
 
 
 @app.get("/healthz")

@@ -8,7 +8,6 @@ import subprocess
 import tempfile
 import threading
 import time
-import uuid
 from typing import Any, Dict, Optional
 
 import psycopg2
@@ -42,8 +41,7 @@ def mark_running(job_id: str) -> Optional[Dict[str, Any]]:
             """,
             (job_id,),
         )
-        row = cur.fetchone()
-        return row
+        return cur.fetchone()
 
 
 def fetch_for_update(job_id: str) -> Optional[Dict[str, Any]]:
@@ -88,6 +86,11 @@ def download_telegram_file(file_id: str, dest_path: pathlib.Path, max_size: int 
     return pathlib.Path(file_path).suffix or ".png"
 
 
+def _stream_comfy_logs(stream):
+    for line in stream:
+        logging.info("COMFY %s", line.rstrip())
+
+
 def start_comfy(output_dir: pathlib.Path, temp_dir: pathlib.Path) -> subprocess.Popen:
     comfy_python = os.environ.get("COMFY_PYTHON") or shutil.which("python3") or shutil.which("python") or "python3"
     cmd = [
@@ -103,6 +106,8 @@ def start_comfy(output_dir: pathlib.Path, temp_dir: pathlib.Path) -> subprocess.
         "--temp-directory",
         str(temp_dir),
     ]
+
+    logging.info("Starting ComfyUI: %s", " ".join(cmd))
     proc = subprocess.Popen(
         cmd,
         cwd=COMFY_ROOT,
@@ -111,15 +116,16 @@ def start_comfy(output_dir: pathlib.Path, temp_dir: pathlib.Path) -> subprocess.
         text=True,
         bufsize=1,
     )
+    logging.info("ComfyUI pid=%s", proc.pid)
+
     if proc.stdout is not None:
         threading.Thread(target=_stream_comfy_logs, args=(proc.stdout,), daemon=True).start()
+
     wait_until = time.time() + COMFY_START_TIMEOUT
     last_exc: Optional[Exception] = None
     while time.time() < wait_until:
         if proc.poll() is not None:
-            raise RuntimeError(
-                f"ComfyUI exited early (code={proc.returncode}). Check COMFY logs above."
-            )
+            raise RuntimeError(f"ComfyUI exited early (code={proc.returncode}). Check COMFY logs above.")
         try:
             resp = requests.get(f"http://127.0.0.1:{COMFY_PORT}/history", timeout=2)
             if resp.status_code == 200:
@@ -127,13 +133,9 @@ def start_comfy(output_dir: pathlib.Path, temp_dir: pathlib.Path) -> subprocess.
         except Exception as exc:
             last_exc = exc
         time.sleep(2)
+
     proc.kill()
     raise RuntimeError(f"ComfyUI server did not start (timeout). Last error: {last_exc}")
-
-
-def _stream_comfy_logs(stream):
-    for line in stream:
-        logging.info("COMFY %s", line.rstrip())
 
 
 def stop_comfy(proc: subprocess.Popen):
@@ -172,42 +174,153 @@ def send_prompt(workflow: Dict[str, Any]) -> str:
     return data["prompt_id"]
 
 
+def _unwrap_history_payload(data: Dict[str, Any], prompt_id: str) -> Dict[str, Any]:
+    # Some ComfyUI builds return {"<prompt_id>": {...}}; others return {...}
+    if isinstance(data, dict) and prompt_id in data and isinstance(data[prompt_id], dict):
+        return data[prompt_id]
+    return data
+
+
+def _queue_snapshot() -> Optional[Dict[str, Any]]:
+    try:
+        r = requests.get(f"http://127.0.0.1:{COMFY_PORT}/queue", timeout=3)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        return None
+    return None
+
+
 def wait_for_prompt(prompt_id: str) -> Dict[str, Any]:
     url = f"http://127.0.0.1:{COMFY_PORT}/history/{prompt_id}"
-    deadline = time.time() + 900
+    deadline = time.time() + int(os.environ.get("COMFY_PROMPT_TIMEOUT", "1800"))  # default 30 min
+
+    last_log = 0.0
+    last_seen_outputs_count = -1
+    last_seen_mp4: Optional[str] = None
+
     while time.time() < deadline:
         resp = requests.get(url, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            status = data.get("status", {}).get("status")
-            if status == "completed":
-                return data
-            if status == "failed":
-                raise RuntimeError("ComfyUI prompt failed")
-        time.sleep(3)
+        if resp.status_code != 200:
+            time.sleep(2)
+            continue
+
+        raw = resp.json()
+        data = _unwrap_history_payload(raw, prompt_id)
+
+        status_obj = data.get("status") or {}
+        outputs_obj = data.get("outputs") or {}
+
+        # detect mp4 via history "outputs" if present (structure varies)
+        mp4_found = None
+        try:
+            if isinstance(outputs_obj, dict):
+                for v in outputs_obj.values():
+                    items = v if isinstance(v, list) else [v]
+                    for item in items:
+                        if not isinstance(item, dict):
+                            continue
+                        fn = (item.get("filename") or "")
+                        if fn.endswith(".mp4"):
+                            mp4_found = fn
+                            break
+                    if mp4_found:
+                        break
+        except Exception:
+            pass
+
+        # status fields seen in the wild
+        status_str = (
+            status_obj.get("status_str")
+            or status_obj.get("status")
+            or status_obj.get("state")
+            or ""
+        )
+        status_str_l = str(status_str).lower()
+
+        completed_flag = status_obj.get("completed")
+        success_flag = status_obj.get("success")
+
+        # Periodic progress logging (every ~5s)
+        now = time.time()
+        if now - last_log >= 5:
+            q = _queue_snapshot()
+            q_running = q.get("queue_running") if isinstance(q, dict) else None
+            q_pending = q.get("queue_pending") if isinstance(q, dict) else None
+
+            outputs_count = len(outputs_obj) if isinstance(outputs_obj, dict) else 0
+            if outputs_count != last_seen_outputs_count or mp4_found != last_seen_mp4:
+                logging.info(
+                    "COMFY_PROGRESS prompt_id=%s status=%s completed=%s success=%s outputs=%s mp4=%s queue_running=%s queue_pending=%s",
+                    prompt_id,
+                    status_str,
+                    completed_flag,
+                    success_flag,
+                    outputs_count,
+                    mp4_found,
+                    q_running,
+                    q_pending,
+                )
+                last_seen_outputs_count = outputs_count
+                last_seen_mp4 = mp4_found
+
+            last_log = now
+
+        # Completion conditions
+        if mp4_found:
+            return data
+
+        if completed_flag is True:
+            return data
+
+        if success_flag is True:
+            return data
+
+        if status_str_l in {"completed", "complete", "success", "succeeded", "done"}:
+            return data
+
+        # Failure conditions
+        if status_str_l in {"failed", "error", "cancelled", "canceled"}:
+            raise RuntimeError(f"ComfyUI prompt failed: status={status_str}")
+
+        time.sleep(2)
+
     raise TimeoutError("ComfyUI prompt timeout")
 
 
 def resolve_output_video(history: Dict[str, Any], output_dir: pathlib.Path) -> pathlib.Path:
-    outputs = history.get("outputs", {})
-    videos = []
-    for value in outputs.values():
-        if isinstance(value, list):
-            for item in value:
-                if isinstance(item, dict) and item.get("type") == "output" and item.get("filename", "").endswith(".mp4"):
-                    videos.append(item)
-    if videos:
-        item = videos[0]
-        subfolder = item.get("subfolder", "")
-        filename = item["filename"]
-        return output_dir.joinpath(subfolder, filename)
+    outputs = history.get("outputs") or {}
+
+    # 1) Try history metadata first
+    try:
+        if isinstance(outputs, dict):
+            for v in outputs.values():
+                items = v if isinstance(v, list) else [v]
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    fn = item.get("filename") or ""
+                    if not fn.endswith(".mp4"):
+                        continue
+                    sub = item.get("subfolder") or ""
+                    p = output_dir / sub / fn
+                    if p.exists():
+                        return p
+    except Exception:
+        pass
+
+    # 2) Scan persisted output directory
     candidates = sorted(output_dir.glob("**/*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not candidates:
-        comfy_out = pathlib.Path(COMFY_ROOT) / "output"
-        candidates = sorted(comfy_out.glob("**/*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not candidates:
-        raise RuntimeError("No output video produced")
-    return candidates[0]
+    if candidates:
+        return candidates[0]
+
+    # 3) Fallback to ComfyUI default output (just in case)
+    comfy_out = pathlib.Path(COMFY_ROOT) / "output"
+    candidates = sorted(comfy_out.glob("**/*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if candidates:
+        return candidates[0]
+
+    raise RuntimeError(f"No output video produced. output_dir={output_dir}")
 
 
 def upload_video(chat_id: int, message_id: int, video_path: pathlib.Path, caption: str = "Hotovo"):
@@ -234,11 +347,21 @@ def handler(event):
     file_id = payload["input_file_id"]
 
     job_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"job_{job_id}_", dir="/tmp"))
-    output_dir = job_dir / "output"
     temp_dir = job_dir / "temp"
-    output_dir.mkdir(parents=True, exist_ok=True)
     temp_dir.mkdir(parents=True, exist_ok=True)
+
+    # Persist outputs on volume so they survive cleanup/timeouts
+    persist_root = pathlib.Path(os.environ.get("PERSIST_ROOT", "/runpod-volume/out"))
+    run_id = time.strftime("%Y%m%d_%H%M%S")
+    output_dir = persist_root / job_id / run_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    logging.info("JOBDIR=%s", job_dir)
+    logging.info("OUTPUT_DIR(persist)=%s", output_dir)
+    logging.info("TEMP_DIR=%s", temp_dir)
+
     comfy_input_dir = pathlib.Path(COMFY_ROOT) / "input"
+    target: Optional[pathlib.Path] = None
 
     try:
         state_row = mark_running(job_id)
@@ -264,12 +387,29 @@ def handler(event):
         comfy_proc = start_comfy(output_dir=output_dir, temp_dir=temp_dir)
         try:
             workflow = load_and_patch_workflow(input_filename=input_filename)
+
+            # Save patched workflow for debugging
+            with open(output_dir / "workflow_patched.json", "w", encoding="utf-8") as f:
+                json.dump(workflow, f, ensure_ascii=False, indent=2)
+
             prompt_id = send_prompt(workflow)
+            logging.info("COMFY_SUBMITTED prompt_id=%s", prompt_id)
+
             history = wait_for_prompt(prompt_id)
+
+            with open(output_dir / "history.json", "w", encoding="utf-8") as f:
+                json.dump(history, f, ensure_ascii=False, indent=2)
+
+            logging.info("COMFY_DONE prompt_id=%s", prompt_id)
         finally:
             stop_comfy(comfy_proc)
 
         video_path = resolve_output_video(history, output_dir=output_dir)
+        logging.info(
+            "VIDEO_PATH=%s size_bytes=%s",
+            video_path,
+            video_path.stat().st_size if video_path.exists() else None,
+        )
 
         finalize_info = finalize(job_id, "COMPLETED")
         if finalize_info:
@@ -283,6 +423,14 @@ def handler(event):
         finalize(job_id, "FAILED", error=str(exc))
         return {"status": "failed", "error": str(exc)}
     finally:
+        # Always cleanup ComfyUI input file
+        try:
+            if target is not None and target.exists():
+                target.unlink()
+        except Exception:
+            logging.exception("Failed to cleanup comfy input file: %s", target)
+
+        # Cleanup temp job dir (outputs are persisted elsewhere)
         shutil.rmtree(job_dir, ignore_errors=True)
 
 
