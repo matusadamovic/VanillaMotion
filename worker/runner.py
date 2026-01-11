@@ -145,15 +145,169 @@ def stop_comfy(proc: subprocess.Popen):
     except Exception:
         proc.kill()
 
+
+# -----------------------------
+# Workflow logging helpers
+# -----------------------------
+def _get_title(node: Dict[str, Any]) -> str:
+    return str(((node.get("_meta") or {}).get("title") or "")).strip()
+
+
+def _guess_model_fields(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Heuristicky vyťahuje "čo sa loaduje" z inputs, lebo rôzne workflow používajú rôzne kľúče.
+    """
+    out: Dict[str, Any] = {}
+    candidate_keys = [
+        "ckpt_name",
+        "checkpoint",
+        "checkpoint_name",
+        "model_name",
+        "base_model",
+        "unet_name",
+        "unet",
+        "diffusion_model",
+        "diffusion_model_name",
+        "vae_name",
+        "vae",
+        "clip_name",
+        "clip",
+    ]
+    for k in candidate_keys:
+        v = inputs.get(k)
+        if isinstance(v, (str, int, float, bool)) and v not in ("", None):
+            out[k] = v
+    return out
+
+
+def _summarize_lora_slots(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    rgthree Power Lora Loader sloty majú tvar:
+      "lora_1": {"on": True, "lora": "...safetensors", "strength": 0.6}
+    """
+    slots: Dict[str, Any] = {}
+    for k, v in inputs.items():
+        if not isinstance(k, str) or not k.startswith("lora_"):
+            continue
+        if not isinstance(v, dict):
+            continue
+        slots[k] = {
+            "on": bool(v.get("on")),
+            "lora": v.get("lora"),
+            "strength": v.get("strength"),
+        }
+    return slots
+
+
+def summarize_workflow(prompt: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Vráti summary: model loadery + lory + prompty + či sa použil Step1 a/alebo Step3 LoRA.
+    """
+    models = []
+    loras = []
+    prompts = []
+
+    found_step1 = False
+    found_step3 = False
+    step1_any_lora_on = False
+    step3_any_lora_on = False
+
+    for node_id, node in prompt.items():
+        if not isinstance(node, dict):
+            continue
+
+        ct = str(node.get("class_type") or "")
+        inputs = node.get("inputs") or {}
+        if not isinstance(inputs, dict):
+            inputs = {}
+
+        # Prompty
+        if ct == "CLIPTextEncode":
+            t = _get_title(node)
+            text = inputs.get("text")
+            if isinstance(text, str):
+                prompts.append({"node_id": node_id, "title": t, "text": text})
+
+        # LoRA (rgthree)
+        if ct == "Power Lora Loader (rgthree)":
+            t = _get_title(node)
+            slots = _summarize_lora_slots(inputs)
+            loras.append({"node_id": node_id, "title": t, "slots": slots})
+
+            t_l = t.lower()
+            is_step1 = "step 1 lora" in t_l
+            is_step3 = "step 3 lora" in t_l
+            found_step1 = found_step1 or is_step1
+            found_step3 = found_step3 or is_step3
+
+            any_on = any(bool(s.get("on")) and s.get("lora") for s in slots.values())
+            if is_step1 and any_on:
+                step1_any_lora_on = True
+            if is_step3 and any_on:
+                step3_any_lora_on = True
+
+        # Model loadery (heuristika)
+        ct_l = ct.lower()
+        if any(x in ct_l for x in ["checkpoint", "loader", "load", "unet", "vae", "clip"]):
+            fields = _guess_model_fields(inputs)
+            if fields:
+                models.append(
+                    {
+                        "node_id": node_id,
+                        "class_type": ct,
+                        "title": _get_title(node),
+                        "fields": fields,
+                    }
+                )
+
+    # vyber “positive” / “negative” prompt podľa title
+    positive = None
+    negative = None
+    for p in prompts:
+        tl = (p.get("title") or "").lower()
+        if "positive" in tl and positive is None:
+            positive = p.get("text")
+        if "negative" in tl and negative is None:
+            negative = p.get("text")
+
+    # Step mode (zmysel: či Step3 LoRA reálne beží)
+    if found_step3:
+        if step3_any_lora_on:
+            step_mode = "STEP1_AND_STEP3"
+        else:
+            step_mode = "STEP1_ONLY (Step3 exists but all LoRA slots appear OFF)"
+    else:
+        step_mode = "STEP1_ONLY (no Step3 loader found)"
+
+    return {
+        "model_loaders": models,
+        "loras": loras,
+        "prompts": {
+            "positive": positive,
+            "negative": negative,
+            "all_cliptextencode_nodes": prompts,
+        },
+        "steps": {
+            "found_step1_loader": found_step1,
+            "found_step3_loader": found_step3,
+            "step1_any_lora_on": step1_any_lora_on,
+            "step3_any_lora_on": step3_any_lora_on,
+            "mode": step_mode,
+        },
+    }
+
+
 def _set_lora_slot(node: Dict[str, Any], slot: str, filename: str, strength: float) -> None:
     inputs = node.setdefault("inputs", {})
     inputs[slot] = {"on": True, "lora": filename, "strength": float(strength)}
+
 
 def _disable_lora_slot(node: Dict[str, Any], slot: str) -> None:
     inputs = node.setdefault("inputs", {})
     v = inputs.get(slot)
     if isinstance(v, dict):
         v["on"] = False
+
 
 def _patch_user_loras_rgthree(
     prompt: Dict[str, Any],
@@ -219,7 +373,10 @@ def _patch_user_loras_rgthree(
 
     # Voliteľné: keď máš pair, ale workflow nemá Step2 loader, stojí za to to aspoň zalogovať
     if lt == "pair" and not found_step2:
-        logging.warning("PAIR LoRA requested but no 'Step 2 Lora' rgthree loader found in workflow. HighNoise will not be applied.")
+        logging.warning(
+            "PAIR LoRA requested but no 'Step 2 Lora' rgthree loader found in workflow. HighNoise will not be applied."
+        )
+
 
 def load_and_patch_workflow(
     input_filename: str,
@@ -420,7 +577,12 @@ def wait_for_prompt(prompt_id: str) -> Dict[str, Any]:
 
             last_log = now
 
-        if mp4_found or completed_flag is True or success_flag is True or status_str_l in {"completed","complete","success","succeeded","done"}:
+        if (
+            mp4_found
+            or completed_flag is True
+            or success_flag is True
+            or status_str_l in {"completed", "complete", "success", "succeeded", "done"}
+        ):
             return data
 
         if status_str_l in {"failed", "error", "cancelled", "canceled"}:
@@ -551,10 +713,30 @@ def handler(event):
                 positive_prompt=positive_prompt,
             )
 
+            # Log: čo sme reálne poslali do Comfy (modely/loras/prompt/step1 vs step3)
+            summary = summarize_workflow(workflow)
+            logging.info("WORKFLOW_SUMMARY %s", json.dumps(summary, ensure_ascii=False))
+
+            # Log: čo prišlo z payloadu (aby si porovnal s patched workflow)
+            logging.info(
+                "JOB_PARAMS lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s positive_prompt=%s",
+                lora_type,
+                lora_filename,
+                lora_strength,
+                lora_high_filename,
+                lora_high_strength,
+                lora_low_filename,
+                lora_low_strength,
+                (positive_prompt[:120] + "…")
+                if isinstance(positive_prompt, str) and len(positive_prompt) > 120
+                else positive_prompt,
+            )
+
             with open(output_dir / "workflow_patched.json", "w", encoding="utf-8") as f:
                 json.dump(workflow, f, ensure_ascii=False, indent=2)
 
             prompt_id = send_prompt(workflow)
+            logging.infoU = logging.info  # avoid accidental shadowing in some edits
             logging.info("COMFY_SUBMITTED prompt_id=%s", prompt_id)
 
             history = wait_for_prompt(prompt_id)
@@ -567,7 +749,11 @@ def handler(event):
             stop_comfy(comfy_proc)
 
         video_path = resolve_output_video(history, output_dir=output_dir)
-        logging.info("VIDEO_PATH=%s size_bytes=%s", video_path, video_path.stat().st_size if video_path.exists() else None)
+        logging.info(
+            "VIDEO_PATH=%s size_bytes=%s",
+            video_path,
+            video_path.stat().st_size if video_path.exists() else None,
+        )
 
         finalize_info = finalize(job_id, "COMPLETED")
         if finalize_info:

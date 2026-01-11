@@ -4,15 +4,235 @@
     "type": "pair",
     "high_filename": "Wan22_CumV2_High.safetensors",
     "low_filename": "Wan22_CumV2_High.safetensors",
-    "high_strength": 1.0,
-    "low_strength": 1.0,
+    "high_strength": 0.6,
+    "low_strength": 0.6,
     "positive": "a man appears on the left part of the view, she has her mouth open and eyes closed, he is stroking his big penis back and forth with his hand, the penis tip taps her tongue with each downward stroke, cum shoots out of the penis and lands on her face and mouth, she reacts to the cum by closing her eyes and mouth and frowning, multiple ropes of cum across her face, she has a viscous cum strand going from the nose to the upper lip, cum pools in the corner of the mouth, some of the cum flows down her face, she lets out a soft closed-mouth smile, the cum is thick and sticky, the view is from the side"
   },
   "ahegao": {
     "label": "Ahegao",
     "type": "single",
     "filename": "ahegao_v1_e35_wan.safetensors",
-    "strength": 0.6,
+    "strength": 0.7,
     "positive": "A woman is kneeling looking at the viewer. She makes an erotic ahegao face, sticking her tongue out, looking up and crossing her eyes. Drool and spit drip off of her tongue as she sticks it out."
+  },
+    "fj": {
+    "label": "fj",
+    "type": "pair",
+    "high_filename": "fj_high-000012_converted.safetensors",
+    "low_filename": "fj_low.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "a woman showing legs focusing on feet from bottom, imitating footjob with feet"
+  },
+  "ff_v3": {
+    "label": "ff_v3",
+    "type": "pair",
+    "high_filename": "FF-v3-high-120.safetensors",
+    "low_filename": "FF-v3-low-120.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "A penis appears from the left/right/out of frame. He inserts his penis into her mouth. A man is moving his penis in and out of a woman's mouth. He is holding her head. Her cheeks are moving with the movements of the penis. After a second, he pushes his penis deep into her mouth, taking a moment to bulge her cheek out."
+  },
+  "flipoffahegao_noise": {
+    "label": "flipoffahegao_noise",
+    "type": "pair",
+    "high_filename": "flipOffAhegao_high_noise.safetensors",
+    "low_filename": "flipOffAhegao_low_noise.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "Shows her middle finger, flipping off the viewer."
+  },
+  "fludz_noise": {
+    "label": "fludz_noise",
+    "type": "pair",
+    "high_filename": "FLUDZ_000006250_high_noise.safetensors",
+    "low_filename": "FLUDZ_000006250_low_noise.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "a man's penis pokes into the frame from the left. the man strokes his penis with his hand. the penis squirts fluidz onto the woman's hair, face, cheeks, and nose. she raises her hands protectively, then watches the camera, annoyed"
+  },
+  "i2v_dildo_hj": {
+    "label": "i2v_dildo_hj",
+    "type": "pair",
+    "high_filename": "I2V_dildo_hj_high.safetensors",
+    "low_filename": "I2V_dildo_hj_low.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "The video begins with a close-up of a woman. The video immediately jumpcuts to the same woman now sitting at a desk in front of a penis-shaped dildo. She is giving the dildo a handjob, moving her hand up and down around the shaft. she looks directly at the camera throughout the video, a flirty look on her face."
+  },
+  "i2v_joi_trend": {
+    "label": "i2v_joi_trend",
+    "type": "pair",
+    "high_filename": "I2V_joi_trend_high.safetensors",
+    "low_filename": "I2V_joi_trend_low.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "She is sticking her tongue out. Her hand is performing a rapid, rhythmic motion, moving up and down at a speed that mimics the pace of a handjob."
+  },
+  "i2v_sexymove": {
+    "label": "i2v_sexymove",
+    "type": "pair",
+    "high_filename": "2.2-I2V-Hi-SexyMove.safetensors",
+    "low_filename": "2.2-I2V-Lo-SexyMove.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "She is doing a sexy move."
+  },
+  "pornmaster_wan_14b_i2v_double_penetration_v1_noise": {
+    "label": "pornmaster_wan_14b_i2v_double_penetration_v1_noise",
+    "type": "pair",
+    "high_filename": "Pornmaster_wan2.2_14b_I2V_double_penetration_v1_high_noise.safetensors",
+    "low_filename": "Pornmaster_wan2.2_14b_I2V_double_penetration_v1_low_noise.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "a woman, the camera quickly pulls back to reveal her vagina, her breasts are bouncing and her ass are bouncing, she was sitting and leaning back against a man, the man beneath her thrusting his penis in and out of her anus, another man on the left was thrusting his penis into and out of her pussy, their testicles continued to sway, her legs were spread apart, and her breasts could be seen spread apart, the man's buttocks were visible beneath her,"
+  },
+  "readyforbj_wan22_noise": {
+    "label": "readyforbj_wan22_noise",
+    "type": "pair",
+    "high_filename": "readyforbj_WAN22_000001250_high_noise.safetensors",
+    "low_filename": "readyforbj_WAN22_000001250_low_noise.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "A woman walks toward the viewer. She pulls her hair back and holds it up with both hands. She gets down on her knees. Then she opens her mouth wide and extends her tongue."
+  },
+  "wan_cumshot_i2v": {
+    "label": "wan_cumshot_i2v",
+    "type": "single",
+    "filename": "wan_cumshot_i2v.safetensors",
+    "strength": 1.0,
+    "positive": "Cum shoots from off screen and lands on her face and on her eye and on her hair. Her expression quickly changes as she looks shocked and turns toward the source of the cum looking very angry. A man's penis and hand partially enter the frame from the side and you can see him stroking his penis back and forth with his hand."
+  },
+  "wan_cumshot_i2v_22epo_k3nk": {
+    "label": "wan_cumshot_i2v_22epo_k3nk",
+    "type": "single",
+    "filename": "wan-cumshot-I2V-22epo-k3nk.safetensors",
+    "strength": 1.0,
+    "positive": "f4c3spl4sh. A woman receiving a facial cumshot. The scene is captured from a side angle, focusing on the woman's face and upper body. The woman is lying down with her sky blue eyes open, seemingly in a state of relaxation or anticipation. Her hair is blonde and spread out around her head, and she has a necklace around her neck. As the male partner begins to ejaculate, a stream of semen is directed towards her mouth. The force of the ejaculation is strong, and the trajectory of the semen is aimed directly at her open mouth. The quantity of semen is substantial, covering a significant portion of her face and neck area. The semen is white and contrasts sharply against her skin tone. The woman remains still throughout the process, showing any reaction until the end when she opens her eyes and looks up, reacting to the sensation or the completion of the act. There are no visible changes in camera perspective during the key moment, but the focus remains on the woman's face and the action of the ejaculation."
+  },
+  "wan_finger_licking_i2v_v10": {
+    "label": "wan_finger_licking_i2v_v10",
+    "type": "single",
+    "filename": "wan_finger_licking_i2v-480_v10.safetensors",
+    "strength": 1.0,
+    "positive": "licking fingers,sucking fingers"
+  },
+  "wan_i2v_orgasm_v1": {
+    "label": "wan_i2v_orgasm_v1",
+    "type": "pair",
+    "high_filename": "WAN-2.2-I2V-Orgasm-HIGH-v1.safetensors",
+    "low_filename": "WAN-2.2-I2V-Orgasm-LOW-v1.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "She is orgasming. She is experiencing an orgasm. As she orgasms, she throws her head back and opens her mouth as she moans loudly."
+  },
+  "wan2_14b_i2v_ahegao_irl_noise": {
+    "label": "wan2_14b_i2v_ahegao_irl_noise",
+    "type": "pair",
+    "high_filename": "wan2.2_14B_i2v_ahegao_irl_high_noise.safetensors",
+    "low_filename": "wan2.2_14B_i2v_ahegao_irl_low_noise.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "She does the ahegao face. She sticks her tongue out and crosses her eyes"
+  },
+  "wan2_i2v_oral_insertion_v1": {
+    "label": "wan2_i2v_oral_insertion_v1",
+    "type": "pair",
+    "high_filename": "wan2.2-i2v-high-oral-insertion-v1.0.safetensors",
+    "low_filename": "wan2.2-i2v-low-oral-insertion-v1.0.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "A man appears and she sucks his penis"
+  },
+  "wan2_i2v_t2v_flatchested": {
+    "label": "wan2_i2v_t2v_flatchested",
+    "type": "pair",
+    "high_filename": "WAN2.2_I2V-T2V_Flatchested_High.safetensors",
+    "low_filename": "WAN2.2_I2V-T2V_Flatchested_Low.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "a woman pulling of her top showing fl4t"
+  },
+  "wan2_t2v_i2v_14b_invisiblegrope_v1_qqqq4413": {
+    "label": "wan2_t2v_i2v_14b_invisiblegrope_v1_qqqq4413",
+    "type": "pair",
+    "high_filename": "WAN2.2_T2V_I2V-14B_INVISIBLEGROPE-HIGH-epoch29_v1.1_qqqq4413.safetensors",
+    "low_filename": "WAN2.2_T2V_I2V-14B_INVISIBLEGROPE-LOW-epoch35_v1.1_qqqq4413.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "invisiblegrope. A woman, her both breasts grabbed and alternately kneaded by a pair of invisible hands, the invisible fingers digging into the breasts causing obvious skin indentations. This showcases the depth of the invisible hands' grip on the breasts. The woman opens her mouth moaning. No hans visible on breasts."
+  },
+  "wan22_bbcdeepthroat_k3nk": {
+    "label": "wan22_bbcdeepthroat_k3nk",
+    "type": "pair",
+    "high_filename": "wan22-bbcdeepthroat-115epoc-high-k3nk.safetensors",
+    "low_filename": "wan22-bbcdeepthroat-155epoc-low-720-k3nk.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "the video starts with the camera zooming out revealing the woman kneeling on the floor, then, a naked black man enters from the left side, only his lower body is visible, with a large, fat, thick black cock. The cock is large with a prominent glans. The woman is attempting to deepthroat the man's cock. The scene is shot in a close-up view, focusing on the interaction between the cock and her mouth/throat. The man's dark, thick cock is prominently visible as it presses against her cheek and slides into her throat. Her eyes are closed, and she straining to take more of the shaft into her mouth. Her cheeks are hollowed from suction. The man's hand is visible, holding her head steady as he guides his cock into her mouth."
+  },
+  "wan22_biggestcock_noise_v1": {
+    "label": "wan22_biggestcock_noise_v1",
+    "type": "pair",
+    "high_filename": "Wan22_BiggestCock_high_noise_V1.safetensors",
+    "low_filename": "Wan22_BiggestCock_low_noise_V1.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "a woman is kneeling in front of a man and leaning forward towards him, he has a giant penis, he is face fucking her, she is grabbing his penis, she rapidly moves her head back and forth along the length of the penis, then she gives him a deepthroat blowjob, her mouth is stretched, then she gags on the penis and he moves her head back until the penis is no longer in her mouth, the camera moves right"
+  },
+  "wan22_cumshot_k3nk": {
+    "label": "wan22_cumshot_k3nk",
+    "type": "pair",
+    "high_filename": "wan22-cumshot-54epoc-high-k3nk.safetensors",
+    "low_filename": "wan22-cumshot-54epoc-low-k3nk.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "f4c3spl4sh. a woman performing simple body movements when (a penis with round testicles slides in from the left side:1.5). The penis with round testicles ejaculates on the woman's face. The woman's eyes are open and her mouth is wide open with her tongue out and a toothy smile. The semen is thick and stringy, and a considerable amount lands on her tongue, lips, nose and chin. The cum splashes all over her face, especially her forehead, cheeks, nose, chin, lips and eyes."
+  },
+  "wan22_f4c3cr34m_i2v_k3nk": {
+    "label": "wan22_f4c3cr34m_i2v_k3nk",
+    "type": "pair",
+    "high_filename": "wan22-f4c3cr34m-100epoc-i2v-high-k3nk.safetensors",
+    "low_filename": "wan22-f4c3cr34m-117epoc-i2v-low-k3nk.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "f4c3cr34m, {the camera zooms in onto the woman's face when|a woman is looking at the viewer when} a man's hand holding penis slides in from the left side, the man is jerking off his penis causing ejaculating semen onto the woman's forehead, creating a white, dense stream that spreads across her face. The woman's eyes are closed, and her facial expression changes from neutral to a slight grimace as the semen hits her forehead. Her eyebrows are slightly furrowed, and her mouth is slightly open. The man's hand remains steady on the woman's head throughout the process."
+  },
+  "wan22_i2v_feetup_v3_noise": {
+    "label": "wan22_i2v_feetup_v3_noise",
+    "type": "pair",
+    "high_filename": "wan22_i2v_feetup_V3_high_noise.safetensors",
+    "low_filename": "wan22_i2v_feetup_V3_low_noise.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "A woman putting her feet up on the table and flexing her toes wide, revealing wide bare soles with deep wrinkles."
+  },
+  "wan22_mouthfull_k3nk": {
+    "label": "wan22_mouthfull_k3nk",
+    "type": "pair",
+    "high_filename": "wan22-mouthfull-140epoc-high-k3nk.safetensors",
+    "low_filename": "wan22-mouthfull-152epoc-low-k3nk.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "m0u7hfu11, the scene begins with the camera zooming in onto the woman's face while the man's hand holding his penis near her mouth, with her mouth open wide. The focus is on the act of oral ejaculation, with the man's hand holding the penis near her mouth. The woman appears to be in a state of arousal, with her eyes closed and lips parted. Seminal fluid being ejaculate from the penis is visible as it fills her mouth, dripping from her lips and pooling on her tongue. The camera angle is an extreme close-up, focusing on the open mouth and the action of swallowing. There are no other other participants or significant background details visible in the frame."
+  },
+  "wan22_side_deepthroat_k3nk": {
+    "label": "wan22_side_deepthroat_k3nk",
+    "type": "pair",
+    "high_filename": "wan22-side-deepthroat-54epoc-high-k3nk.safetensors",
+    "low_filename": "wan22-side-deepthroat-12epoc-low-k3nk.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "a woman swallowing a penis in deepthroat, the woman is kneeling over the penis, she swallows the whole dick touching the testicles with her chin, she sucks it from tip to base, the man grabs her by the hair"
+  },
+  "wan22_ultimatedeepthroat_i2v_k3nk": {
+    "label": "wan22_ultimatedeepthroat_i2v_k3nk",
+    "type": "pair",
+    "high_filename": "wan22-ultimatedeepthroat-i2v-102epoc-high-k3nk.safetensors",
+    "low_filename": "wan22-ultimatedeepthroat-I2V-101epoc-low-k3nk.safetensors",
+    "high_strength": 1.0,
+    "low_strength": 0.8,
+    "positive": "a cinematic scene with a woman in the frame, a man enters from the side, only his lower body is visible, side view of his hips, thighs and legs, with a gigantic erected penis with testicles appears and she starts engaging in a deepthroat blowjob with that penis. She swallows the entire penis, her nose smashes agains the man's hips. She moves her head back and fort swallowing the penis, realistic proportions, natural lighting, cinematic composition"
   }
 }
+

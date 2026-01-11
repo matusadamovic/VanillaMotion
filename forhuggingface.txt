@@ -1,0 +1,187 @@
+hf upload matadamovic/vanillamotionbotmodels \
+  2.2-I2V-Hi-SexyMove.safetensors \
+  loras/2.2-I2V-Hi-SexyMove.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  2.2-I2V-Lo-SexyMove.safetensors \
+  loras/2.2-I2V-Lo-SexyMove.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  FF-v3-high-120.safetensors \
+  loras/FF-v3-high-120.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  FF-v3-low-120.safetensors \
+  loras/FF-v3-low-120.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  FLUDZ_000006250_high_noise.safetensors \
+  loras/FLUDZ_000006250_high_noise.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  FLUDZ_000006250_low_noise.safetensors \
+  loras/FLUDZ_000006250_low_noise.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  I2V_dildo_hj_high.safetensors \
+  loras/I2V_dildo_hj_high.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  I2V_dildo_hj_low.safetensors \
+  loras/I2V_dildo_hj_low.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  I2V_joi_trend_high.safetensors \
+  loras/I2V_joi_trend_high.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  I2V_joi_trend_low.safetensors \
+  loras/I2V_joi_trend_low.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  Pornmaster_wan 2.2_14b_I2V_ double_penetration_v1_high_noise.safetensors \
+  loras/Pornmaster_wan 2.2_14b_I2V_ double_penetration_v1_high_noise.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  Pornmaster_wan 2.2_14b_I2V_ double_penetration_v1_low_noise.safetensors \
+  loras/Pornmaster_wan 2.2_14b_I2V_ double_penetration_v1_low_noise.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  WAN-2.2-I2V-Orgasm-HIGH-v1.safetensors \
+  loras/WAN-2.2-I2V-Orgasm-HIGH-v1.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  WAN-2.2-I2V-Orgasm-LOW-v1.safetensors \
+  loras/WAN-2.2-I2V-Orgasm-LOW-v1.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  WAN2.2_I2V-T2V_Flatchested_High.safetensors \
+  loras/WAN2.2_I2V-T2V_Flatchested_High.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  WAN2.2_I2V-T2V_Flatchested_Low.safetensors \
+  loras/WAN2.2_I2V-T2V_Flatchested_Low.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  WAN2.2_T2V_I2V-14B_INVISIBLEGROPE-HIGH-epoch29_v1.1_qqqq4413.safetensors \
+  loras/WAN2.2_T2V_I2V-14B_INVISIBLEGROPE-HIGH-epoch29_v1.1_qqqq4413.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  WAN2.2_T2V_I2V-14B_INVISIBLEGROPE-LOW-epoch35_v1.1_qqqq4413.safetensors \
+  loras/WAN2.2_T2V_I2V-14B_INVISIBLEGROPE-LOW-epoch35_v1.1_qqqq4413.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  Wan22_BiggestCock_high_noise_V1.safetensors \
+  loras/Wan22_BiggestCock_high_noise_V1.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  Wan22_BiggestCock_low_noise_V1.safetensors \
+  loras/Wan22_BiggestCock_low_noise_V1.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  fj_high-000012_converted.safetensors \
+  loras/fj_high-000012_converted.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  fj_low.safetensors \
+  loras/fj_low.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  flipOffAhegao_high_noise.safetensors \
+  loras/flipOffAhegao_high_noise.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  flipOffAhegao_low_noise.safetensors \
+  loras/flipOffAhegao_low_noise.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  readyforbj_WAN22_000001250_high_noise.safetensors \
+  loras/readyforbj_WAN22_000001250_high_noise.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  readyforbj_WAN22_000001250_low_noise.safetensors \
+  loras/readyforbj_WAN22_000001250_low_noise.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan-cumshot-I2V-22epo-k3nk.safetensors \
+  loras/wan-cumshot-I2V-22epo-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan2.2-i2v-high-oral-insertion-v1.0.safetensors \
+  loras/wan2.2-i2v-high-oral-insertion-v1.0.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan2.2-i2v-low-oral-insertion-v1.0.safetensors \
+  loras/wan2.2-i2v-low-oral-insertion-v1.0.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan2.2_14B_i2v_ahegao_irl_high_noise.safetensors \
+  loras/wan2.2_14B_i2v_ahegao_irl_high_noise.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan2.2_14B_i2v_ahegao_irl_low_noise.safetensors \
+  loras/wan2.2_14B_i2v_ahegao_irl_low_noise.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22-bbcdeepthroat-115epoc-high-k3nk.safetensors \
+  loras/wan22-bbcdeepthroat-115epoc-high-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22-bbcdeepthroat-155epoc-low-720-k3nk.safetensors \
+  loras/wan22-bbcdeepthroat-155epoc-low-720-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22-cumshot-54epoc-high-k3nk.safetensors \
+  loras/wan22-cumshot-54epoc-high-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22-cumshot-54epoc-low-k3nk.safetensors \
+  loras/wan22-cumshot-54epoc-low-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22-f4c3cr34m-100epoc-i2v-high-k3nk.safetensors \
+  loras/wan22-f4c3cr34m-100epoc-i2v-high-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22-f4c3cr34m-117epoc-i2v-low-k3nk.safetensors \
+  loras/wan22-f4c3cr34m-117epoc-i2v-low-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22-mouthfull-140epoc-high-k3nk.safetensors \
+  loras/wan22-mouthfull-140epoc-high-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22-mouthfull-152epoc-low-k3nk.safetensors \
+  loras/wan22-mouthfull-152epoc-low-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22-side-deepthroat-12epoc-low-k3nk.safetensors \
+  loras/wan22-side-deepthroat-12epoc-low-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22-side-deepthroat-54epoc-high-k3nk.safetensors \
+  loras/wan22-side-deepthroat-54epoc-high-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22-ultimatedeepthroat-I2V-101epoc-low-k3nk.safetensors \
+  loras/wan22-ultimatedeepthroat-I2V-101epoc-low-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22-ultimatedeepthroat-i2v-102epoc-high-k3nk.safetensors \
+  loras/wan22-ultimatedeepthroat-i2v-102epoc-high-k3nk.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22_i2v_feetup_V3_high_noise.safetensors \
+  loras/wan22_i2v_feetup_V3_high_noise.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan22_i2v_feetup_V3_low_noise.safetensors \
+  loras/wan22_i2v_feetup_V3_low_noise.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan_cumshot_i2v.safetensors \
+  loras/wan_cumshot_i2v.safetensors
+
+hf upload matadamovic/vanillamotionbotmodels \
+  wan_finger_licking_i2v-480_v10.safetensors \
+  loras/wan_finger_licking_i2v-480_v10.safetensors
