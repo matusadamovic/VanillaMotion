@@ -761,7 +761,7 @@
     },
     "101": {
         "inputs": {
-            "value": 6
+            "value": 24
         },
         "class_type": "INTConstant",
         "_meta": {
