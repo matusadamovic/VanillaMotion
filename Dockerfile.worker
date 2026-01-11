@@ -15,7 +15,7 @@ RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-# ComfyUI (use base image installation)
+# ComfyUI (use base image installationn)
 RUN if [ ! -d "${COMFYUI_ROOT}" ]; then echo "ComfyUI not found at ${COMFYUI_ROOT}" >&2; exit 1; fi
 WORKDIR ${COMFYUI_ROOT}
 RUN /opt/venv/bin/pip install --no-cache-dir gguf piexif opencv-python-headless imageio-ffmpeg scikit-image \

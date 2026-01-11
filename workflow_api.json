@@ -350,7 +350,7 @@
             "crf": 19,
             "save_metadata": true,
             "trim_to_audio": false,
-            "pingpong": "yuv420p",
+            "pingpong": false,
             "save_output": 19,
             "images": [
                 "9",
@@ -761,7 +761,7 @@
     },
     "101": {
         "inputs": {
-            "value": 24
+            "value": 48
         },
         "class_type": "INTConstant",
         "_meta": {
