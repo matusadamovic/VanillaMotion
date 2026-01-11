@@ -229,15 +229,32 @@ async def process_callback(update: Dict[str, Any]) -> None:
     row = set_queue(job_id, lora_key)
 
     payload = {
-        "job_id": job_id,
-        "chat_id": int(row["chat_id"]),
-        "input_file_id": row["input_file_id"],
-        "lora_key": lora_key,
-        # explicit: worker does not need DB prompts nor local catalog
-        "lora_filename": cfg.get("filename"),
-        "lora_strength": cfg.get("strength"),
-        "positive_prompt": cfg.get("positive"),
+    "job_id": job_id,
+    "chat_id": int(row["chat_id"]),
+    "input_file_id": row["input_file_id"],
+    "lora_key": lora_key,
+
+    # nové:
+    "lora_type": (cfg.get("type") or "single"),
+    "positive_prompt": cfg.get("positive"),
     }
+
+    if str(payload["lora_type"]).lower() == "pair":
+        payload.update(
+            {
+                "lora_high_filename": cfg.get("high_filename"),
+                "lora_high_strength": cfg.get("high_strength", 1.0),
+                "lora_low_filename": cfg.get("low_filename"),
+                "lora_low_strength": cfg.get("low_strength", 1.0),
+            }
+        )
+    else:
+        payload.update(
+            {
+                "lora_filename": cfg.get("filename"),
+                "lora_strength": cfg.get("strength", 1.0),
+            }
+        )
 
     runpod_id = await submit_runpod(payload)
     if runpod_id:

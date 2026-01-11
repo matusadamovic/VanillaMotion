@@ -145,11 +145,91 @@ def stop_comfy(proc: subprocess.Popen):
     except Exception:
         proc.kill()
 
+def _set_lora_slot(node: Dict[str, Any], slot: str, filename: str, strength: float) -> None:
+    inputs = node.setdefault("inputs", {})
+    inputs[slot] = {"on": True, "lora": filename, "strength": float(strength)}
+
+def _disable_lora_slot(node: Dict[str, Any], slot: str) -> None:
+    inputs = node.setdefault("inputs", {})
+    v = inputs.get(slot)
+    if isinstance(v, dict):
+        v["on"] = False
+
+def _patch_user_loras_rgthree(
+    prompt: Dict[str, Any],
+    *,
+    lora_type: str,
+    lora_filename: Optional[str],
+    lora_strength: Optional[float],
+    lora_high_filename: Optional[str],
+    lora_high_strength: Optional[float],
+    lora_low_filename: Optional[str],
+    lora_low_strength: Optional[float],
+    slot: str = "lora_2",
+) -> None:
+    """
+    Patchuje iba user slot (default lora_2), aby sme nezničili autorove default LoRA v lora_1.
+    - single: dá loru do Step 1/2/3
+    - pair: Step1 vypne, Step2=high, Step3=low
+    """
+    lt = (lora_type or "single").lower()
+
+    found_step2 = False
+    found_step1 = False
+    found_step3 = False
+
+    for node in prompt.values():
+        if node.get("class_type") != "Power Lora Loader (rgthree)":
+            continue
+
+        title = ((node.get("_meta") or {}).get("title") or "").lower()
+        is_step1 = "step 1 lora" in title
+        is_step2 = "step 2 lora" in title
+        is_step3 = "step 3 lora" in title
+
+        if not (is_step1 or is_step2 or is_step3):
+            continue
+
+        found_step1 = found_step1 or is_step1
+        found_step2 = found_step2 or is_step2
+        found_step3 = found_step3 or is_step3
+
+        if lt == "pair":
+            if is_step1:
+                _disable_lora_slot(node, slot)
+
+            if is_step2:
+                if lora_high_filename:
+                    _set_lora_slot(node, slot, lora_high_filename, float(lora_high_strength or 1.0))
+                else:
+                    _disable_lora_slot(node, slot)
+
+            if is_step3:
+                if lora_low_filename:
+                    _set_lora_slot(node, slot, lora_low_filename, float(lora_low_strength or 1.0))
+                else:
+                    _disable_lora_slot(node, slot)
+
+        else:
+            # single
+            if lora_filename:
+                _set_lora_slot(node, slot, lora_filename, float(lora_strength or 1.0))
+            else:
+                _disable_lora_slot(node, slot)
+
+    # Voliteľné: keď máš pair, ale workflow nemá Step2 loader, stojí za to to aspoň zalogovať
+    if lt == "pair" and not found_step2:
+        logging.warning("PAIR LoRA requested but no 'Step 2 Lora' rgthree loader found in workflow. HighNoise will not be applied.")
 
 def load_and_patch_workflow(
     input_filename: str,
+    lora_type: str,
     lora_filename: Optional[str],
     lora_strength: Optional[float],
+    lora_high_filename: Optional[str],
+    lora_high_strength: Optional[float],
+    lora_low_filename: Optional[str],
+    lora_low_strength: Optional[float],
     positive_prompt: Optional[str],
 ) -> Dict[str, Any]:
     with open(WORKFLOW_PATH, "r", encoding="utf-8") as f:
@@ -173,35 +253,78 @@ def load_and_patch_workflow(
             if "positive prompt" in title:
                 node.setdefault("inputs", {})["text"] = positive_prompt
 
-    # Patch LoRA loaders if provided
-    if lora_filename:
-        lora_path = pathlib.Path("/runpod-volume/models/loras") / lora_filename
-        if not lora_path.exists():
-            raise FileNotFoundError(f"LoRA file not found: {lora_path}")
+    # ---- LoRA patching (TAILORED to your workflow: Step 1 + Step 3 only) ----
+    def _assert_lora_exists(filename: str) -> None:
+        p = pathlib.Path("/runpod-volume/models/loras") / filename
+        if not p.exists():
+            raise FileNotFoundError(f"LoRA file not found: {p}")
 
-        strength_val = float(lora_strength) if lora_strength is not None else 1.0
+    def _set_lora(inputs: Dict[str, Any], slot: str, filename: str, strength: float) -> None:
+        inputs[slot] = {"on": True, "lora": filename, "strength": float(strength)}
 
-        for node in prompt.values():
-            if node.get("class_type") != "Power Lora Loader (rgthree)":
+    def _set_off(inputs: Dict[str, Any], slot: str) -> None:
+        v = inputs.get(slot)
+        if isinstance(v, dict):
+            v["on"] = False
+
+    lt = (lora_type or "single").lower()
+
+    # Fail-fast validate files
+    if lt == "pair":
+        if not lora_high_filename or not lora_low_filename:
+            raise ValueError("PAIR LoRA requires both lora_high_filename and lora_low_filename")
+        _assert_lora_exists(lora_high_filename)
+        _assert_lora_exists(lora_low_filename)
+    else:
+        if lora_filename:
+            _assert_lora_exists(lora_filename)
+
+    # Apply:
+    # - single: Step1.lora_1 = file, Step3.lora_2 = file (keep Step3.lora_1 reserved/off)
+    # - pair:   Step1.lora_1 = high, Step3.lora_2 = low  (keep Step3.lora_1 reserved/off)
+    for node in prompt.values():
+        if node.get("class_type") != "Power Lora Loader (rgthree)":
+            continue
+
+        title = ((node.get("_meta") or {}).get("title") or "").lower()
+        if "step 1 lora" not in title and "step 3 lora" not in title:
+            continue
+
+        inputs = node.setdefault("inputs", {})
+
+        if lt == "pair":
+            high_s = float(lora_high_strength) if lora_high_strength is not None else 1.0
+            low_s = float(lora_low_strength) if lora_low_strength is not None else 1.0
+
+            if "step 1 lora" in title:
+                # Step 1 has only lora_1 in your workflow
+                _set_lora(inputs, "lora_1", lora_high_filename, high_s)
+
+            if "step 3 lora" in title:
+                # Keep lora_1 reserved/off (in your workflow it holds a lightning low-noise filename)
+                _set_off(inputs, "lora_1")
+                _set_lora(inputs, "lora_2", lora_low_filename, low_s)
+
+        else:
+            # single
+            if not lora_filename:
+                # nothing selected -> keep off (also avoids any accidental previous state)
+                if "step 1 lora" in title:
+                    _set_off(inputs, "lora_1")
+                if "step 3 lora" in title:
+                    _set_off(inputs, "lora_1")
+                    _set_off(inputs, "lora_2")
                 continue
 
-            title = ((node.get("_meta") or {}).get("title") or "").lower()
-            # Only patch known nodes in this workflow
-            if "step 1 lora" not in title and "step 3 lora" not in title:
-                continue
+            s = float(lora_strength) if lora_strength is not None else 1.0
 
-            inputs = node.setdefault("inputs", {})
+            if "step 1 lora" in title:
+                _set_lora(inputs, "lora_1", lora_filename, s)
 
-            # Disable all existing lora slots
-            for k, v in list(inputs.items()):
-                if k.startswith("lora_") and isinstance(v, dict):
-                    v["on"] = False
-
-            inputs["lora_1"] = {
-                "on": True,
-                "lora": lora_filename,
-                "strength": strength_val,
-            }
+            if "step 3 lora" in title:
+                # Keep lora_1 reserved/off; apply user lora into lora_2
+                _set_off(inputs, "lora_1")
+                _set_lora(inputs, "lora_2", lora_filename, s)
 
     return prompt
 
@@ -367,8 +490,17 @@ def handler(event):
     chat_id = int(payload["chat_id"])
     file_id = payload["input_file_id"]
 
+    lora_type = (payload.get("lora_type") or "single")
+
     lora_filename = payload.get("lora_filename")
     lora_strength = payload.get("lora_strength")
+
+    lora_high_filename = payload.get("lora_high_filename")
+    lora_high_strength = payload.get("lora_high_strength")
+
+    lora_low_filename = payload.get("lora_low_filename")
+    lora_low_strength = payload.get("lora_low_strength")
+
     positive_prompt = payload.get("positive_prompt")
 
     job_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"job_{job_id}_", dir="/tmp"))
@@ -409,8 +541,13 @@ def handler(event):
         try:
             workflow = load_and_patch_workflow(
                 input_filename=input_filename,
+                lora_type=lora_type,
                 lora_filename=lora_filename,
                 lora_strength=lora_strength,
+                lora_high_filename=lora_high_filename,
+                lora_high_strength=lora_high_strength,
+                lora_low_filename=lora_low_filename,
+                lora_low_strength=lora_low_strength,
                 positive_prompt=positive_prompt,
             )
 
