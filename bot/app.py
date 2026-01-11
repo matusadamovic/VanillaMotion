@@ -21,6 +21,9 @@ DEDUP_TTL_SECONDS = int(os.environ.get("DEDUP_TTL_SECONDS", "600"))
 
 LORA_CATALOG_PATH = os.environ.get("LORA_CATALOG_PATH", "/app/loras.json")
 
+# 4 buttons max (2x2 grid) + paging arrows
+PAGE_SIZE = int(os.environ.get("LORA_PAGE_SIZE", "4"))  # keep 4 by default
+
 
 def load_lora_catalog() -> Dict[str, Any]:
     with open(LORA_CATALOG_PATH, "r", encoding="utf-8") as f:
@@ -31,6 +34,7 @@ def load_lora_catalog() -> Dict[str, Any]:
 
 
 LORA_CATALOG = load_lora_catalog()
+LORA_KEYS = sorted(LORA_CATALOG.keys())
 
 rate_limit_cache: Dict[int, float] = {}
 dedup_cache: Dict[int, float] = {}  # update_id -> timestamp
@@ -46,6 +50,9 @@ async def tg_post(method: str, data: Dict[str, Any], timeout: float = 30.0) -> D
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{method}"
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(url, data=data)
+        if resp.status_code >= 400:
+            # make failures debuggable (e.g., BUTTON_DATA_INVALID)
+            print("Telegram error:", resp.status_code, resp.text)
         resp.raise_for_status()
         return resp.json()
 
@@ -69,11 +76,52 @@ async def answer_callback(callback_query_id: str) -> None:
         return
 
 
-def build_lora_keyboard(job_id: str) -> str:
+async def edit_keyboard(chat_id: int, message_id: int, reply_markup: str) -> None:
+    # Updates only the inline keyboard; keeps text intact
+    await tg_post(
+        "editMessageReplyMarkup",
+        {"chat_id": chat_id, "message_id": message_id, "reply_markup": reply_markup},
+        timeout=15.0,
+    )
+
+
+def build_lora_keyboard(job_id: str, page: int = 0) -> str:
+    total = len(LORA_KEYS)
+    if total == 0:
+        return json.dumps({"inline_keyboard": []})
+
+    page_size = max(1, int(PAGE_SIZE))
+    max_page = (total - 1) // page_size
+    page = max(0, min(int(page), max_page))
+
+    start = page * page_size
+    end = min(start + page_size, total)
+    chunk = LORA_KEYS[start:end]
+
     rows = []
-    for key, cfg in LORA_CATALOG.items():
-        label = str(cfg.get("label") or key)
-        rows.append([{"text": label, "callback_data": f"lora:{key}:{job_id}"}])
+    # 2x2 grid for up to 4 options
+    for i in range(0, len(chunk), 2):
+        row = []
+        for j in range(2):
+            if i + j >= len(chunk):
+                break
+            key = chunk[i + j]
+            cfg = LORA_CATALOG[key]
+            label = str(cfg.get("label") or key)
+
+            # IMPORTANT: keep callback_data short; use index instead of key
+            idx = start + (i + j)
+            row.append({"text": label, "callback_data": f"l:{idx}:{job_id}"})
+        rows.append(row)
+
+    nav = []
+    if page > 0:
+        nav.append({"text": "‹", "callback_data": f"p:{page-1}:{job_id}"})
+    nav.append({"text": f"{page+1}/{max_page+1}", "callback_data": f"noop:{job_id}"})
+    if page < max_page:
+        nav.append({"text": "›", "callback_data": f"p:{page+1}:{job_id}"})
+    rows.append(nav)
+
     return json.dumps({"inline_keyboard": rows})
 
 
@@ -83,7 +131,7 @@ async def send_lora_picker(chat_id: int, job_id: str) -> None:
         {
             "chat_id": chat_id,
             "text": "Vyber štýl (LoRA):",
-            "reply_markup": build_lora_keyboard(job_id),
+            "reply_markup": build_lora_keyboard(job_id, page=0),
         },
     )
 
@@ -216,27 +264,67 @@ async def process_callback(update: Dict[str, Any]) -> None:
     await answer_callback(cq["id"])
 
     data = cq.get("data") or ""
-    # expected: lora:<key>:<job_id>
-    try:
-        _, lora_key, job_id = data.split(":", 2)
-    except ValueError:
+    msg = cq.get("message") or {}
+    chat = msg.get("chat") or {}
+    chat_id = int(chat.get("id") or 0)
+    message_id = int(msg.get("message_id") or 0)
+
+    # Supported:
+    # - l:<idx>:<job_id>  (select)
+    # - p:<page>:<job_id> (page)
+    # - noop:<job_id>     (do nothing)
+    parts = data.split(":", 2)
+    if len(parts) < 2:
         return
 
+    tag = parts[0]
+
+    if tag == "noop":
+        return
+
+    if tag == "p":
+        if len(parts) != 3:
+            return
+        try:
+            page = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+        if chat_id and message_id:
+            try:
+                await edit_keyboard(chat_id, message_id, build_lora_keyboard(job_id, page=page))
+            except Exception as exc:
+                print(f"edit keyboard error: {exc}")
+        return
+
+    if tag != "l":
+        return
+    if len(parts) != 3:
+        return
+
+    try:
+        idx = int(parts[1])
+        job_id = parts[2]
+    except Exception:
+        return
+
+    if idx < 0 or idx >= len(LORA_KEYS):
+        return
+
+    lora_key = LORA_KEYS[idx]
     cfg = LORA_CATALOG.get(lora_key)
     if not isinstance(cfg, dict):
         return
 
     row = set_queue(job_id, lora_key)
 
-    payload = {
-    "job_id": job_id,
-    "chat_id": int(row["chat_id"]),
-    "input_file_id": row["input_file_id"],
-    "lora_key": lora_key,
-
-    # nové:
-    "lora_type": (cfg.get("type") or "single"),
-    "positive_prompt": cfg.get("positive"),
+    payload: Dict[str, Any] = {
+        "job_id": job_id,
+        "chat_id": int(row["chat_id"]),
+        "input_file_id": row["input_file_id"],
+        "lora_key": lora_key,
+        "lora_type": (cfg.get("type") or "single"),
+        "positive_prompt": cfg.get("positive"),
     }
 
     if str(payload["lora_type"]).lower() == "pair":
@@ -261,7 +349,11 @@ async def process_callback(update: Dict[str, Any]) -> None:
         set_runpod_request_id(job_id, runpod_id)
 
     label = str(cfg.get("label") or lora_key)
-    await edit_placeholder(int(row["chat_id"]), int(row["placeholder_message_id"]), f"Renderujem ({label})…")
+    await edit_placeholder(
+        int(row["chat_id"]),
+        int(row["placeholder_message_id"]),
+        f"Renderujem ({label})…",
+    )
 
 
 async def process_update(update: Dict[str, Any]) -> Dict[str, Any]:
@@ -275,7 +367,7 @@ async def process_update(update: Dict[str, Any]) -> Dict[str, Any]:
     rate_limit(chat_id)
 
     placeholder_id = await send_placeholder(chat_id)
-    job_id = str(uuid.uuid4())
+    job_id = uuid.uuid4().hex  # shorter than str(uuid.uuid4())
 
     try:
         save_job_awaiting_lora(job_id, chat_id, placeholder_id, file_id)
@@ -284,7 +376,11 @@ async def process_update(update: Dict[str, Any]) -> Dict[str, Any]:
         raise
 
     await edit_placeholder(chat_id, placeholder_id, "Vyber štýl (LoRA)…")
-    await send_lora_picker(chat_id, job_id)
+    try:
+        await send_lora_picker(chat_id, job_id)
+    except Exception as exc:
+        await edit_placeholder(chat_id, placeholder_id, f"Chyba: neviem zobraziť výber štýlu ({exc})")
+        raise
 
     return {"type": "photo", "job_id": job_id}
 
