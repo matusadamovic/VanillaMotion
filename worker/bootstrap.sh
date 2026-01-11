@@ -26,31 +26,65 @@ echo "BOOT: MODEL_BUNDLE_PATH=${MODEL_BUNDLE_PATH:-<empty>}"
 # Best-effort cleanup
 find "$TMP_ROOT" -maxdepth 1 -type d -name "job_*" -mtime +0 -exec rm -rf {} + || true
 
-# Resolve cached snapshot
+# Resolve cached snapshot (robust: wait + pick latest complete snapshot)
+WAIT_FOR_CACHE_SECONDS="${WAIT_FOR_CACHE_SECONDS:-300}"
+SLEEP_STEP_SECONDS="${SLEEP_STEP_SECONDS:-5}"
+
+required_dirs=(checkpoints loras vae clip checkpoints_gguf)
+
+is_complete_snapshot() {
+  local snap="$1"
+  [ -d "$snap" ] || return 1
+  for d in "${required_dirs[@]}"; do
+    [ -d "$snap/$d" ] || return 1
+  done
+  return 0
+}
+
+pick_latest_complete_snapshot() {
+  local snapshots_dir="$1"
+  local snap
+  for snap in $(ls -1dt "$snapshots_dir"/* 2>/dev/null); do
+    if is_complete_snapshot "$snap"; then
+      echo "$snap"
+      return 0
+    fi
+  done
+  return 1
+}
+
 if [ -z "$MODEL_BUNDLE" ]; then
   cache_name="models--${HF_MODEL_NAME//\//--}"
   snapshots_dir="$HF_CACHE_ROOT/$cache_name/snapshots"
-  snapshots_glob="$snapshots_dir/*"
 
-  echo "BOOT: looking for snapshots: $snapshots_glob"
+  echo "BOOT: snapshots_dir=$snapshots_dir"
+  deadline=$(( $(date +%s) + WAIT_FOR_CACHE_SECONDS ))
 
-  if [ ! -d "$snapshots_dir" ]; then
-    echo "ERROR: snapshots dir nenajdeny: $snapshots_dir"
-    echo "Debug:"
-    ls -lah /runpod-volume || true
-    ls -lah "$HF_CACHE_ROOT" || true
-    exit 1
-  fi
-
-  MODEL_BUNDLE="$(ls -1dt $snapshots_glob 2>/dev/null | head -n 1 || true)"
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    if [ -d "$snapshots_dir" ]; then
+      MODEL_BUNDLE="$(pick_latest_complete_snapshot "$snapshots_dir" || true)"
+      if [ -n "$MODEL_BUNDLE" ]; then
+        break
+      fi
+      echo "BOOT: snapshots exist but none complete yet; waiting..."
+    else
+      echo "BOOT: snapshots_dir not present yet; waiting..."
+    fi
+    sleep "$SLEEP_STEP_SECONDS"
+  done
 fi
 
 if [ -z "$MODEL_BUNDLE" ] || [ ! -d "$MODEL_BUNDLE" ]; then
-  echo "ERROR: MODEL_BUNDLE sa nepodarilo urcit alebo neexistuje."
-  echo "MODEL_BUNDLE=$MODEL_BUNDLE"
+  echo "ERROR: MODEL_BUNDLE not found/complete within timeout (${WAIT_FOR_CACHE_SECONDS}s)."
+  echo "HF_CACHE_ROOT=$HF_CACHE_ROOT"
+  echo "HF_MODEL_NAME=$HF_MODEL_NAME"
+  ls -lah /runpod-volume || true
   ls -lah "$HF_CACHE_ROOT" || true
+  [ -n "${snapshots_dir:-}" ] && ls -lah "$snapshots_dir" || true
   exit 1
 fi
+
+echo "BOOT: Using MODEL_BUNDLE=$MODEL_BUNDLE"
 
 echo "BOOT: Using MODEL_BUNDLE=$MODEL_BUNDLE"
 ls -lah "$MODEL_BUNDLE" | head -n 200 || true
@@ -59,14 +93,14 @@ ls -lah "$MODEL_BUNDLE" | head -n 200 || true
 mkdir -p "$COMFY_ROOT/input/image" "$COMFY_ROOT/output" "$COMFY_ROOT/models"
 
 # Fail fast ak chýba základná štruktúra repa
-for d in checkpoints loras vae clip checkpoints_gguf; do
-  if [ ! -d "$MODEL_BUNDLE/$d" ]; then
-    echo "ERROR: Chyba adresar v HF modeli: $MODEL_BUNDLE/$d"
-    echo "Obsah MODEL_BUNDLE (maxdepth 2):"
-    find "$MODEL_BUNDLE" -maxdepth 2 -type d | head -n 200 || true
-    exit 1
-  fi
-done
+# for d in checkpoints loras vae clip checkpoints_gguf; do
+#   if [ ! -d "$MODEL_BUNDLE/$d" ]; then
+#     echo "ERROR: Chyba adresar v HF modeli: $MODEL_BUNDLE/$d"
+#     echo "Obsah MODEL_BUNDLE (maxdepth 2):"
+#     find "$MODEL_BUNDLE" -maxdepth 2 -type d | head -n 200 || true
+#     exit 1
+#   fi
+# done
 
 # FIX: Replace model dirs (do NOT nest symlinks inside existing directories)
 for d in checkpoints loras vae clip controlnet upscale_models embeddings checkpoints_gguf unet; do
