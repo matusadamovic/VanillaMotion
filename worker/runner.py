@@ -388,6 +388,7 @@ def load_and_patch_workflow(
     lora_low_filename: Optional[str],
     lora_low_strength: Optional[float],
     positive_prompt: Optional[str],
+    use_gguf: Optional[bool],
 ) -> Dict[str, Any]:
     with open(WORKFLOW_PATH, "r", encoding="utf-8") as f:
         prompt = json.load(f)
@@ -409,6 +410,15 @@ def load_and_patch_workflow(
             title = ((node.get("_meta") or {}).get("title") or "").lower()
             if "positive prompt" in title:
                 node.setdefault("inputs", {})["text"] = positive_prompt
+
+    # Patch GGUF toggle if provided
+    if use_gguf is not None:
+        for node in prompt.values():
+            if node.get("class_type") != "BOOLConstant":
+                continue
+            title = ((node.get("_meta") or {}).get("title") or "").lower()
+            if "use gguf" in title:
+                node.setdefault("inputs", {})["value"] = bool(use_gguf)
 
     # ---- LoRA patching (TAILORED to your workflow: Step 1 + Step 3 only) ----
     def _assert_lora_exists(filename: str) -> None:
@@ -664,6 +674,11 @@ def handler(event):
     lora_low_strength = payload.get("lora_low_strength")
 
     positive_prompt = payload.get("positive_prompt")
+    use_gguf = payload.get("use_gguf")
+    if isinstance(use_gguf, str):
+        use_gguf = use_gguf.strip().lower() in ("1", "true", "yes", "y", "on")
+    elif isinstance(use_gguf, (int, float)) and not isinstance(use_gguf, bool):
+        use_gguf = bool(use_gguf)
 
     job_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"job_{job_id}_", dir="/tmp"))
     temp_dir = job_dir / "temp"
@@ -711,6 +726,7 @@ def handler(event):
                 lora_low_filename=lora_low_filename,
                 lora_low_strength=lora_low_strength,
                 positive_prompt=positive_prompt,
+                use_gguf=use_gguf,
             )
 
             # Log: čo sme reálne poslali do Comfy (modely/loras/prompt/step1 vs step3)
@@ -719,7 +735,7 @@ def handler(event):
 
             # Log: čo prišlo z payloadu (aby si porovnal s patched workflow)
             logging.info(
-                "JOB_PARAMS lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s positive_prompt=%s",
+                "JOB_PARAMS lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s use_gguf=%s positive_prompt=%s",
                 lora_type,
                 lora_filename,
                 lora_strength,
@@ -727,6 +743,7 @@ def handler(event):
                 lora_high_strength,
                 lora_low_filename,
                 lora_low_strength,
+                use_gguf,
                 (positive_prompt[:120] + "…")
                 if isinstance(positive_prompt, str) and len(positive_prompt) > 120
                 else positive_prompt,

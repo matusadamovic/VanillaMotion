@@ -3,7 +3,7 @@ import json
 import os
 import time
 import uuid
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 import psycopg2
@@ -23,6 +23,7 @@ LORA_CATALOG_PATH = os.environ.get("LORA_CATALOG_PATH", "/app/loras.json")
 
 # 4 buttons max (2x2 grid) + paging arrows
 PAGE_SIZE = int(os.environ.get("LORA_PAGE_SIZE", "4"))  # keep 4 by default
+WEIGHT_OPTIONS_RAW = os.environ.get("LORA_WEIGHT_OPTIONS", "0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0")
 
 
 def load_lora_catalog() -> Dict[str, Any]:
@@ -35,6 +36,7 @@ def load_lora_catalog() -> Dict[str, Any]:
 
 LORA_CATALOG = load_lora_catalog()
 LORA_KEYS = sorted(LORA_CATALOG.keys())
+MODEL_CHOICES = [("WAN", "wan"), ("GGUF", "gguf")]
 
 rate_limit_cache: Dict[int, float] = {}
 dedup_cache: Dict[int, float] = {}  # update_id -> timestamp
@@ -42,6 +44,69 @@ dedup_cache: Dict[int, float] = {}  # update_id -> timestamp
 
 def db_conn():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+
+
+def _parse_float(value: Any) -> Optional[float]:
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def _float_eq(a: float, b: float, tol: float = 1e-6) -> bool:
+    return abs(a - b) <= tol
+
+
+def _float_in_list(value: float, values: List[float]) -> bool:
+    return any(_float_eq(value, v) for v in values)
+
+
+def _parse_weight_options(raw: str) -> List[float]:
+    opts: List[float] = []
+    for token in raw.split(","):
+        s = token.strip()
+        if not s:
+            continue
+        try:
+            v = float(s)
+        except Exception:
+            continue
+        if not _float_in_list(v, opts):
+            opts.append(v)
+    return opts
+
+
+WEIGHT_OPTIONS = _parse_weight_options(WEIGHT_OPTIONS_RAW) or [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+
+def _format_weight(value: float) -> str:
+    s = f"{value:.2f}".rstrip("0").rstrip(".")
+    return s or "0"
+
+
+def _weight_options_for(cfg: Dict[str, Any], kind: str) -> Tuple[List[float], Optional[float]]:
+    default: Optional[float] = None
+    if kind == "single":
+        default = _parse_float(cfg.get("strength"))
+    elif kind == "high":
+        default = _parse_float(cfg.get("high_strength"))
+    elif kind == "low":
+        default = _parse_float(cfg.get("low_strength"))
+
+    options = list(WEIGHT_OPTIONS)
+    if default is not None and not _float_in_list(default, options):
+        options.insert(0, default)
+    return options, default
+
+
+def _get_lora_cfg_by_index(idx: int) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    if idx < 0 or idx >= len(LORA_KEYS):
+        return None, None
+    lora_key = LORA_KEYS[idx]
+    cfg = LORA_CATALOG.get(lora_key)
+    if not isinstance(cfg, dict):
+        return None, None
+    return lora_key, cfg
 
 
 # ---------------- Telegram helpers ----------------
@@ -65,6 +130,16 @@ async def send_placeholder(chat_id: int) -> int:
 async def edit_placeholder(chat_id: int, message_id: int, text: str) -> None:
     try:
         await tg_post("editMessageText", {"chat_id": chat_id, "message_id": message_id, "text": text})
+    except Exception:
+        return
+
+
+async def edit_message_text(chat_id: int, message_id: int, text: str, reply_markup: Optional[str] = None) -> None:
+    data: Dict[str, Any] = {"chat_id": chat_id, "message_id": message_id, "text": text}
+    if reply_markup is not None:
+        data["reply_markup"] = reply_markup
+    try:
+        await tg_post("editMessageText", data, timeout=15.0)
     except Exception:
         return
 
@@ -121,6 +196,67 @@ def build_lora_keyboard(job_id: str, page: int = 0) -> str:
     if page < max_page:
         nav.append({"text": "›", "callback_data": f"p:{page+1}:{job_id}"})
     rows.append(nav)
+
+    return json.dumps({"inline_keyboard": rows})
+
+
+def build_weight_keyboard(
+    job_id: str,
+    lora_idx: int,
+    cfg: Dict[str, Any],
+    kind: str,
+    *,
+    high_idx: Optional[int] = None,
+) -> str:
+    options, default = _weight_options_for(cfg, kind)
+    if not options:
+        return json.dumps({"inline_keyboard": []})
+
+    rows = []
+    for i in range(0, len(options), 2):
+        row = []
+        for j in range(2):
+            if i + j >= len(options):
+                break
+            value = options[i + j]
+            label = _format_weight(value)
+            if default is not None and _float_eq(value, default):
+                label = f"{label} (default)"
+
+            if kind == "single":
+                data = f"ws:{lora_idx}:{i + j}:{job_id}"
+            elif kind == "high":
+                data = f"wh:{lora_idx}:{i + j}:{job_id}"
+            else:
+                data = f"wl:{lora_idx}:{high_idx}:{i + j}:{job_id}"
+            row.append({"text": label, "callback_data": data})
+        rows.append(row)
+
+    return json.dumps({"inline_keyboard": rows})
+
+
+def build_model_keyboard(
+    job_id: str,
+    lora_idx: int,
+    *,
+    is_pair: bool,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+) -> str:
+    rows = []
+    for i in range(0, len(MODEL_CHOICES), 2):
+        row = []
+        for j in range(2):
+            if i + j >= len(MODEL_CHOICES):
+                break
+            label, key = MODEL_CHOICES[i + j]
+            if is_pair:
+                data = f"mp:{lora_idx}:{high_idx}:{low_idx}:{key}:{job_id}"
+            else:
+                data = f"ms:{lora_idx}:{weight_idx}:{key}:{job_id}"
+            row.append({"text": label, "callback_data": data})
+        rows.append(row)
 
     return json.dumps({"inline_keyboard": rows})
 
@@ -270,10 +406,15 @@ async def process_callback(update: Dict[str, Any]) -> None:
     message_id = int(msg.get("message_id") or 0)
 
     # Supported:
-    # - l:<idx>:<job_id>  (select)
-    # - p:<page>:<job_id> (page)
-    # - noop:<job_id>     (do nothing)
-    parts = data.split(":", 2)
+    # - l:<idx>:<job_id>                 (select LoRA)
+    # - p:<page>:<job_id>                (page)
+    # - ws:<lora_idx>:<w_idx>:<job_id>   (single weight)
+    # - wh:<lora_idx>:<h_idx>:<job_id>   (pair high)
+    # - wl:<lora_idx>:<h_idx>:<l_idx>:<job_id> (pair low)
+    # - ms:<lora_idx>:<w_idx>:<model>:<job_id> (single model)
+    # - mp:<lora_idx>:<h_idx>:<l_idx>:<model>:<job_id> (pair model)
+    # - noop:<job_id>                    (do nothing)
+    parts = data.split(":")
     if len(parts) < 2:
         return
 
@@ -297,63 +438,239 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 print(f"edit keyboard error: {exc}")
         return
 
-    if tag != "l":
+    if tag == "l":
+        if len(parts) != 3:
+            return
+        try:
+            idx = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(idx)
+        if not cfg:
+            return
+
+        if not (chat_id and message_id):
+            return
+
+        label = str(cfg.get("label") or lora_key)
+        lora_type = str(cfg.get("type") or "single").lower()
+        if lora_type == "pair":
+            reply_markup = build_weight_keyboard(job_id, idx, cfg, "high")
+            await edit_message_text(chat_id, message_id, f"{label}: vyber HIGH vahu", reply_markup)
+        else:
+            reply_markup = build_weight_keyboard(job_id, idx, cfg, "single")
+            await edit_message_text(chat_id, message_id, f"{label}: vyber vahu", reply_markup)
         return
-    if len(parts) != 3:
+
+    if tag == "ws":
+        if len(parts) != 4:
+            return
+        try:
+            lora_idx = int(parts[1])
+            weight_idx = int(parts[2])
+            job_id = parts[3]
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        if str(cfg.get("type") or "single").lower() == "pair":
+            return
+
+        options, _ = _weight_options_for(cfg, "single")
+        if weight_idx < 0 or weight_idx >= len(options):
+            return
+
+        if not (chat_id and message_id):
+            return
+
+        label = str(cfg.get("label") or lora_key)
+        reply_markup = build_model_keyboard(job_id, lora_idx, is_pair=False, weight_idx=weight_idx)
+        await edit_message_text(chat_id, message_id, f"{label}: vyber model (WAN/GGUF)", reply_markup)
         return
 
-    try:
-        idx = int(parts[1])
-        job_id = parts[2]
-    except Exception:
+    if tag == "wh":
+        if len(parts) != 4:
+            return
+        try:
+            lora_idx = int(parts[1])
+            high_idx = int(parts[2])
+            job_id = parts[3]
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        if str(cfg.get("type") or "single").lower() != "pair":
+            return
+
+        options, _ = _weight_options_for(cfg, "high")
+        if high_idx < 0 or high_idx >= len(options):
+            return
+
+        if not (chat_id and message_id):
+            return
+
+        label = str(cfg.get("label") or lora_key)
+        reply_markup = build_weight_keyboard(job_id, lora_idx, cfg, "low", high_idx=high_idx)
+        await edit_message_text(chat_id, message_id, f"{label}: vyber LOW vahu", reply_markup)
         return
 
-    if idx < 0 or idx >= len(LORA_KEYS):
+    if tag == "wl":
+        if len(parts) != 5:
+            return
+        try:
+            lora_idx = int(parts[1])
+            high_idx = int(parts[2])
+            low_idx = int(parts[3])
+            job_id = parts[4]
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        if str(cfg.get("type") or "single").lower() != "pair":
+            return
+
+        options_high, _ = _weight_options_for(cfg, "high")
+        options_low, _ = _weight_options_for(cfg, "low")
+        if high_idx < 0 or high_idx >= len(options_high):
+            return
+        if low_idx < 0 or low_idx >= len(options_low):
+            return
+
+        if not (chat_id and message_id):
+            return
+
+        label = str(cfg.get("label") or lora_key)
+        reply_markup = build_model_keyboard(job_id, lora_idx, is_pair=True, high_idx=high_idx, low_idx=low_idx)
+        await edit_message_text(chat_id, message_id, f"{label}: vyber model (WAN/GGUF)", reply_markup)
         return
 
-    lora_key = LORA_KEYS[idx]
-    cfg = LORA_CATALOG.get(lora_key)
-    if not isinstance(cfg, dict):
-        return
+    if tag == "ms":
+        if len(parts) != 5:
+            return
+        try:
+            lora_idx = int(parts[1])
+            weight_idx = int(parts[2])
+            model_key = parts[3]
+            job_id = parts[4]
+        except Exception:
+            return
 
-    row = set_queue(job_id, lora_key)
+        if model_key not in ("wan", "gguf"):
+            return
 
-    payload: Dict[str, Any] = {
-        "job_id": job_id,
-        "chat_id": int(row["chat_id"]),
-        "input_file_id": row["input_file_id"],
-        "lora_key": lora_key,
-        "lora_type": (cfg.get("type") or "single"),
-        "positive_prompt": cfg.get("positive"),
-    }
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        if str(cfg.get("type") or "single").lower() == "pair":
+            return
 
-    if str(payload["lora_type"]).lower() == "pair":
-        payload.update(
-            {
-                "lora_high_filename": cfg.get("high_filename"),
-                "lora_high_strength": cfg.get("high_strength", 1.0),
-                "lora_low_filename": cfg.get("low_filename"),
-                "lora_low_strength": cfg.get("low_strength", 1.0),
-            }
-        )
-    else:
+        options, _ = _weight_options_for(cfg, "single")
+        if weight_idx < 0 or weight_idx >= len(options):
+            return
+
+        row = set_queue(job_id, lora_key)
+
+        use_gguf = model_key == "gguf"
+        payload: Dict[str, Any] = {
+            "job_id": job_id,
+            "chat_id": int(row["chat_id"]),
+            "input_file_id": row["input_file_id"],
+            "lora_key": lora_key,
+            "lora_type": (cfg.get("type") or "single"),
+            "positive_prompt": cfg.get("positive"),
+            "use_gguf": use_gguf,
+        }
         payload.update(
             {
                 "lora_filename": cfg.get("filename"),
-                "lora_strength": cfg.get("strength", 1.0),
+                "lora_strength": options[weight_idx],
             }
         )
 
-    runpod_id = await submit_runpod(payload)
-    if runpod_id:
-        set_runpod_request_id(job_id, runpod_id)
+        runpod_id = await submit_runpod(payload)
+        if runpod_id:
+            set_runpod_request_id(job_id, runpod_id)
 
-    label = str(cfg.get("label") or lora_key)
-    await edit_placeholder(
-        int(row["chat_id"]),
-        int(row["placeholder_message_id"]),
-        f"Renderujem ({label})…",
-    )
+        label = str(cfg.get("label") or lora_key)
+        model_label = "GGUF" if use_gguf else "WAN"
+        await edit_placeholder(
+            int(row["chat_id"]),
+            int(row["placeholder_message_id"]),
+            f"Renderujem ({label}, {model_label})…",
+        )
+        if chat_id and message_id:
+            await edit_keyboard(chat_id, message_id, json.dumps({"inline_keyboard": []}))
+        return
+
+    if tag == "mp":
+        if len(parts) != 6:
+            return
+        try:
+            lora_idx = int(parts[1])
+            high_idx = int(parts[2])
+            low_idx = int(parts[3])
+            model_key = parts[4]
+            job_id = parts[5]
+        except Exception:
+            return
+
+        if model_key not in ("wan", "gguf"):
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        if str(cfg.get("type") or "single").lower() != "pair":
+            return
+
+        options_high, _ = _weight_options_for(cfg, "high")
+        options_low, _ = _weight_options_for(cfg, "low")
+        if high_idx < 0 or high_idx >= len(options_high):
+            return
+        if low_idx < 0 or low_idx >= len(options_low):
+            return
+
+        row = set_queue(job_id, lora_key)
+
+        use_gguf = model_key == "gguf"
+        payload = {
+            "job_id": job_id,
+            "chat_id": int(row["chat_id"]),
+            "input_file_id": row["input_file_id"],
+            "lora_key": lora_key,
+            "lora_type": (cfg.get("type") or "single"),
+            "positive_prompt": cfg.get("positive"),
+            "use_gguf": use_gguf,
+            "lora_high_filename": cfg.get("high_filename"),
+            "lora_high_strength": options_high[high_idx],
+            "lora_low_filename": cfg.get("low_filename"),
+            "lora_low_strength": options_low[low_idx],
+        }
+
+        runpod_id = await submit_runpod(payload)
+        if runpod_id:
+            set_runpod_request_id(job_id, runpod_id)
+
+        label = str(cfg.get("label") or lora_key)
+        model_label = "GGUF" if use_gguf else "WAN"
+        await edit_placeholder(
+            int(row["chat_id"]),
+            int(row["placeholder_message_id"]),
+            f"Renderujem ({label}, {model_label})…",
+        )
+        if chat_id and message_id:
+            await edit_keyboard(chat_id, message_id, json.dumps({"inline_keyboard": []}))
+        return
+
+    return
 
 
 async def process_update(update: Dict[str, Any]) -> Dict[str, Any]:
