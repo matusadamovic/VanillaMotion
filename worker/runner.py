@@ -387,6 +387,8 @@ def load_and_patch_workflow(
     lora_high_strength: Optional[float],
     lora_low_filename: Optional[str],
     lora_low_strength: Optional[float],
+    model_high_filename: Optional[str],
+    model_low_filename: Optional[str],
     positive_prompt: Optional[str],
     use_gguf: Optional[bool],
 ) -> Dict[str, Any]:
@@ -419,6 +421,37 @@ def load_and_patch_workflow(
             title = ((node.get("_meta") or {}).get("title") or "").lower()
             if "use gguf" in title:
                 node.setdefault("inputs", {})["value"] = bool(use_gguf)
+
+    # Patch UNET selection if provided
+    if model_high_filename or model_low_filename:
+        if use_gguf is None:
+            logging.warning("model_* provided but use_gguf is None; skipping UNET patch")
+        else:
+            def _unet_root() -> pathlib.Path:
+                p = pathlib.Path("/runpod-volume/models/unet")
+                if p.exists():
+                    return p
+                return pathlib.Path(COMFY_ROOT) / "models" / "unet"
+
+            def _assert_unet_exists(filename: str) -> None:
+                p = _unet_root() / filename
+                if not p.exists():
+                    raise FileNotFoundError(f"UNET file not found: {p}")
+
+            if model_high_filename:
+                _assert_unet_exists(model_high_filename)
+            if model_low_filename:
+                _assert_unet_exists(model_low_filename)
+
+            target_class = "UnetLoaderGGUF" if use_gguf else "UNETLoader"
+            for node in prompt.values():
+                if node.get("class_type") != target_class:
+                    continue
+                title = _get_title(node).lower()
+                if "high noise" in title and model_high_filename:
+                    node.setdefault("inputs", {})["unet_name"] = model_high_filename
+                if "low noise" in title and model_low_filename:
+                    node.setdefault("inputs", {})["unet_name"] = model_low_filename
 
     # ---- LoRA patching (TAILORED to your workflow: Step 1 + Step 3 only) ----
     def _assert_lora_exists(filename: str) -> None:
@@ -673,6 +706,9 @@ def handler(event):
     lora_low_filename = payload.get("lora_low_filename")
     lora_low_strength = payload.get("lora_low_strength")
 
+    model_high_filename = payload.get("model_high_filename")
+    model_low_filename = payload.get("model_low_filename")
+
     positive_prompt = payload.get("positive_prompt")
     use_gguf = payload.get("use_gguf")
     if isinstance(use_gguf, str):
@@ -725,6 +761,8 @@ def handler(event):
                 lora_high_strength=lora_high_strength,
                 lora_low_filename=lora_low_filename,
                 lora_low_strength=lora_low_strength,
+                model_high_filename=model_high_filename,
+                model_low_filename=model_low_filename,
                 positive_prompt=positive_prompt,
                 use_gguf=use_gguf,
             )
@@ -735,7 +773,7 @@ def handler(event):
 
             # Log: čo prišlo z payloadu (aby si porovnal s patched workflow)
             logging.info(
-                "JOB_PARAMS lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s use_gguf=%s positive_prompt=%s",
+                "JOB_PARAMS lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s model_high=%s model_low=%s use_gguf=%s positive_prompt=%s",
                 lora_type,
                 lora_filename,
                 lora_strength,
@@ -743,6 +781,8 @@ def handler(event):
                 lora_high_strength,
                 lora_low_filename,
                 lora_low_strength,
+                model_high_filename,
+                model_low_filename,
                 use_gguf,
                 (positive_prompt[:120] + "…")
                 if isinstance(positive_prompt, str) and len(positive_prompt) > 120

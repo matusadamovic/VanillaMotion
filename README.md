@@ -11,6 +11,7 @@
 - `worker/bootstrap.sh` - symlinkuje HF cache do ComfyUI, cisti /tmp, spusta runner.
 - `worker/runner.py` - RunPod handler, stavy v DB, stahuje obrazok, spusta ComfyUI API, uploaduje video, fallbacky a cistenie.
 - `bot/app.py` - FastAPI webhook, rate-limit, placeholder, zapis do DB, submit RunPod job, health.
+- `models.json` - katalog UNET modelov (WAN/GGUF) pre vyber v bote.
 - `migrations/001_init.sql` - schéma tabulky jobs a indexy.
 - `infra/runpod-endpoint.json` - sablona RunPod serverless endpointu (scale-to-zero).
 - `docs/HF_BUNDLE.md` - struktura HF balika, git-lfs prikazy.

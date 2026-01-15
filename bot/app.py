@@ -20,9 +20,11 @@ RATE_LIMIT_SECONDS = int(os.environ.get("RATE_LIMIT_SECONDS", "30"))
 DEDUP_TTL_SECONDS = int(os.environ.get("DEDUP_TTL_SECONDS", "600"))
 
 LORA_CATALOG_PATH = os.environ.get("LORA_CATALOG_PATH", "/app/loras.json")
+MODEL_CATALOG_PATH = os.environ.get("MODEL_CATALOG_PATH", "/app/models.json")
 
 # 4 buttons max (2x2 grid) + paging arrows
 PAGE_SIZE = int(os.environ.get("LORA_PAGE_SIZE", "4"))  # keep 4 by default
+MODEL_PAGE_SIZE = int(os.environ.get("MODEL_PAGE_SIZE", "4"))
 WEIGHT_OPTIONS_RAW = os.environ.get("LORA_WEIGHT_OPTIONS", "0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0")
 
 
@@ -34,8 +36,38 @@ def load_lora_catalog() -> Dict[str, Any]:
     return data
 
 
+def load_model_catalog() -> Dict[str, Any]:
+    if not os.path.exists(MODEL_CATALOG_PATH):
+        return {}
+    with open(MODEL_CATALOG_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise RuntimeError("models.json must be a JSON object")
+    return data
+
+
+def _normalize_model_type(value: Any) -> Optional[str]:
+    s = str(value or "").strip().lower()
+    if s in ("wan", "safetensor", "safetensors"):
+        return "wan"
+    if s == "gguf":
+        return "gguf"
+    return None
+
+
 LORA_CATALOG = load_lora_catalog()
 LORA_KEYS = sorted(LORA_CATALOG.keys())
+MODEL_CATALOG = load_model_catalog()
+MODEL_KEYS_BY_TYPE: Dict[str, List[str]] = {"wan": [], "gguf": []}
+for key, cfg in MODEL_CATALOG.items():
+    if not isinstance(cfg, dict):
+        continue
+    model_type = _normalize_model_type(cfg.get("type"))
+    if not model_type:
+        continue
+    if not cfg.get("high_filename") or not cfg.get("low_filename"):
+        continue
+    MODEL_KEYS_BY_TYPE[model_type].append(key)
 MODEL_CHOICES = [("WAN", "wan"), ("GGUF", "gguf")]
 
 rate_limit_cache: Dict[int, float] = {}
@@ -107,6 +139,21 @@ def _get_lora_cfg_by_index(idx: int) -> Tuple[Optional[str], Optional[Dict[str, 
     if not isinstance(cfg, dict):
         return None, None
     return lora_key, cfg
+
+
+def _get_model_cfg_by_index(model_type: str, idx: int) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    keys = MODEL_KEYS_BY_TYPE.get(model_type) or []
+    if idx < 0 or idx >= len(keys):
+        return None, None
+    model_key = keys[idx]
+    cfg = MODEL_CATALOG.get(model_key)
+    if not isinstance(cfg, dict):
+        return None, None
+    if _normalize_model_type(cfg.get("type")) != model_type:
+        return None, None
+    if not cfg.get("high_filename") or not cfg.get("low_filename"):
+        return None, None
+    return model_key, cfg
 
 
 # ---------------- Telegram helpers ----------------
@@ -261,6 +308,64 @@ def build_model_keyboard(
     return json.dumps({"inline_keyboard": rows})
 
 
+def build_unet_keyboard(
+    job_id: str,
+    model_type: str,
+    *,
+    is_pair: bool,
+    lora_idx: int,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+    page: int = 0,
+) -> str:
+    keys = MODEL_KEYS_BY_TYPE.get(model_type) or []
+    if not keys:
+        return json.dumps({"inline_keyboard": []})
+
+    page_size = max(1, int(MODEL_PAGE_SIZE))
+    max_page = (len(keys) - 1) // page_size
+    page = max(0, min(int(page), max_page))
+
+    start = page * page_size
+    end = min(start + page_size, len(keys))
+    chunk = keys[start:end]
+
+    rows = []
+    for i in range(0, len(chunk), 2):
+        row = []
+        for j in range(2):
+            if i + j >= len(chunk):
+                break
+            key = chunk[i + j]
+            cfg = MODEL_CATALOG.get(key) or {}
+            label = str(cfg.get("label") or key)
+
+            idx = start + (i + j)
+            if is_pair:
+                data = f"mm:{lora_idx}:{high_idx}:{low_idx}:{model_type}:{idx}:{job_id}"
+            else:
+                data = f"mm:{lora_idx}:{weight_idx}:{model_type}:{idx}:{job_id}"
+            row.append({"text": label, "callback_data": data})
+        rows.append(row)
+
+    nav = []
+    if page > 0:
+        if is_pair:
+            nav.append({"text": "‹", "callback_data": f"pm:{model_type}:{page-1}:{lora_idx}:{high_idx}:{low_idx}:{job_id}"})
+        else:
+            nav.append({"text": "‹", "callback_data": f"pm:{model_type}:{page-1}:{lora_idx}:{weight_idx}:{job_id}"})
+    nav.append({"text": f"{page+1}/{max_page+1}", "callback_data": f"noop:{job_id}"})
+    if page < max_page:
+        if is_pair:
+            nav.append({"text": "›", "callback_data": f"pm:{model_type}:{page+1}:{lora_idx}:{high_idx}:{low_idx}:{job_id}"})
+        else:
+            nav.append({"text": "›", "callback_data": f"pm:{model_type}:{page+1}:{lora_idx}:{weight_idx}:{job_id}"})
+    rows.append(nav)
+
+    return json.dumps({"inline_keyboard": rows})
+
+
 async def send_lora_picker(chat_id: int, job_id: str) -> None:
     await tg_post(
         "sendMessage",
@@ -350,6 +455,105 @@ def fail_job(job_id: str, error: str) -> None:
         )
 
 
+def _model_type_label(use_gguf: bool) -> str:
+    return "GGUF" if use_gguf else "WAN"
+
+
+async def _submit_single_job(
+    *,
+    job_id: str,
+    lora_key: str,
+    cfg: Dict[str, Any],
+    weight: float,
+    use_gguf: bool,
+    model_label: Optional[str],
+    model_high_filename: Optional[str],
+    model_low_filename: Optional[str],
+    chat_id: int,
+    message_id: int,
+) -> None:
+    row = set_queue(job_id, lora_key)
+    payload: Dict[str, Any] = {
+        "job_id": job_id,
+        "chat_id": int(row["chat_id"]),
+        "input_file_id": row["input_file_id"],
+        "lora_key": lora_key,
+        "lora_type": (cfg.get("type") or "single"),
+        "positive_prompt": cfg.get("positive"),
+        "use_gguf": use_gguf,
+        "lora_filename": cfg.get("filename"),
+        "lora_strength": weight,
+    }
+    if model_high_filename:
+        payload["model_high_filename"] = model_high_filename
+    if model_low_filename:
+        payload["model_low_filename"] = model_low_filename
+
+    runpod_id = await submit_runpod(payload)
+    if runpod_id:
+        set_runpod_request_id(job_id, runpod_id)
+
+    label = str(cfg.get("label") or lora_key)
+    model_type_label = _model_type_label(use_gguf)
+    suffix = f": {model_label}" if model_label else ""
+    await edit_placeholder(
+        int(row["chat_id"]),
+        int(row["placeholder_message_id"]),
+        f"Renderujem ({label}, {model_type_label}{suffix})…",
+    )
+    if chat_id and message_id:
+        await edit_keyboard(chat_id, message_id, json.dumps({"inline_keyboard": []}))
+
+
+async def _submit_pair_job(
+    *,
+    job_id: str,
+    lora_key: str,
+    cfg: Dict[str, Any],
+    high_weight: float,
+    low_weight: float,
+    use_gguf: bool,
+    model_label: Optional[str],
+    model_high_filename: Optional[str],
+    model_low_filename: Optional[str],
+    chat_id: int,
+    message_id: int,
+) -> None:
+    row = set_queue(job_id, lora_key)
+    payload: Dict[str, Any] = {
+        "job_id": job_id,
+        "chat_id": int(row["chat_id"]),
+        "input_file_id": row["input_file_id"],
+        "lora_key": lora_key,
+        "lora_type": (cfg.get("type") or "single"),
+        "positive_prompt": cfg.get("positive"),
+        "use_gguf": use_gguf,
+        "lora_high_filename": cfg.get("high_filename"),
+        "lora_high_strength": high_weight,
+        "lora_low_filename": cfg.get("low_filename"),
+        "lora_low_strength": low_weight,
+    }
+    if model_high_filename:
+        payload["model_high_filename"] = model_high_filename
+    if model_low_filename:
+        payload["model_low_filename"] = model_low_filename
+
+    runpod_id = await submit_runpod(payload)
+    if runpod_id:
+        set_runpod_request_id(job_id, runpod_id)
+
+    label = str(cfg.get("label") or lora_key)
+    model_type_label = _model_type_label(use_gguf)
+    suffix = f": {model_label}" if model_label else ""
+    await edit_placeholder(
+        int(row["chat_id"]),
+        int(row["placeholder_message_id"]),
+        f"Renderujem ({label}, {model_type_label}{suffix})…",
+    )
+    if chat_id and message_id:
+        await edit_keyboard(chat_id, message_id, json.dumps({"inline_keyboard": []}))
+
+
 # ---------------- Update processing ----------------
 
 def rate_limit(chat_id: int):
@@ -406,14 +610,18 @@ async def process_callback(update: Dict[str, Any]) -> None:
     message_id = int(msg.get("message_id") or 0)
 
     # Supported:
-    # - l:<idx>:<job_id>                 (select LoRA)
-    # - p:<page>:<job_id>                (page)
-    # - ws:<lora_idx>:<w_idx>:<job_id>   (single weight)
-    # - wh:<lora_idx>:<h_idx>:<job_id>   (pair high)
+    # - l:<idx>:<job_id>                       (select LoRA)
+    # - p:<page>:<job_id>                      (LoRA page)
+    # - pm:<model>:<page>:<lora_idx>:<w_idx>:<job_id> (model page, single)
+    # - pm:<model>:<page>:<lora_idx>:<h_idx>:<l_idx>:<job_id> (model page, pair)
+    # - ws:<lora_idx>:<w_idx>:<job_id>         (single weight)
+    # - wh:<lora_idx>:<h_idx>:<job_id>         (pair high)
     # - wl:<lora_idx>:<h_idx>:<l_idx>:<job_id> (pair low)
-    # - ms:<lora_idx>:<w_idx>:<model>:<job_id> (single model)
-    # - mp:<lora_idx>:<h_idx>:<l_idx>:<model>:<job_id> (pair model)
-    # - noop:<job_id>                    (do nothing)
+    # - ms:<lora_idx>:<w_idx>:<model>:<job_id> (select model type, single)
+    # - mp:<lora_idx>:<h_idx>:<l_idx>:<model>:<job_id> (select model type, pair)
+    # - mm:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (select model, single)
+    # - mm:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (select model, pair)
+    # - noop:<job_id>                          (do nothing)
     parts = data.split(":")
     if len(parts) < 2:
         return
@@ -436,6 +644,81 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 await edit_keyboard(chat_id, message_id, build_lora_keyboard(job_id, page=page))
             except Exception as exc:
                 print(f"edit keyboard error: {exc}")
+        return
+
+    if tag == "pm":
+        if len(parts) not in (6, 7):
+            return
+        try:
+            model_type = parts[1]
+            page = int(parts[2])
+            lora_idx = int(parts[3])
+        except Exception:
+            return
+
+        if model_type not in ("wan", "gguf"):
+            return
+        if not (chat_id and message_id):
+            return
+
+        if len(parts) == 6:
+            try:
+                weight_idx = int(parts[4])
+                job_id = parts[5]
+            except Exception:
+                return
+
+            lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+            if not cfg:
+                return
+            if str(cfg.get("type") or "single").lower() == "pair":
+                return
+
+            options, _ = _weight_options_for(cfg, "single")
+            if weight_idx < 0 or weight_idx >= len(options):
+                return
+
+            reply_markup = build_unet_keyboard(
+                job_id,
+                model_type,
+                is_pair=False,
+                lora_idx=lora_idx,
+                weight_idx=weight_idx,
+                page=page,
+            )
+            await edit_keyboard(chat_id, message_id, reply_markup)
+            return
+
+        try:
+            high_idx = int(parts[4])
+            low_idx = int(parts[5])
+            job_id = parts[6]
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        if str(cfg.get("type") or "single").lower() != "pair":
+            return
+
+        options_high, _ = _weight_options_for(cfg, "high")
+        options_low, _ = _weight_options_for(cfg, "low")
+        if high_idx < 0 or high_idx >= len(options_high):
+            return
+        if low_idx < 0 or low_idx >= len(options_low):
+            return
+
+        reply_markup = build_unet_keyboard(
+            job_id,
+            model_type,
+            is_pair=True,
+            lora_idx=lora_idx,
+            high_idx=high_idx,
+            low_idx=low_idx,
+            page=page,
+        )
+        await edit_keyboard(chat_id, message_id, reply_markup)
         return
 
     if tag == "l":
@@ -552,77 +835,64 @@ async def process_callback(update: Dict[str, Any]) -> None:
         await edit_message_text(chat_id, message_id, f"{label}: vyber model (WAN/GGUF)", reply_markup)
         return
 
-    if tag == "ms":
-        if len(parts) != 5:
+    if tag == "mm":
+        if len(parts) not in (6, 7):
             return
         try:
             lora_idx = int(parts[1])
-            weight_idx = int(parts[2])
-            model_key = parts[3]
-            job_id = parts[4]
         except Exception:
             return
 
-        if model_key not in ("wan", "gguf"):
+        if len(parts) == 6:
+            try:
+                weight_idx = int(parts[2])
+                model_type = parts[3]
+                model_idx = int(parts[4])
+                job_id = parts[5]
+            except Exception:
+                return
+
+            if model_type not in ("wan", "gguf"):
+                return
+
+            lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+            if not cfg:
+                return
+            if str(cfg.get("type") or "single").lower() == "pair":
+                return
+
+            options, _ = _weight_options_for(cfg, "single")
+            if weight_idx < 0 or weight_idx >= len(options):
+                return
+
+            model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
+            if not model_cfg:
+                return
+
+            await _submit_single_job(
+                job_id=job_id,
+                lora_key=lora_key,
+                cfg=cfg,
+                weight=options[weight_idx],
+                use_gguf=(model_type == "gguf"),
+                model_label=str(model_cfg.get("label") or model_key),
+                model_high_filename=model_cfg.get("high_filename"),
+                model_low_filename=model_cfg.get("low_filename"),
+                chat_id=chat_id,
+                message_id=message_id,
+            )
             return
 
-        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
-        if not cfg:
-            return
-        if str(cfg.get("type") or "single").lower() == "pair":
-            return
-
-        options, _ = _weight_options_for(cfg, "single")
-        if weight_idx < 0 or weight_idx >= len(options):
-            return
-
-        row = set_queue(job_id, lora_key)
-
-        use_gguf = model_key == "gguf"
-        payload: Dict[str, Any] = {
-            "job_id": job_id,
-            "chat_id": int(row["chat_id"]),
-            "input_file_id": row["input_file_id"],
-            "lora_key": lora_key,
-            "lora_type": (cfg.get("type") or "single"),
-            "positive_prompt": cfg.get("positive"),
-            "use_gguf": use_gguf,
-        }
-        payload.update(
-            {
-                "lora_filename": cfg.get("filename"),
-                "lora_strength": options[weight_idx],
-            }
-        )
-
-        runpod_id = await submit_runpod(payload)
-        if runpod_id:
-            set_runpod_request_id(job_id, runpod_id)
-
-        label = str(cfg.get("label") or lora_key)
-        model_label = "GGUF" if use_gguf else "WAN"
-        await edit_placeholder(
-            int(row["chat_id"]),
-            int(row["placeholder_message_id"]),
-            f"Renderujem ({label}, {model_label})…",
-        )
-        if chat_id and message_id:
-            await edit_keyboard(chat_id, message_id, json.dumps({"inline_keyboard": []}))
-        return
-
-    if tag == "mp":
-        if len(parts) != 6:
-            return
         try:
-            lora_idx = int(parts[1])
             high_idx = int(parts[2])
             low_idx = int(parts[3])
-            model_key = parts[4]
-            job_id = parts[5]
+            model_type = parts[4]
+            model_idx = int(parts[5])
+            job_id = parts[6]
         except Exception:
             return
 
-        if model_key not in ("wan", "gguf"):
+        if model_type not in ("wan", "gguf"):
             return
 
         lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
@@ -638,36 +908,157 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if low_idx < 0 or low_idx >= len(options_low):
             return
 
-        row = set_queue(job_id, lora_key)
+        model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
+        if not model_cfg:
+            return
 
-        use_gguf = model_key == "gguf"
-        payload = {
-            "job_id": job_id,
-            "chat_id": int(row["chat_id"]),
-            "input_file_id": row["input_file_id"],
-            "lora_key": lora_key,
-            "lora_type": (cfg.get("type") or "single"),
-            "positive_prompt": cfg.get("positive"),
-            "use_gguf": use_gguf,
-            "lora_high_filename": cfg.get("high_filename"),
-            "lora_high_strength": options_high[high_idx],
-            "lora_low_filename": cfg.get("low_filename"),
-            "lora_low_strength": options_low[low_idx],
-        }
-
-        runpod_id = await submit_runpod(payload)
-        if runpod_id:
-            set_runpod_request_id(job_id, runpod_id)
-
-        label = str(cfg.get("label") or lora_key)
-        model_label = "GGUF" if use_gguf else "WAN"
-        await edit_placeholder(
-            int(row["chat_id"]),
-            int(row["placeholder_message_id"]),
-            f"Renderujem ({label}, {model_label})…",
+        await _submit_pair_job(
+            job_id=job_id,
+            lora_key=lora_key,
+            cfg=cfg,
+            high_weight=options_high[high_idx],
+            low_weight=options_low[low_idx],
+            use_gguf=(model_type == "gguf"),
+            model_label=str(model_cfg.get("label") or model_key),
+            model_high_filename=model_cfg.get("high_filename"),
+            model_low_filename=model_cfg.get("low_filename"),
+            chat_id=chat_id,
+            message_id=message_id,
         )
-        if chat_id and message_id:
-            await edit_keyboard(chat_id, message_id, json.dumps({"inline_keyboard": []}))
+        return
+
+    if tag == "ms":
+        if len(parts) != 5:
+            return
+        try:
+            lora_idx = int(parts[1])
+            weight_idx = int(parts[2])
+            model_type = parts[3]
+            job_id = parts[4]
+        except Exception:
+            return
+
+        if model_type not in ("wan", "gguf"):
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        if str(cfg.get("type") or "single").lower() == "pair":
+            return
+
+        options, _ = _weight_options_for(cfg, "single")
+        if weight_idx < 0 or weight_idx >= len(options):
+            return
+
+        use_gguf = model_type == "gguf"
+        model_keys = MODEL_KEYS_BY_TYPE.get(model_type) or []
+        if len(model_keys) > 1 and chat_id and message_id:
+            label = str(cfg.get("label") or lora_key)
+            model_type_label = _model_type_label(use_gguf)
+            reply_markup = build_unet_keyboard(
+                job_id,
+                model_type,
+                is_pair=False,
+                lora_idx=lora_idx,
+                weight_idx=weight_idx,
+                page=0,
+            )
+            await edit_message_text(chat_id, message_id, f"{label}: vyber {model_type_label} model", reply_markup)
+            return
+
+        model_label = None
+        model_high_filename = None
+        model_low_filename = None
+        if model_keys:
+            model_key, model_cfg = _get_model_cfg_by_index(model_type, 0)
+            if model_cfg:
+                model_label = str(model_cfg.get("label") or model_key)
+                model_high_filename = model_cfg.get("high_filename")
+                model_low_filename = model_cfg.get("low_filename")
+
+        await _submit_single_job(
+            job_id=job_id,
+            lora_key=lora_key,
+            cfg=cfg,
+            weight=options[weight_idx],
+            use_gguf=use_gguf,
+            model_label=model_label,
+            model_high_filename=model_high_filename,
+            model_low_filename=model_low_filename,
+            chat_id=chat_id,
+            message_id=message_id,
+        )
+        return
+
+    if tag == "mp":
+        if len(parts) != 6:
+            return
+        try:
+            lora_idx = int(parts[1])
+            high_idx = int(parts[2])
+            low_idx = int(parts[3])
+            model_type = parts[4]
+            job_id = parts[5]
+        except Exception:
+            return
+
+        if model_type not in ("wan", "gguf"):
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        if str(cfg.get("type") or "single").lower() != "pair":
+            return
+
+        options_high, _ = _weight_options_for(cfg, "high")
+        options_low, _ = _weight_options_for(cfg, "low")
+        if high_idx < 0 or high_idx >= len(options_high):
+            return
+        if low_idx < 0 or low_idx >= len(options_low):
+            return
+
+        use_gguf = model_type == "gguf"
+        model_keys = MODEL_KEYS_BY_TYPE.get(model_type) or []
+        if len(model_keys) > 1 and chat_id and message_id:
+            label = str(cfg.get("label") or lora_key)
+            model_type_label = _model_type_label(use_gguf)
+            reply_markup = build_unet_keyboard(
+                job_id,
+                model_type,
+                is_pair=True,
+                lora_idx=lora_idx,
+                high_idx=high_idx,
+                low_idx=low_idx,
+                page=0,
+            )
+            await edit_message_text(chat_id, message_id, f"{label}: vyber {model_type_label} model", reply_markup)
+            return
+
+        model_label = None
+        model_high_filename = None
+        model_low_filename = None
+        if model_keys:
+            model_key, model_cfg = _get_model_cfg_by_index(model_type, 0)
+            if model_cfg:
+                model_label = str(model_cfg.get("label") or model_key)
+                model_high_filename = model_cfg.get("high_filename")
+                model_low_filename = model_cfg.get("low_filename")
+
+        await _submit_pair_job(
+            job_id=job_id,
+            lora_key=lora_key,
+            cfg=cfg,
+            high_weight=options_high[high_idx],
+            low_weight=options_low[low_idx],
+            use_gguf=use_gguf,
+            model_label=model_label,
+            model_high_filename=model_high_filename,
+            model_low_filename=model_low_filename,
+            chat_id=chat_id,
+            message_id=message_id,
+        )
         return
 
     return

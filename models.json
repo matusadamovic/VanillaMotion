@@ -1,0 +1,20 @@
+{
+  "wan_default": {
+    "label": "WAN 2.2 default",
+    "type": "wan",
+    "high_filename": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+    "low_filename": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors"
+  },
+  "gguf_default": {
+    "label": "GGUF default",
+    "type": "gguf",
+    "high_filename": "wan22EnhancedNSFWCameraPrompt_nsfwV2Q8High.gguf",
+    "low_filename": "wan22EnhancedNSFWCameraPrompt_nsfwV2Q8Low.gguf"
+  },
+  "gguf_tastysin_v8": {
+    "label": "Tastysin V8 (GGUF)",
+    "type": "gguf",
+    "high_filename": "DasiwaWAN22I2V14BTastysinV8_q8High.gguf",
+    "low_filename": "DasiwaWAN22I2V14BTastysinV8_q8Low.gguf"
+  }
+}
