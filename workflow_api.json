@@ -656,7 +656,7 @@
     },
     "88": {
         "inputs": {
-            "int": 688
+            "int": 720
         },
         "class_type": "Width/Height Literal (Image Saver)",
         "_meta": {
