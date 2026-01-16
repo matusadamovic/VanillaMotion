@@ -137,6 +137,27 @@ done
 rm -rf /runpod-volume/models || true
 ln -s /comfyui/models /runpod-volume/models
 
+# Disable ComfyUI-Manager in headless workers (avoid registry fetches)
+DISABLE_COMFYUI_MANAGER="${DISABLE_COMFYUI_MANAGER:-1}"
+if [ "$DISABLE_COMFYUI_MANAGER" = "1" ]; then
+  mgr_src="$COMFY_ROOT/custom_nodes/ComfyUI-Manager"
+  mgr_dst="$COMFY_ROOT/custom_nodes.disabled/ComfyUI-Manager"
+  if [ -d "$mgr_src" ]; then
+    mkdir -p "$COMFY_ROOT/custom_nodes.disabled"
+    if [ ! -d "$mgr_dst" ]; then
+      mv "$mgr_src" "$mgr_dst"
+    fi
+  fi
+fi
+
+# Ensure RIFE ckpt exists where comfyui-frame-interpolation expects it
+RIFE_SRC="$COMFY_ROOT/models/upscale_models/rife49.pth"
+RIFE_DST_DIR="$COMFY_ROOT/custom_nodes/comfyui-frame-interpolation/ckpts/rife"
+if [ -f "$RIFE_SRC" ]; then
+  mkdir -p "$RIFE_DST_DIR"
+  ln -sf "$RIFE_SRC" "$RIFE_DST_DIR/rife49.pth"
+fi
+
 
 echo "BOOT: symlinks ready"
 ls -lah "$COMFY_ROOT/models" | head -n 200 || true
