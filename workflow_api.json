@@ -656,7 +656,7 @@
     },
     "88": {
         "inputs": {
-            "int": 720
+            "int": 1280
         },
         "class_type": "Width/Height Literal (Image Saver)",
         "_meta": {
@@ -665,7 +665,7 @@
     },
     "89": {
         "inputs": {
-            "int": 480
+            "int": 720
         },
         "class_type": "Width/Height Literal (Image Saver)",
         "_meta": {
