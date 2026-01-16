@@ -473,17 +473,21 @@ async def _submit_single_job(
     message_id: int,
 ) -> None:
     row = set_queue(job_id, lora_key)
+    label = str(cfg.get("label") or lora_key)
     payload: Dict[str, Any] = {
         "job_id": job_id,
         "chat_id": int(row["chat_id"]),
         "input_file_id": row["input_file_id"],
         "lora_key": lora_key,
+        "lora_label": label,
         "lora_type": (cfg.get("type") or "single"),
         "positive_prompt": cfg.get("positive"),
         "use_gguf": use_gguf,
         "lora_filename": cfg.get("filename"),
         "lora_strength": weight,
     }
+    if model_label:
+        payload["model_label"] = model_label
     if model_high_filename:
         payload["model_high_filename"] = model_high_filename
     if model_low_filename:
@@ -493,7 +497,6 @@ async def _submit_single_job(
     if runpod_id:
         set_runpod_request_id(job_id, runpod_id)
 
-    label = str(cfg.get("label") or lora_key)
     model_type_label = _model_type_label(use_gguf)
     suffix = f": {model_label}" if model_label else ""
     await edit_placeholder(
@@ -520,11 +523,13 @@ async def _submit_pair_job(
     message_id: int,
 ) -> None:
     row = set_queue(job_id, lora_key)
+    label = str(cfg.get("label") or lora_key)
     payload: Dict[str, Any] = {
         "job_id": job_id,
         "chat_id": int(row["chat_id"]),
         "input_file_id": row["input_file_id"],
         "lora_key": lora_key,
+        "lora_label": label,
         "lora_type": (cfg.get("type") or "single"),
         "positive_prompt": cfg.get("positive"),
         "use_gguf": use_gguf,
@@ -533,6 +538,8 @@ async def _submit_pair_job(
         "lora_low_filename": cfg.get("low_filename"),
         "lora_low_strength": low_weight,
     }
+    if model_label:
+        payload["model_label"] = model_label
     if model_high_filename:
         payload["model_high_filename"] = model_high_filename
     if model_low_filename:
@@ -542,7 +549,6 @@ async def _submit_pair_job(
     if runpod_id:
         set_runpod_request_id(job_id, runpod_id)
 
-    label = str(cfg.get("label") or lora_key)
     model_type_label = _model_type_label(use_gguf)
     suffix = f": {model_label}" if model_label else ""
     await edit_placeholder(

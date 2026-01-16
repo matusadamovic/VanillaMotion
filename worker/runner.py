@@ -671,21 +671,166 @@ def resolve_output_video(history: Dict[str, Any], output_dir: pathlib.Path) -> p
     raise RuntimeError(f"No output video produced. output_dir={output_dir}")
 
 
-def upload_video(chat_id: int, message_id: int, video_path: pathlib.Path, caption: str = "Hotovo"):
+def _format_weight(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    try:
+        v = float(value)
+    except Exception:
+        s = str(value).strip()
+        return s or None
+    s = f"{v:.2f}".rstrip("0").rstrip(".")
+    return s or "0"
+
+
+def _weight_suffix(value: Any) -> str:
+    s = _format_weight(value)
+    return f"@{s}" if s else ""
+
+
+def _format_model_line(
+    *,
+    use_gguf: Optional[bool],
+    model_label: Optional[str],
+    model_high_filename: Optional[str],
+    model_low_filename: Optional[str],
+) -> str:
+    if use_gguf is True:
+        model_type_label = "GGUF"
+    elif use_gguf is False:
+        model_type_label = "WAN"
+    else:
+        model_type_label = "Model"
+
+    label = str(model_label).strip() if model_label else ""
+    line = f"Model: {model_type_label}"
+    if label:
+        line += f" ({label})"
+
+    parts = []
+    if model_high_filename:
+        parts.append(f"high={model_high_filename}")
+    if model_low_filename:
+        parts.append(f"low={model_low_filename}")
+    if parts:
+        line += ", " + ", ".join(parts)
+    elif not label:
+        line += " (workflow default)"
+    return line
+
+
+def _format_lora_line(
+    *,
+    lora_type: str,
+    lora_label: Optional[str],
+    lora_key: Optional[str],
+    lora_filename: Optional[str],
+    lora_strength: Optional[float],
+    lora_high_filename: Optional[str],
+    lora_high_strength: Optional[float],
+    lora_low_filename: Optional[str],
+    lora_low_strength: Optional[float],
+) -> str:
+    lt = str(lora_type or "single").lower()
+    label = ""
+    if lora_label:
+        label = str(lora_label).strip()
+    elif lora_key:
+        label = str(lora_key).strip()
+
+    if lt == "pair":
+        parts = []
+        if lora_high_filename:
+            parts.append(f"high={lora_high_filename}{_weight_suffix(lora_high_strength)}")
+        if lora_low_filename:
+            parts.append(f"low={lora_low_filename}{_weight_suffix(lora_low_strength)}")
+        if not parts:
+            return "LoRA: none"
+        prefix = f"LoRA: {label} (pair)" if label else "LoRA: pair"
+        return f"{prefix}, " + ", ".join(parts)
+
+    weight_suffix = _weight_suffix(lora_strength)
+    name = label or (str(lora_filename).strip() if lora_filename else "")
+    if lora_filename and name and lora_filename != name:
+        return f"LoRA: {name} ({lora_filename}{weight_suffix})"
+    if name:
+        return f"LoRA: {name}{weight_suffix}"
+    if lora_filename:
+        return f"LoRA: {lora_filename}{weight_suffix}"
+    return "LoRA: none"
+
+
+def build_caption(
+    *,
+    use_gguf: Optional[bool],
+    model_label: Optional[str],
+    model_high_filename: Optional[str],
+    model_low_filename: Optional[str],
+    lora_type: str,
+    lora_label: Optional[str],
+    lora_key: Optional[str],
+    lora_filename: Optional[str],
+    lora_strength: Optional[float],
+    lora_high_filename: Optional[str],
+    lora_high_strength: Optional[float],
+    lora_low_filename: Optional[str],
+    lora_low_strength: Optional[float],
+) -> str:
+    lines = ["Hotovo"]
+    lines.append(
+        _format_model_line(
+            use_gguf=use_gguf,
+            model_label=model_label,
+            model_high_filename=model_high_filename,
+            model_low_filename=model_low_filename,
+        )
+    )
+    lines.append(
+        _format_lora_line(
+            lora_type=lora_type,
+            lora_label=lora_label,
+            lora_key=lora_key,
+            lora_filename=lora_filename,
+            lora_strength=lora_strength,
+            lora_high_filename=lora_high_filename,
+            lora_high_strength=lora_high_strength,
+            lora_low_filename=lora_low_filename,
+            lora_low_strength=lora_low_strength,
+        )
+    )
+    return "\n".join(lines)
+
+
+def upload_video(chat_id: int, message_id: int, video_path: pathlib.Path, caption: str = "Hotovo") -> bool:
     api = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+    sent_new = False
     with open(video_path, "rb") as f:
-        files = {"media": ("video.mp4", f, "video/mp4")}
-        data = {
-            "chat_id": chat_id,
-            "message_id": message_id,
-            "media": json.dumps({"type": "video", "media": "attach://media", "caption": caption}),
-        }
-        r = requests.post(f"{api}/editMessageMedia", data=data, files=files, timeout=120)
-        if not r.ok:
+        files = {"video": ("video.mp4", f, "video/mp4")}
+        data = {"chat_id": chat_id, "caption": caption}
+        r = requests.post(f"{api}/sendVideo", data=data, files=files, timeout=120)
+        sent_new = r.ok
+        if not r.ok and message_id:
             f.seek(0)
-            files2 = {"video": ("video.mp4", f, "video/mp4")}
-            data2 = {"chat_id": chat_id, "caption": caption}
-            requests.post(f"{api}/sendVideo", data=data2, files=files2, timeout=120)
+            files2 = {"media": ("video.mp4", f, "video/mp4")}
+            data2 = {
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "media": json.dumps({"type": "video", "media": "attach://media", "caption": caption}),
+            }
+            requests.post(f"{api}/editMessageMedia", data=data2, files=files2, timeout=120)
+    return sent_new
+
+
+def update_placeholder_text(chat_id: int, message_id: int, text: str) -> None:
+    api = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+    try:
+        requests.post(
+            f"{api}/editMessageText",
+            data={"chat_id": chat_id, "message_id": message_id, "text": text},
+            timeout=30,
+        )
+    except Exception:
+        logging.exception("Failed to update placeholder message text")
 
 
 def handler(event):
@@ -694,6 +839,9 @@ def handler(event):
     job_id = payload["job_id"]
     chat_id = int(payload["chat_id"])
     file_id = payload["input_file_id"]
+
+    lora_key = payload.get("lora_key")
+    lora_label = payload.get("lora_label")
 
     lora_type = (payload.get("lora_type") or "single")
 
@@ -708,6 +856,7 @@ def handler(event):
 
     model_high_filename = payload.get("model_high_filename")
     model_low_filename = payload.get("model_low_filename")
+    model_label = payload.get("model_label")
 
     positive_prompt = payload.get("positive_prompt")
     use_gguf = payload.get("use_gguf")
@@ -814,7 +963,33 @@ def handler(event):
 
         finalize_info = finalize(job_id, "COMPLETED")
         if finalize_info:
-            upload_video(int(finalize_info["chat_id"]), int(finalize_info["placeholder_message_id"]), video_path)
+            caption = build_caption(
+                use_gguf=use_gguf,
+                model_label=model_label,
+                model_high_filename=model_high_filename,
+                model_low_filename=model_low_filename,
+                lora_type=lora_type,
+                lora_label=lora_label,
+                lora_key=lora_key,
+                lora_filename=lora_filename,
+                lora_strength=lora_strength,
+                lora_high_filename=lora_high_filename,
+                lora_high_strength=lora_high_strength,
+                lora_low_filename=lora_low_filename,
+                lora_low_strength=lora_low_strength,
+            )
+            sent_new = upload_video(
+                int(finalize_info["chat_id"]),
+                int(finalize_info["placeholder_message_id"]),
+                video_path,
+                caption=caption,
+            )
+            if sent_new:
+                update_placeholder_text(
+                    int(finalize_info["chat_id"]),
+                    int(finalize_info["placeholder_message_id"]),
+                    "Hotovo. Video je v novej sprave.",
+                )
 
         return {"status": "completed", "video": str(video_path)}
     except Exception as exc:
