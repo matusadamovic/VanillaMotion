@@ -391,6 +391,10 @@ def load_and_patch_workflow(
     model_low_filename: Optional[str],
     positive_prompt: Optional[str],
     use_gguf: Optional[bool],
+    use_last_frame: Optional[bool],
+    video_width: Optional[int],
+    video_height: Optional[int],
+    total_steps: Optional[int],
 ) -> Dict[str, Any]:
     with open(WORKFLOW_PATH, "r", encoding="utf-8") as f:
         prompt = json.load(f)
@@ -421,6 +425,35 @@ def load_and_patch_workflow(
             title = ((node.get("_meta") or {}).get("title") or "").lower()
             if "use gguf" in title:
                 node.setdefault("inputs", {})["value"] = bool(use_gguf)
+
+    # Patch Last Frame toggle if provided
+    if use_last_frame is not None:
+        for node in prompt.values():
+            if node.get("class_type") != "BOOLConstant":
+                continue
+            title = ((node.get("_meta") or {}).get("title") or "").lower()
+            if "use last frame" in title:
+                node.setdefault("inputs", {})["value"] = bool(use_last_frame)
+
+    # Patch Video Width/Height if provided
+    if video_width is not None or video_height is not None:
+        for node in prompt.values():
+            if node.get("class_type") != "Width/Height Literal (Image Saver)":
+                continue
+            title = _get_title(node).lower()
+            if "video width" in title and video_width is not None:
+                node.setdefault("inputs", {})["int"] = int(video_width)
+            if "video height" in title and video_height is not None:
+                node.setdefault("inputs", {})["int"] = int(video_height)
+
+    # Patch Total Steps if provided
+    if total_steps is not None:
+        for node in prompt.values():
+            if node.get("class_type") != "INTConstant":
+                continue
+            title = _get_title(node).lower()
+            if "total steps" in title:
+                node.setdefault("inputs", {})["value"] = int(total_steps)
 
     # Patch UNET selection if provided
     if model_high_filename or model_low_filename:
@@ -865,6 +898,29 @@ def handler(event):
     elif isinstance(use_gguf, (int, float)) and not isinstance(use_gguf, bool):
         use_gguf = bool(use_gguf)
 
+    use_last_frame = payload.get("use_last_frame")
+    if isinstance(use_last_frame, str):
+        use_last_frame = use_last_frame.strip().lower() in ("1", "true", "yes", "y", "on")
+    elif isinstance(use_last_frame, (int, float)) and not isinstance(use_last_frame, bool):
+        use_last_frame = bool(use_last_frame)
+
+    def _to_int(value: Any) -> Optional[int]:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return int(value)
+        try:
+            return int(value)
+        except Exception:
+            try:
+                return int(float(value))
+            except Exception:
+                return None
+
+    video_width = _to_int(payload.get("video_width"))
+    video_height = _to_int(payload.get("video_height"))
+    total_steps = _to_int(payload.get("total_steps"))
+
     job_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"job_{job_id}_", dir="/tmp"))
     temp_dir = job_dir / "temp"
     temp_dir.mkdir(parents=True, exist_ok=True)
@@ -914,6 +970,10 @@ def handler(event):
                 model_low_filename=model_low_filename,
                 positive_prompt=positive_prompt,
                 use_gguf=use_gguf,
+                use_last_frame=use_last_frame,
+                video_width=video_width,
+                video_height=video_height,
+                total_steps=total_steps,
             )
 
             # Log: čo sme reálne poslali do Comfy (modely/loras/prompt/step1 vs step3)
@@ -922,7 +982,7 @@ def handler(event):
 
             # Log: čo prišlo z payloadu (aby si porovnal s patched workflow)
             logging.info(
-                "JOB_PARAMS lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s model_high=%s model_low=%s use_gguf=%s positive_prompt=%s",
+                "JOB_PARAMS lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s model_high=%s model_low=%s use_gguf=%s use_last_frame=%s video=%sx%s steps=%s positive_prompt=%s",
                 lora_type,
                 lora_filename,
                 lora_strength,
@@ -933,6 +993,10 @@ def handler(event):
                 model_high_filename,
                 model_low_filename,
                 use_gguf,
+                use_last_frame,
+                video_width,
+                video_height,
+                total_steps,
                 (positive_prompt[:120] + "…")
                 if isinstance(positive_prompt, str) and len(positive_prompt) > 120
                 else positive_prompt,

@@ -25,7 +25,7 @@ MODEL_CATALOG_PATH = os.environ.get("MODEL_CATALOG_PATH", "/app/models.json")
 # 4 buttons max (2x2 grid) + paging arrows
 PAGE_SIZE = int(os.environ.get("LORA_PAGE_SIZE", "4"))  # keep 4 by default
 MODEL_PAGE_SIZE = int(os.environ.get("MODEL_PAGE_SIZE", "4"))
-WEIGHT_OPTIONS_RAW = os.environ.get("LORA_WEIGHT_OPTIONS", "0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0")
+WEIGHT_OPTIONS_RAW = os.environ.get("LORA_WEIGHT_OPTIONS", "0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0")
 
 
 def load_lora_catalog() -> Dict[str, Any]:
@@ -108,7 +108,33 @@ def _parse_weight_options(raw: str) -> List[float]:
     return opts
 
 
-WEIGHT_OPTIONS = _parse_weight_options(WEIGHT_OPTIONS_RAW) or [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+WEIGHT_OPTIONS = _parse_weight_options(WEIGHT_OPTIONS_RAW) or [
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1.0,
+]
+
+RESOLUTION_OPTIONS = [
+    {"label": "1280x720", "width": 1280, "height": 720},
+    {"label": "720x480", "width": 720, "height": 480},
+    {"label": "640x480", "width": 640, "height": 480},
+]
+DEFAULT_RESOLUTION_IDX = 0
+
+STEPS_OPTIONS = [4, 6, 8, 10, 12, 14]
+DEFAULT_STEPS = 12
+
+DEFAULT_PROMPT = (
+    "face remains consistent across frames, subtle camera drift only, "
+    "minimal head movement, micro-expression only, no dramatic rotation, no sudden tilt"
+)
 
 
 def _format_weight(value: float) -> str:
@@ -129,6 +155,18 @@ def _weight_options_for(cfg: Dict[str, Any], kind: str) -> Tuple[List[float], Op
     if default is not None and not _float_in_list(default, options):
         options.insert(0, default)
     return options, default
+
+
+def _resolution_by_index(idx: int) -> Optional[Dict[str, Any]]:
+    if idx < 0 or idx >= len(RESOLUTION_OPTIONS):
+        return None
+    return RESOLUTION_OPTIONS[idx]
+
+
+def _steps_by_index(idx: int) -> Optional[int]:
+    if idx < 0 or idx >= len(STEPS_OPTIONS):
+        return None
+    return STEPS_OPTIONS[idx]
 
 
 def _get_lora_cfg_by_index(idx: int) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
@@ -366,6 +404,150 @@ def build_unet_keyboard(
     return json.dumps({"inline_keyboard": rows})
 
 
+def build_last_frame_keyboard(
+    job_id: str,
+    *,
+    is_pair: bool,
+    lora_idx: int,
+    model_type: str,
+    model_idx: int,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+) -> str:
+    if is_pair:
+        on_data = f"lf:1:{lora_idx}:{high_idx}:{low_idx}:{model_type}:{model_idx}:{job_id}"
+        off_data = f"lf:0:{lora_idx}:{high_idx}:{low_idx}:{model_type}:{model_idx}:{job_id}"
+    else:
+        on_data = f"lf:1:{lora_idx}:{weight_idx}:{model_type}:{model_idx}:{job_id}"
+        off_data = f"lf:0:{lora_idx}:{weight_idx}:{model_type}:{model_idx}:{job_id}"
+
+    rows = [
+        [
+            {"text": "Last frame: ON", "callback_data": on_data},
+            {"text": "Last frame: OFF", "callback_data": off_data},
+        ]
+    ]
+    return json.dumps({"inline_keyboard": rows})
+
+
+def build_resolution_keyboard(
+    job_id: str,
+    *,
+    is_pair: bool,
+    lora_idx: int,
+    model_type: str,
+    model_idx: int,
+    use_last_frame: bool,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+) -> str:
+    rows = []
+    for i in range(0, len(RESOLUTION_OPTIONS), 2):
+        row = []
+        for j in range(2):
+            if i + j >= len(RESOLUTION_OPTIONS):
+                break
+            idx = i + j
+            opt = RESOLUTION_OPTIONS[idx]
+            label = str(opt.get("label") or "")
+            if idx == DEFAULT_RESOLUTION_IDX:
+                label = f"{label} (default)"
+
+            if is_pair:
+                data = f"rs:{idx}:{int(use_last_frame)}:{lora_idx}:{high_idx}:{low_idx}:{model_type}:{model_idx}:{job_id}"
+            else:
+                data = f"rs:{idx}:{int(use_last_frame)}:{lora_idx}:{weight_idx}:{model_type}:{model_idx}:{job_id}"
+            row.append({"text": label, "callback_data": data})
+        rows.append(row)
+
+    return json.dumps({"inline_keyboard": rows})
+
+
+def build_steps_keyboard(
+    job_id: str,
+    *,
+    is_pair: bool,
+    lora_idx: int,
+    model_type: str,
+    model_idx: int,
+    use_last_frame: bool,
+    resolution_idx: int,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+) -> str:
+    rows = []
+    for i in range(0, len(STEPS_OPTIONS), 2):
+        row = []
+        for j in range(2):
+            if i + j >= len(STEPS_OPTIONS):
+                break
+            idx = i + j
+            steps = STEPS_OPTIONS[idx]
+            label = f"{steps}"
+            if steps == DEFAULT_STEPS:
+                label = f"{label} (default)"
+
+            if is_pair:
+                data = (
+                    f"st:{idx}:{resolution_idx}:{int(use_last_frame)}:"
+                    f"{lora_idx}:{high_idx}:{low_idx}:{model_type}:{model_idx}:{job_id}"
+                )
+            else:
+                data = (
+                    f"st:{idx}:{resolution_idx}:{int(use_last_frame)}:"
+                    f"{lora_idx}:{weight_idx}:{model_type}:{model_idx}:{job_id}"
+                )
+            row.append({"text": label, "callback_data": data})
+        rows.append(row)
+
+    return json.dumps({"inline_keyboard": rows})
+
+
+def build_prompt_keyboard(
+    job_id: str,
+    *,
+    is_pair: bool,
+    lora_idx: int,
+    model_type: str,
+    model_idx: int,
+    use_last_frame: bool,
+    resolution_idx: int,
+    steps_idx: int,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+) -> str:
+    if is_pair:
+        yes_data = (
+            f"pu:1:{steps_idx}:{resolution_idx}:{int(use_last_frame)}:"
+            f"{lora_idx}:{high_idx}:{low_idx}:{model_type}:{model_idx}:{job_id}"
+        )
+        no_data = (
+            f"pu:0:{steps_idx}:{resolution_idx}:{int(use_last_frame)}:"
+            f"{lora_idx}:{high_idx}:{low_idx}:{model_type}:{model_idx}:{job_id}"
+        )
+    else:
+        yes_data = (
+            f"pu:1:{steps_idx}:{resolution_idx}:{int(use_last_frame)}:"
+            f"{lora_idx}:{weight_idx}:{model_type}:{model_idx}:{job_id}"
+        )
+        no_data = (
+            f"pu:0:{steps_idx}:{resolution_idx}:{int(use_last_frame)}:"
+            f"{lora_idx}:{weight_idx}:{model_type}:{model_idx}:{job_id}"
+        )
+
+    rows = [
+        [
+            {"text": "Prompt: LoRA (default)", "callback_data": yes_data},
+            {"text": "Prompt: Default", "callback_data": no_data},
+        ]
+    ]
+    return json.dumps({"inline_keyboard": rows})
+
+
 async def send_lora_picker(chat_id: int, job_id: str) -> None:
     await tg_post(
         "sendMessage",
@@ -375,6 +557,134 @@ async def send_lora_picker(chat_id: int, job_id: str) -> None:
             "reply_markup": build_lora_keyboard(job_id, page=0),
         },
     )
+
+
+async def prompt_last_frame(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+    is_pair: bool,
+    lora_idx: int,
+    model_type: str,
+    model_idx: int,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+) -> None:
+    if not (chat_id and message_id):
+        return
+    reply_markup = build_last_frame_keyboard(
+        job_id,
+        is_pair=is_pair,
+        lora_idx=lora_idx,
+        model_type=model_type,
+        model_idx=model_idx,
+        weight_idx=weight_idx,
+        high_idx=high_idx,
+        low_idx=low_idx,
+    )
+    await edit_message_text(chat_id, message_id, f"{label}: použiť last frame?", reply_markup)
+
+
+async def prompt_resolution(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+    is_pair: bool,
+    lora_idx: int,
+    model_type: str,
+    model_idx: int,
+    use_last_frame: bool,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+) -> None:
+    if not (chat_id and message_id):
+        return
+    reply_markup = build_resolution_keyboard(
+        job_id,
+        is_pair=is_pair,
+        lora_idx=lora_idx,
+        model_type=model_type,
+        model_idx=model_idx,
+        use_last_frame=use_last_frame,
+        weight_idx=weight_idx,
+        high_idx=high_idx,
+        low_idx=low_idx,
+    )
+    await edit_message_text(chat_id, message_id, f"{label}: vyber rozlisenie", reply_markup)
+
+
+async def prompt_steps(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+    is_pair: bool,
+    lora_idx: int,
+    model_type: str,
+    model_idx: int,
+    use_last_frame: bool,
+    resolution_idx: int,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+) -> None:
+    if not (chat_id and message_id):
+        return
+    reply_markup = build_steps_keyboard(
+        job_id,
+        is_pair=is_pair,
+        lora_idx=lora_idx,
+        model_type=model_type,
+        model_idx=model_idx,
+        use_last_frame=use_last_frame,
+        resolution_idx=resolution_idx,
+        weight_idx=weight_idx,
+        high_idx=high_idx,
+        low_idx=low_idx,
+    )
+    await edit_message_text(chat_id, message_id, f"{label}: vyber pocet krokov", reply_markup)
+
+
+async def prompt_use_prompt(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+    is_pair: bool,
+    lora_idx: int,
+    model_type: str,
+    model_idx: int,
+    use_last_frame: bool,
+    resolution_idx: int,
+    steps_idx: int,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+) -> None:
+    if not (chat_id and message_id):
+        return
+    reply_markup = build_prompt_keyboard(
+        job_id,
+        is_pair=is_pair,
+        lora_idx=lora_idx,
+        model_type=model_type,
+        model_idx=model_idx,
+        use_last_frame=use_last_frame,
+        resolution_idx=resolution_idx,
+        steps_idx=steps_idx,
+        weight_idx=weight_idx,
+        high_idx=high_idx,
+        low_idx=low_idx,
+    )
+    await edit_message_text(chat_id, message_id, f"{label}: pouzit LoRA prompt?", reply_markup)
 
 
 def clear_webhook():
@@ -466,6 +776,11 @@ async def _submit_single_job(
     cfg: Dict[str, Any],
     weight: float,
     use_gguf: bool,
+    use_last_frame: bool,
+    video_width: Optional[int],
+    video_height: Optional[int],
+    total_steps: Optional[int],
+    positive_prompt: Optional[str],
     model_label: Optional[str],
     model_high_filename: Optional[str],
     model_low_filename: Optional[str],
@@ -474,6 +789,7 @@ async def _submit_single_job(
 ) -> None:
     row = set_queue(job_id, lora_key)
     label = str(cfg.get("label") or lora_key)
+    prompt_text = positive_prompt if isinstance(positive_prompt, str) else cfg.get("positive")
     payload: Dict[str, Any] = {
         "job_id": job_id,
         "chat_id": int(row["chat_id"]),
@@ -481,8 +797,12 @@ async def _submit_single_job(
         "lora_key": lora_key,
         "lora_label": label,
         "lora_type": (cfg.get("type") or "single"),
-        "positive_prompt": cfg.get("positive"),
+        "positive_prompt": prompt_text,
         "use_gguf": use_gguf,
+        "use_last_frame": use_last_frame,
+        "video_width": video_width,
+        "video_height": video_height,
+        "total_steps": total_steps,
         "lora_filename": cfg.get("filename"),
         "lora_strength": weight,
     }
@@ -516,6 +836,11 @@ async def _submit_pair_job(
     high_weight: float,
     low_weight: float,
     use_gguf: bool,
+    use_last_frame: bool,
+    video_width: Optional[int],
+    video_height: Optional[int],
+    total_steps: Optional[int],
+    positive_prompt: Optional[str],
     model_label: Optional[str],
     model_high_filename: Optional[str],
     model_low_filename: Optional[str],
@@ -524,6 +849,7 @@ async def _submit_pair_job(
 ) -> None:
     row = set_queue(job_id, lora_key)
     label = str(cfg.get("label") or lora_key)
+    prompt_text = positive_prompt if isinstance(positive_prompt, str) else cfg.get("positive")
     payload: Dict[str, Any] = {
         "job_id": job_id,
         "chat_id": int(row["chat_id"]),
@@ -531,8 +857,12 @@ async def _submit_pair_job(
         "lora_key": lora_key,
         "lora_label": label,
         "lora_type": (cfg.get("type") or "single"),
-        "positive_prompt": cfg.get("positive"),
+        "positive_prompt": prompt_text,
         "use_gguf": use_gguf,
+        "use_last_frame": use_last_frame,
+        "video_width": video_width,
+        "video_height": video_height,
+        "total_steps": total_steps,
         "lora_high_filename": cfg.get("high_filename"),
         "lora_high_strength": high_weight,
         "lora_low_filename": cfg.get("low_filename"),
@@ -627,6 +957,14 @@ async def process_callback(update: Dict[str, Any]) -> None:
     # - mp:<lora_idx>:<h_idx>:<l_idx>:<model>:<job_id> (select model type, pair)
     # - mm:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (select model, single)
     # - mm:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (select model, pair)
+    # - lf:<on>:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (last frame, single)
+    # - lf:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (last frame, pair)
+    # - rs:<r_idx>:<on>:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (resolution, single)
+    # - rs:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (resolution, pair)
+    # - st:<s_idx>:<r_idx>:<on>:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (steps, single)
+    # - st:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (steps, pair)
+    # - pu:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (prompt, single)
+    # - pu:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (prompt, pair)
     # - noop:<job_id>                          (do nothing)
     parts = data.split(":")
     if len(parts) < 2:
@@ -875,18 +1213,37 @@ async def process_callback(update: Dict[str, Any]) -> None:
             if not model_cfg:
                 return
 
-            await _submit_single_job(
-                job_id=job_id,
-                lora_key=lora_key,
-                cfg=cfg,
-                weight=options[weight_idx],
-                use_gguf=(model_type == "gguf"),
-                model_label=str(model_cfg.get("label") or model_key),
-                model_high_filename=model_cfg.get("high_filename"),
-                model_low_filename=model_cfg.get("low_filename"),
-                chat_id=chat_id,
-                message_id=message_id,
-            )
+            label = str(cfg.get("label") or lora_key)
+            if chat_id and message_id:
+                await prompt_last_frame(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    label=label,
+                    job_id=job_id,
+                    is_pair=False,
+                    lora_idx=lora_idx,
+                    weight_idx=weight_idx,
+                    model_type=model_type,
+                    model_idx=model_idx,
+                )
+            else:
+                await _submit_single_job(
+                    job_id=job_id,
+                    lora_key=lora_key,
+                    cfg=cfg,
+                    weight=options[weight_idx],
+                    use_gguf=(model_type == "gguf"),
+                    use_last_frame=False,
+                    video_width=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["width"],
+                    video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
+                    total_steps=DEFAULT_STEPS,
+                    positive_prompt=cfg.get("positive"),
+                    model_label=str(model_cfg.get("label") or model_key),
+                    model_high_filename=model_cfg.get("high_filename"),
+                    model_low_filename=model_cfg.get("low_filename"),
+                    chat_id=chat_id,
+                    message_id=message_id,
+                )
             return
 
         try:
@@ -918,6 +1275,434 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if not model_cfg:
             return
 
+        label = str(cfg.get("label") or lora_key)
+        if chat_id and message_id:
+            await prompt_last_frame(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                is_pair=True,
+                lora_idx=lora_idx,
+                high_idx=high_idx,
+                low_idx=low_idx,
+                model_type=model_type,
+                model_idx=model_idx,
+            )
+        else:
+            await _submit_pair_job(
+                job_id=job_id,
+                lora_key=lora_key,
+                cfg=cfg,
+                high_weight=options_high[high_idx],
+                low_weight=options_low[low_idx],
+                use_gguf=(model_type == "gguf"),
+                use_last_frame=False,
+                video_width=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["width"],
+                video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
+                total_steps=DEFAULT_STEPS,
+                positive_prompt=cfg.get("positive"),
+                model_label=str(model_cfg.get("label") or model_key),
+                model_high_filename=model_cfg.get("high_filename"),
+                model_low_filename=model_cfg.get("low_filename"),
+                chat_id=chat_id,
+                message_id=message_id,
+            )
+        return
+
+    if tag == "lf":
+        if len(parts) not in (7, 8):
+            return
+
+        use_last_frame = str(parts[1]).strip().lower() in ("1", "true", "yes", "y", "on")
+
+        try:
+            lora_idx = int(parts[2])
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        lora_type = str(cfg.get("type") or "single").lower()
+        label = str(cfg.get("label") or lora_key)
+
+        if len(parts) == 7:
+            if lora_type == "pair":
+                return
+            try:
+                weight_idx = int(parts[3])
+                model_type = parts[4]
+                model_idx = int(parts[5])
+                job_id = parts[6]
+            except Exception:
+                return
+
+            if model_type not in ("wan", "gguf"):
+                return
+
+            options, _ = _weight_options_for(cfg, "single")
+            if weight_idx < 0 or weight_idx >= len(options):
+                return
+
+            await prompt_resolution(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                is_pair=False,
+                lora_idx=lora_idx,
+                weight_idx=weight_idx,
+                model_type=model_type,
+                model_idx=model_idx,
+                use_last_frame=use_last_frame,
+            )
+            return
+
+        if lora_type != "pair":
+            return
+        try:
+            high_idx = int(parts[3])
+            low_idx = int(parts[4])
+            model_type = parts[5]
+            model_idx = int(parts[6])
+            job_id = parts[7]
+        except Exception:
+            return
+
+        if model_type not in ("wan", "gguf"):
+            return
+
+        options_high, _ = _weight_options_for(cfg, "high")
+        options_low, _ = _weight_options_for(cfg, "low")
+        if high_idx < 0 or high_idx >= len(options_high):
+            return
+        if low_idx < 0 or low_idx >= len(options_low):
+            return
+
+        await prompt_resolution(
+            chat_id=chat_id,
+            message_id=message_id,
+            label=label,
+            job_id=job_id,
+            is_pair=True,
+            lora_idx=lora_idx,
+            high_idx=high_idx,
+            low_idx=low_idx,
+            model_type=model_type,
+            model_idx=model_idx,
+            use_last_frame=use_last_frame,
+        )
+        return
+
+    if tag == "rs":
+        if len(parts) not in (8, 9):
+            return
+
+        try:
+            resolution_idx = int(parts[1])
+        except Exception:
+            return
+        if _resolution_by_index(resolution_idx) is None:
+            return
+
+        use_last_frame = str(parts[2]).strip().lower() in ("1", "true", "yes", "y", "on")
+
+        try:
+            lora_idx = int(parts[3])
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        lora_type = str(cfg.get("type") or "single").lower()
+        label = str(cfg.get("label") or lora_key)
+
+        if len(parts) == 8:
+            if lora_type == "pair":
+                return
+            try:
+                weight_idx = int(parts[4])
+                model_type = parts[5]
+                model_idx = int(parts[6])
+                job_id = parts[7]
+            except Exception:
+                return
+
+            if model_type not in ("wan", "gguf"):
+                return
+
+            options, _ = _weight_options_for(cfg, "single")
+            if weight_idx < 0 or weight_idx >= len(options):
+                return
+
+            await prompt_steps(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                is_pair=False,
+                lora_idx=lora_idx,
+                weight_idx=weight_idx,
+                model_type=model_type,
+                model_idx=model_idx,
+                use_last_frame=use_last_frame,
+                resolution_idx=resolution_idx,
+            )
+            return
+
+        if lora_type != "pair":
+            return
+        try:
+            high_idx = int(parts[4])
+            low_idx = int(parts[5])
+            model_type = parts[6]
+            model_idx = int(parts[7])
+            job_id = parts[8]
+        except Exception:
+            return
+
+        if model_type not in ("wan", "gguf"):
+            return
+
+        options_high, _ = _weight_options_for(cfg, "high")
+        options_low, _ = _weight_options_for(cfg, "low")
+        if high_idx < 0 or high_idx >= len(options_high):
+            return
+        if low_idx < 0 or low_idx >= len(options_low):
+            return
+
+        await prompt_steps(
+            chat_id=chat_id,
+            message_id=message_id,
+            label=label,
+            job_id=job_id,
+            is_pair=True,
+            lora_idx=lora_idx,
+            high_idx=high_idx,
+            low_idx=low_idx,
+            model_type=model_type,
+            model_idx=model_idx,
+            use_last_frame=use_last_frame,
+            resolution_idx=resolution_idx,
+        )
+        return
+
+    if tag == "st":
+        if len(parts) not in (9, 10):
+            return
+
+        try:
+            steps_idx = int(parts[1])
+            resolution_idx = int(parts[2])
+        except Exception:
+            return
+        if _resolution_by_index(resolution_idx) is None:
+            return
+        if _steps_by_index(steps_idx) is None:
+            return
+
+        use_last_frame = str(parts[3]).strip().lower() in ("1", "true", "yes", "y", "on")
+
+        try:
+            lora_idx = int(parts[4])
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        lora_type = str(cfg.get("type") or "single").lower()
+        label = str(cfg.get("label") or lora_key)
+
+        if len(parts) == 9:
+            if lora_type == "pair":
+                return
+            try:
+                weight_idx = int(parts[5])
+                model_type = parts[6]
+                model_idx = int(parts[7])
+                job_id = parts[8]
+            except Exception:
+                return
+
+            if model_type not in ("wan", "gguf"):
+                return
+
+            options, _ = _weight_options_for(cfg, "single")
+            if weight_idx < 0 or weight_idx >= len(options):
+                return
+
+            await prompt_use_prompt(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                is_pair=False,
+                lora_idx=lora_idx,
+                weight_idx=weight_idx,
+                model_type=model_type,
+                model_idx=model_idx,
+                use_last_frame=use_last_frame,
+                resolution_idx=resolution_idx,
+                steps_idx=steps_idx,
+            )
+            return
+
+        if lora_type != "pair":
+            return
+        try:
+            high_idx = int(parts[5])
+            low_idx = int(parts[6])
+            model_type = parts[7]
+            model_idx = int(parts[8])
+            job_id = parts[9]
+        except Exception:
+            return
+
+        if model_type not in ("wan", "gguf"):
+            return
+
+        options_high, _ = _weight_options_for(cfg, "high")
+        options_low, _ = _weight_options_for(cfg, "low")
+        if high_idx < 0 or high_idx >= len(options_high):
+            return
+        if low_idx < 0 or low_idx >= len(options_low):
+            return
+
+        await prompt_use_prompt(
+            chat_id=chat_id,
+            message_id=message_id,
+            label=label,
+            job_id=job_id,
+            is_pair=True,
+            lora_idx=lora_idx,
+            high_idx=high_idx,
+            low_idx=low_idx,
+            model_type=model_type,
+            model_idx=model_idx,
+            use_last_frame=use_last_frame,
+            resolution_idx=resolution_idx,
+            steps_idx=steps_idx,
+        )
+        return
+
+    if tag == "pu":
+        if len(parts) not in (10, 11):
+            return
+
+        use_prompt = str(parts[1]).strip().lower() in ("1", "true", "yes", "y", "on")
+        try:
+            steps_idx = int(parts[2])
+            resolution_idx = int(parts[3])
+        except Exception:
+            return
+        if _resolution_by_index(resolution_idx) is None:
+            return
+        steps = _steps_by_index(steps_idx)
+        if steps is None:
+            return
+
+        use_last_frame = str(parts[4]).strip().lower() in ("1", "true", "yes", "y", "on")
+
+        try:
+            lora_idx = int(parts[5])
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        lora_type = str(cfg.get("type") or "single").lower()
+
+        resolution = _resolution_by_index(resolution_idx)
+        if not resolution:
+            return
+        video_width = int(resolution["width"])
+        video_height = int(resolution["height"])
+        prompt_text = (cfg.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
+
+        if len(parts) == 10:
+            if lora_type == "pair":
+                return
+            try:
+                weight_idx = int(parts[6])
+                model_type = parts[7]
+                model_idx = int(parts[8])
+                job_id = parts[9]
+            except Exception:
+                return
+
+            if model_type not in ("wan", "gguf"):
+                return
+
+            options, _ = _weight_options_for(cfg, "single")
+            if weight_idx < 0 or weight_idx >= len(options):
+                return
+
+            model_label = None
+            model_high_filename = None
+            model_low_filename = None
+            if model_idx >= 0:
+                model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
+                if not model_cfg:
+                    return
+                model_label = str(model_cfg.get("label") or model_key)
+                model_high_filename = model_cfg.get("high_filename")
+                model_low_filename = model_cfg.get("low_filename")
+
+            await _submit_single_job(
+                job_id=job_id,
+                lora_key=lora_key,
+                cfg=cfg,
+                weight=options[weight_idx],
+                use_gguf=(model_type == "gguf"),
+                use_last_frame=use_last_frame,
+                video_width=video_width,
+                video_height=video_height,
+                total_steps=steps,
+                positive_prompt=prompt_text,
+                model_label=model_label,
+                model_high_filename=model_high_filename,
+                model_low_filename=model_low_filename,
+                chat_id=chat_id,
+                message_id=message_id,
+            )
+            return
+
+        if lora_type != "pair":
+            return
+        try:
+            high_idx = int(parts[6])
+            low_idx = int(parts[7])
+            model_type = parts[8]
+            model_idx = int(parts[9])
+            job_id = parts[10]
+        except Exception:
+            return
+
+        if model_type not in ("wan", "gguf"):
+            return
+
+        options_high, _ = _weight_options_for(cfg, "high")
+        options_low, _ = _weight_options_for(cfg, "low")
+        if high_idx < 0 or high_idx >= len(options_high):
+            return
+        if low_idx < 0 or low_idx >= len(options_low):
+            return
+
+        model_label = None
+        model_high_filename = None
+        model_low_filename = None
+        if model_idx >= 0:
+            model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
+            if not model_cfg:
+                return
+            model_label = str(model_cfg.get("label") or model_key)
+            model_high_filename = model_cfg.get("high_filename")
+            model_low_filename = model_cfg.get("low_filename")
+
         await _submit_pair_job(
             job_id=job_id,
             lora_key=lora_key,
@@ -925,9 +1710,14 @@ async def process_callback(update: Dict[str, Any]) -> None:
             high_weight=options_high[high_idx],
             low_weight=options_low[low_idx],
             use_gguf=(model_type == "gguf"),
-            model_label=str(model_cfg.get("label") or model_key),
-            model_high_filename=model_cfg.get("high_filename"),
-            model_low_filename=model_cfg.get("low_filename"),
+            use_last_frame=use_last_frame,
+            video_width=video_width,
+            video_height=video_height,
+            total_steps=steps,
+            positive_prompt=prompt_text,
+            model_label=model_label,
+            model_high_filename=model_high_filename,
+            model_low_filename=model_low_filename,
             chat_id=chat_id,
             message_id=message_id,
         )
@@ -973,11 +1763,27 @@ async def process_callback(update: Dict[str, Any]) -> None:
             await edit_message_text(chat_id, message_id, f"{label}: vyber {model_type_label} model", reply_markup)
             return
 
+        model_idx = 0 if model_keys else -1
+        label = str(cfg.get("label") or lora_key)
+        if chat_id and message_id:
+            await prompt_last_frame(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                is_pair=False,
+                lora_idx=lora_idx,
+                weight_idx=weight_idx,
+                model_type=model_type,
+                model_idx=model_idx,
+            )
+            return
+
         model_label = None
         model_high_filename = None
         model_low_filename = None
-        if model_keys:
-            model_key, model_cfg = _get_model_cfg_by_index(model_type, 0)
+        if model_idx >= 0:
+            model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
             if model_cfg:
                 model_label = str(model_cfg.get("label") or model_key)
                 model_high_filename = model_cfg.get("high_filename")
@@ -989,6 +1795,11 @@ async def process_callback(update: Dict[str, Any]) -> None:
             cfg=cfg,
             weight=options[weight_idx],
             use_gguf=use_gguf,
+            use_last_frame=False,
+            video_width=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["width"],
+            video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
+            total_steps=DEFAULT_STEPS,
+            positive_prompt=cfg.get("positive"),
             model_label=model_label,
             model_high_filename=model_high_filename,
             model_low_filename=model_low_filename,
@@ -1042,11 +1853,28 @@ async def process_callback(update: Dict[str, Any]) -> None:
             await edit_message_text(chat_id, message_id, f"{label}: vyber {model_type_label} model", reply_markup)
             return
 
+        model_idx = 0 if model_keys else -1
+        label = str(cfg.get("label") or lora_key)
+        if chat_id and message_id:
+            await prompt_last_frame(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                is_pair=True,
+                lora_idx=lora_idx,
+                high_idx=high_idx,
+                low_idx=low_idx,
+                model_type=model_type,
+                model_idx=model_idx,
+            )
+            return
+
         model_label = None
         model_high_filename = None
         model_low_filename = None
-        if model_keys:
-            model_key, model_cfg = _get_model_cfg_by_index(model_type, 0)
+        if model_idx >= 0:
+            model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
             if model_cfg:
                 model_label = str(model_cfg.get("label") or model_key)
                 model_high_filename = model_cfg.get("high_filename")
@@ -1059,6 +1887,11 @@ async def process_callback(update: Dict[str, Any]) -> None:
             high_weight=options_high[high_idx],
             low_weight=options_low[low_idx],
             use_gguf=use_gguf,
+            use_last_frame=False,
+            video_width=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["width"],
+            video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
+            total_steps=DEFAULT_STEPS,
+            positive_prompt=cfg.get("positive"),
             model_label=model_label,
             model_high_filename=model_high_filename,
             model_low_filename=model_low_filename,
