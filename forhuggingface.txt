@@ -157,7 +157,7 @@ hf upload matadamovic/vanillamotionbotmodels \
 hf upload matadamovic/vanillamotionbotmodels \
   wan22-side-deepthroat-12epoc-low-k3nk.safetensors \
   loras/wan22-side-deepthroat-12epoc-low-k3nk.safetensors
-
+ ß
 hf upload matadamovic/vanillamotionbotmodels \
   wan22-side-deepthroat-54epoc-high-k3nk.safetensors \
   loras/wan22-side-deepthroat-54epoc-high-k3nk.safetensors
