@@ -793,6 +793,22 @@ def _format_lora_line(
     return "LoRA: none"
 
 
+def _format_render_line(
+    *,
+    video_width: Optional[int],
+    video_height: Optional[int],
+    total_steps: Optional[int],
+) -> str:
+    parts = []
+    if video_width and video_height:
+        parts.append(f"{video_width}x{video_height}")
+    if total_steps:
+        parts.append(f"steps={total_steps}")
+    if parts:
+        return "Render: " + ", ".join(parts)
+    return "Render: workflow default"
+
+
 def build_caption(
     *,
     use_gguf: Optional[bool],
@@ -808,6 +824,9 @@ def build_caption(
     lora_high_strength: Optional[float],
     lora_low_filename: Optional[str],
     lora_low_strength: Optional[float],
+    video_width: Optional[int],
+    video_height: Optional[int],
+    total_steps: Optional[int],
 ) -> str:
     lines = ["Hotovo"]
     lines.append(
@@ -829,6 +848,13 @@ def build_caption(
             lora_high_strength=lora_high_strength,
             lora_low_filename=lora_low_filename,
             lora_low_strength=lora_low_strength,
+        )
+    )
+    lines.append(
+        _format_render_line(
+            video_width=video_width,
+            video_height=video_height,
+            total_steps=total_steps,
         )
     )
     return "\n".join(lines)
@@ -1041,6 +1067,9 @@ def handler(event):
                 lora_high_strength=lora_high_strength,
                 lora_low_filename=lora_low_filename,
                 lora_low_strength=lora_low_strength,
+                video_width=video_width,
+                video_height=video_height,
+                total_steps=total_steps,
             )
             sent_new = upload_video(
                 int(finalize_info["chat_id"]),
