@@ -122,9 +122,9 @@ WEIGHT_OPTIONS = _parse_weight_options(WEIGHT_OPTIONS_RAW) or [
 ]
 
 RESOLUTION_OPTIONS = [
-    {"label": "1280x720", "width": 1280, "height": 720},
-    {"label": "720x480", "width": 720, "height": 480},
-    {"label": "640x480", "width": 640, "height": 480},
+    {"label": "720x1280", "width": 720, "height": 1280},
+    {"label": "480x720", "width": 480, "height": 720},
+    {"label": "480x640", "width": 480, "height": 640},
 ]
 DEFAULT_RESOLUTION_IDX = 0
 
