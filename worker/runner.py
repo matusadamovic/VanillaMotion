@@ -669,6 +669,94 @@ def wait_for_prompt(prompt_id: str) -> Dict[str, Any]:
     raise TimeoutError("ComfyUI prompt timeout")
 
 
+def run_comfy_prompt(
+    *,
+    label: Optional[str],
+    input_filename: str,
+    lora_type: str,
+    lora_filename: Optional[str],
+    lora_strength: Optional[float],
+    lora_high_filename: Optional[str],
+    lora_high_strength: Optional[float],
+    lora_low_filename: Optional[str],
+    lora_low_strength: Optional[float],
+    model_high_filename: Optional[str],
+    model_low_filename: Optional[str],
+    positive_prompt: Optional[str],
+    use_gguf: Optional[bool],
+    use_last_frame: Optional[bool],
+    video_width: Optional[int],
+    video_height: Optional[int],
+    total_steps: Optional[int],
+    output_dir: pathlib.Path,
+) -> tuple[Dict[str, Any], pathlib.Path]:
+    workflow = load_and_patch_workflow(
+        input_filename=input_filename,
+        lora_type=lora_type,
+        lora_filename=lora_filename,
+        lora_strength=lora_strength,
+        lora_high_filename=lora_high_filename,
+        lora_high_strength=lora_high_strength,
+        lora_low_filename=lora_low_filename,
+        lora_low_strength=lora_low_strength,
+        model_high_filename=model_high_filename,
+        model_low_filename=model_low_filename,
+        positive_prompt=positive_prompt,
+        use_gguf=use_gguf,
+        use_last_frame=use_last_frame,
+        video_width=video_width,
+        video_height=video_height,
+        total_steps=total_steps,
+    )
+
+    label_tag = f"segment={label}" if label else "segment=single"
+    summary = summarize_workflow(workflow)
+    logging.info("WORKFLOW_SUMMARY %s %s", label_tag, json.dumps(summary, ensure_ascii=False))
+    logging.info(
+        "JOB_PARAMS %s lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s model_high=%s model_low=%s use_gguf=%s use_last_frame=%s video=%sx%s steps=%s positive_prompt=%s",
+        label_tag,
+        lora_type,
+        lora_filename,
+        lora_strength,
+        lora_high_filename,
+        lora_high_strength,
+        lora_low_filename,
+        lora_low_strength,
+        model_high_filename,
+        model_low_filename,
+        use_gguf,
+        use_last_frame,
+        video_width,
+        video_height,
+        total_steps,
+        (positive_prompt[:120] + "…")
+        if isinstance(positive_prompt, str) and len(positive_prompt) > 120
+        else positive_prompt,
+    )
+
+    workflow_name = "workflow_patched.json" if not label else f"workflow_patched_{label}.json"
+    with open(output_dir / workflow_name, "w", encoding="utf-8") as f:
+        json.dump(workflow, f, ensure_ascii=False, indent=2)
+
+    prompt_id = send_prompt(workflow)
+    logging.info("COMFY_SUBMITTED %s prompt_id=%s", label_tag, prompt_id)
+
+    history = wait_for_prompt(prompt_id)
+    history_name = "history.json" if not label else f"history_{label}.json"
+    with open(output_dir / history_name, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+    logging.info("COMFY_DONE %s prompt_id=%s", label_tag, prompt_id)
+    video_path = resolve_output_video(history, output_dir=output_dir)
+    logging.info(
+        "VIDEO_PATH %s path=%s size_bytes=%s",
+        label_tag,
+        video_path,
+        video_path.stat().st_size if video_path.exists() else None,
+    )
+    return history, video_path
+
+
 def resolve_output_video(history: Dict[str, Any], output_dir: pathlib.Path) -> pathlib.Path:
     outputs = history.get("outputs") or {}
 
@@ -702,6 +790,76 @@ def resolve_output_video(history: Dict[str, Any], output_dir: pathlib.Path) -> p
         return candidates[0]
 
     raise RuntimeError(f"No output video produced. output_dir={output_dir}")
+
+
+def _run_ffmpeg(cmd: list[str]) -> None:
+    logging.info("FFMPEG %s", " ".join(cmd))
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if proc.returncode != 0:
+        tail = proc.stdout[-4000:] if proc.stdout else ""
+        logging.error("FFMPEG failed (code=%s): %s", proc.returncode, tail)
+        raise RuntimeError("ffmpeg failed")
+
+
+def extract_last_frame(video_path: pathlib.Path, output_path: pathlib.Path) -> None:
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-sseof",
+        "-0.1",
+        "-i",
+        str(video_path),
+        "-vframes",
+        "1",
+        "-q:v",
+        "2",
+        str(output_path),
+    ]
+    _run_ffmpeg(cmd)
+
+
+def concat_videos(video_paths: list[pathlib.Path], output_path: pathlib.Path) -> None:
+    list_path = output_path.with_suffix(".txt")
+    with open(list_path, "w", encoding="utf-8") as f:
+        for p in video_paths:
+            f.write(f"file '{p.as_posix()}'\n")
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        str(list_path),
+        "-c",
+        "copy",
+        str(output_path),
+    ]
+    try:
+        _run_ffmpeg(cmd)
+    except RuntimeError:
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(list_path),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            str(output_path),
+        ]
+        _run_ffmpeg(cmd)
 
 
 def _format_weight(value: Any) -> Optional[str]:
@@ -793,6 +951,13 @@ def _format_lora_line(
     return "LoRA: none"
 
 
+def _format_lora_line_named(name: str, **kwargs: Any) -> str:
+    line = _format_lora_line(**kwargs)
+    if line.startswith("LoRA:"):
+        return f"{name}:{line[5:]}"
+    return f"{name}: {line}"
+
+
 def _format_render_line(
     *,
     video_width: Optional[int],
@@ -860,6 +1025,81 @@ def build_caption(
     return "\n".join(lines)
 
 
+def build_caption_extended(
+    *,
+    use_gguf: Optional[bool],
+    model_label: Optional[str],
+    model_high_filename: Optional[str],
+    model_low_filename: Optional[str],
+    lora_type: str,
+    lora_label: Optional[str],
+    lora_key: Optional[str],
+    lora_filename: Optional[str],
+    lora_strength: Optional[float],
+    lora_high_filename: Optional[str],
+    lora_high_strength: Optional[float],
+    lora_low_filename: Optional[str],
+    lora_low_strength: Optional[float],
+    lora2_type: str,
+    lora2_label: Optional[str],
+    lora2_key: Optional[str],
+    lora2_filename: Optional[str],
+    lora2_strength: Optional[float],
+    lora2_high_filename: Optional[str],
+    lora2_high_strength: Optional[float],
+    lora2_low_filename: Optional[str],
+    lora2_low_strength: Optional[float],
+    video_width: Optional[int],
+    video_height: Optional[int],
+    total_steps: Optional[int],
+) -> str:
+    lines = ["Hotovo (extended10s)"]
+    lines.append(
+        _format_model_line(
+            use_gguf=use_gguf,
+            model_label=model_label,
+            model_high_filename=model_high_filename,
+            model_low_filename=model_low_filename,
+        )
+    )
+    lines.append(
+        _format_lora_line_named(
+            "LoRA 1",
+            lora_type=lora_type,
+            lora_label=lora_label,
+            lora_key=lora_key,
+            lora_filename=lora_filename,
+            lora_strength=lora_strength,
+            lora_high_filename=lora_high_filename,
+            lora_high_strength=lora_high_strength,
+            lora_low_filename=lora_low_filename,
+            lora_low_strength=lora_low_strength,
+        )
+    )
+    lines.append(
+        _format_lora_line_named(
+            "LoRA 2",
+            lora_type=lora2_type,
+            lora_label=lora2_label,
+            lora_key=lora2_key,
+            lora_filename=lora2_filename,
+            lora_strength=lora2_strength,
+            lora_high_filename=lora2_high_filename,
+            lora_high_strength=lora2_high_strength,
+            lora_low_filename=lora2_low_filename,
+            lora_low_strength=lora2_low_strength,
+        )
+    )
+    lines.append(
+        _format_render_line(
+            video_width=video_width,
+            video_height=video_height,
+            total_steps=total_steps,
+        )
+    )
+    return "\n".join(lines)
+
+
 def upload_video(chat_id: int, message_id: int, video_path: pathlib.Path, caption: str = "Hotovo") -> bool:
     api = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     sent_new = False
@@ -913,6 +1153,29 @@ def handler(event):
     lora_low_filename = payload.get("lora_low_filename")
     lora_low_strength = payload.get("lora_low_strength")
 
+    mode = str(payload.get("mode") or "").strip().lower()
+    is_extended = mode == "extended10s"
+
+    lora2_key = payload.get("lora2_key")
+    lora2_label = payload.get("lora2_label")
+    lora2_type = (payload.get("lora2_type") or "single")
+    lora2_filename = payload.get("lora2_filename")
+    lora2_strength = payload.get("lora2_strength")
+    lora2_high_filename = payload.get("lora2_high_filename")
+    lora2_high_strength = payload.get("lora2_high_strength")
+    lora2_low_filename = payload.get("lora2_low_filename")
+    lora2_low_strength = payload.get("lora2_low_strength")
+    positive_prompt_2 = payload.get("positive_prompt_2")
+
+    if is_extended:
+        lora2_type_l = str(lora2_type or "single").lower()
+        if lora2_type_l == "pair":
+            if not lora2_high_filename or not lora2_low_filename:
+                raise ValueError("extended10s requires lora2 high/low filenames")
+        else:
+            if not lora2_filename:
+                raise ValueError("extended10s requires lora2 filename")
+
     model_high_filename = payload.get("model_high_filename")
     model_low_filename = payload.get("model_low_filename")
     model_label = payload.get("model_label")
@@ -959,7 +1222,7 @@ def handler(event):
     logging.info("TEMP_DIR=%s", temp_dir)
 
     comfy_input_dir = pathlib.Path(COMFY_ROOT) / "input"
-    target: Optional[pathlib.Path] = None
+    targets: list[pathlib.Path] = []
 
     try:
         state_row = mark_running(job_id)
@@ -980,97 +1243,143 @@ def handler(event):
 
         target = comfy_input_dir / input_filename
         shutil.copy(input_path, target)
+        targets.append(target)
 
         comfy_proc = start_comfy(output_dir=output_dir, temp_dir=temp_dir)
         try:
-            workflow = load_and_patch_workflow(
-                input_filename=input_filename,
-                lora_type=lora_type,
-                lora_filename=lora_filename,
-                lora_strength=lora_strength,
-                lora_high_filename=lora_high_filename,
-                lora_high_strength=lora_high_strength,
-                lora_low_filename=lora_low_filename,
-                lora_low_strength=lora_low_strength,
-                model_high_filename=model_high_filename,
-                model_low_filename=model_low_filename,
-                positive_prompt=positive_prompt,
-                use_gguf=use_gguf,
-                use_last_frame=use_last_frame,
-                video_width=video_width,
-                video_height=video_height,
-                total_steps=total_steps,
-            )
+            if is_extended:
+                prompt2 = positive_prompt_2 if isinstance(positive_prompt_2, str) else positive_prompt
 
-            # Log: čo sme reálne poslali do Comfy (modely/loras/prompt/step1 vs step3)
-            summary = summarize_workflow(workflow)
-            logging.info("WORKFLOW_SUMMARY %s", json.dumps(summary, ensure_ascii=False))
+                history1, video1 = run_comfy_prompt(
+                    label="seg1",
+                    input_filename=input_filename,
+                    lora_type=lora_type,
+                    lora_filename=lora_filename,
+                    lora_strength=lora_strength,
+                    lora_high_filename=lora_high_filename,
+                    lora_high_strength=lora_high_strength,
+                    lora_low_filename=lora_low_filename,
+                    lora_low_strength=lora_low_strength,
+                    model_high_filename=model_high_filename,
+                    model_low_filename=model_low_filename,
+                    positive_prompt=positive_prompt,
+                    use_gguf=use_gguf,
+                    use_last_frame=use_last_frame,
+                    video_width=video_width,
+                    video_height=video_height,
+                    total_steps=total_steps,
+                    output_dir=output_dir,
+                )
 
-            # Log: čo prišlo z payloadu (aby si porovnal s patched workflow)
-            logging.info(
-                "JOB_PARAMS lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s model_high=%s model_low=%s use_gguf=%s use_last_frame=%s video=%sx%s steps=%s positive_prompt=%s",
-                lora_type,
-                lora_filename,
-                lora_strength,
-                lora_high_filename,
-                lora_high_strength,
-                lora_low_filename,
-                lora_low_strength,
-                model_high_filename,
-                model_low_filename,
-                use_gguf,
-                use_last_frame,
-                video_width,
-                video_height,
-                total_steps,
-                (positive_prompt[:120] + "…")
-                if isinstance(positive_prompt, str) and len(positive_prompt) > 120
-                else positive_prompt,
-            )
+                last_frame_path = job_dir / f"{job_id}_last.png"
+                extract_last_frame(video1, last_frame_path)
+                input2_filename = last_frame_path.name
+                target2 = comfy_input_dir / input2_filename
+                shutil.copy(last_frame_path, target2)
+                targets.append(target2)
 
-            with open(output_dir / "workflow_patched.json", "w", encoding="utf-8") as f:
-                json.dump(workflow, f, ensure_ascii=False, indent=2)
+                history2, video2 = run_comfy_prompt(
+                    label="seg2",
+                    input_filename=input2_filename,
+                    lora_type=lora2_type,
+                    lora_filename=lora2_filename,
+                    lora_strength=lora2_strength,
+                    lora_high_filename=lora2_high_filename,
+                    lora_high_strength=lora2_high_strength,
+                    lora_low_filename=lora2_low_filename,
+                    lora_low_strength=lora2_low_strength,
+                    model_high_filename=model_high_filename,
+                    model_low_filename=model_low_filename,
+                    positive_prompt=prompt2,
+                    use_gguf=use_gguf,
+                    use_last_frame=use_last_frame,
+                    video_width=video_width,
+                    video_height=video_height,
+                    total_steps=total_steps,
+                    output_dir=output_dir,
+                )
 
-            prompt_id = send_prompt(workflow)
-            logging.infoU = logging.info  # avoid accidental shadowing in some edits
-            logging.info("COMFY_SUBMITTED prompt_id=%s", prompt_id)
-
-            history = wait_for_prompt(prompt_id)
-
-            with open(output_dir / "history.json", "w", encoding="utf-8") as f:
-                json.dump(history, f, ensure_ascii=False, indent=2)
-
-            logging.info("COMFY_DONE prompt_id=%s", prompt_id)
+                final_video_path = output_dir / "extended10s.mp4"
+                concat_videos([video1, video2], final_video_path)
+                video_path = final_video_path
+            else:
+                history, video_path = run_comfy_prompt(
+                    label=None,
+                    input_filename=input_filename,
+                    lora_type=lora_type,
+                    lora_filename=lora_filename,
+                    lora_strength=lora_strength,
+                    lora_high_filename=lora_high_filename,
+                    lora_high_strength=lora_high_strength,
+                    lora_low_filename=lora_low_filename,
+                    lora_low_strength=lora_low_strength,
+                    model_high_filename=model_high_filename,
+                    model_low_filename=model_low_filename,
+                    positive_prompt=positive_prompt,
+                    use_gguf=use_gguf,
+                    use_last_frame=use_last_frame,
+                    video_width=video_width,
+                    video_height=video_height,
+                    total_steps=total_steps,
+                    output_dir=output_dir,
+                )
         finally:
             stop_comfy(comfy_proc)
-
-        video_path = resolve_output_video(history, output_dir=output_dir)
         logging.info(
-            "VIDEO_PATH=%s size_bytes=%s",
+            "FINAL_VIDEO_PATH=%s size_bytes=%s",
             video_path,
             video_path.stat().st_size if video_path.exists() else None,
         )
 
         finalize_info = finalize(job_id, "COMPLETED")
         if finalize_info:
-            caption = build_caption(
-                use_gguf=use_gguf,
-                model_label=model_label,
-                model_high_filename=model_high_filename,
-                model_low_filename=model_low_filename,
-                lora_type=lora_type,
-                lora_label=lora_label,
-                lora_key=lora_key,
-                lora_filename=lora_filename,
-                lora_strength=lora_strength,
-                lora_high_filename=lora_high_filename,
-                lora_high_strength=lora_high_strength,
-                lora_low_filename=lora_low_filename,
-                lora_low_strength=lora_low_strength,
-                video_width=video_width,
-                video_height=video_height,
-                total_steps=total_steps,
-            )
+            if is_extended:
+                caption = build_caption_extended(
+                    use_gguf=use_gguf,
+                    model_label=model_label,
+                    model_high_filename=model_high_filename,
+                    model_low_filename=model_low_filename,
+                    lora_type=lora_type,
+                    lora_label=lora_label,
+                    lora_key=lora_key,
+                    lora_filename=lora_filename,
+                    lora_strength=lora_strength,
+                    lora_high_filename=lora_high_filename,
+                    lora_high_strength=lora_high_strength,
+                    lora_low_filename=lora_low_filename,
+                    lora_low_strength=lora_low_strength,
+                    lora2_type=lora2_type,
+                    lora2_label=lora2_label,
+                    lora2_key=lora2_key,
+                    lora2_filename=lora2_filename,
+                    lora2_strength=lora2_strength,
+                    lora2_high_filename=lora2_high_filename,
+                    lora2_high_strength=lora2_high_strength,
+                    lora2_low_filename=lora2_low_filename,
+                    lora2_low_strength=lora2_low_strength,
+                    video_width=video_width,
+                    video_height=video_height,
+                    total_steps=total_steps,
+                )
+            else:
+                caption = build_caption(
+                    use_gguf=use_gguf,
+                    model_label=model_label,
+                    model_high_filename=model_high_filename,
+                    model_low_filename=model_low_filename,
+                    lora_type=lora_type,
+                    lora_label=lora_label,
+                    lora_key=lora_key,
+                    lora_filename=lora_filename,
+                    lora_strength=lora_strength,
+                    lora_high_filename=lora_high_filename,
+                    lora_high_strength=lora_high_strength,
+                    lora_low_filename=lora_low_filename,
+                    lora_low_strength=lora_low_strength,
+                    video_width=video_width,
+                    video_height=video_height,
+                    total_steps=total_steps,
+                )
             sent_new = upload_video(
                 int(finalize_info["chat_id"]),
                 int(finalize_info["placeholder_message_id"]),
@@ -1090,11 +1399,12 @@ def handler(event):
         finalize(job_id, "FAILED", error=str(exc))
         return {"status": "failed", "error": str(exc)}
     finally:
-        try:
-            if target is not None and target.exists():
-                target.unlink()
-        except Exception:
-            logging.exception("Failed to cleanup comfy input file: %s", target)
+        for target in targets:
+            try:
+                if target.exists():
+                    target.unlink()
+            except Exception:
+                logging.exception("Failed to cleanup comfy input file: %s", target)
 
         shutil.rmtree(job_dir, ignore_errors=True)
 
