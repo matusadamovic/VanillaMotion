@@ -1,33 +1,27 @@
 {
     "82": {
         "inputs": {
-            "Xi": 6,
-            "Xf": 6,
-            "isfloatX": 0
+            "value": 6
         },
-        "class_type": "mxSlider",
+        "class_type": "PrimitiveInt",
         "_meta": {
             "title": "Steps"
         }
     },
     "85": {
         "inputs": {
-            "Xi": 1,
-            "Xf": 1,
-            "isfloatX": 1
+            "value": 1
         },
-        "class_type": "mxSlider",
+        "class_type": "PrimitiveFloat",
         "_meta": {
             "title": "CFG"
         }
     },
     "157": {
         "inputs": {
-            "Xi": 5,
-            "Xf": 5,
-            "isfloatX": 1
+            "value": 5
         },
-        "class_type": "mxSlider",
+        "class_type": "PrimitiveFloat",
         "_meta": {
             "title": "Speed / Shift"
         }
@@ -116,22 +110,18 @@
     },
     "572": {
         "inputs": {
-            "Xi": 70,
-            "Xf": 70,
-            "isfloatX": 1
+            "value": 70
         },
-        "class_type": "mxSlider",
+        "class_type": "PrimitiveFloat",
         "_meta": {
             "title": "FPS"
         }
     },
     "573": {
         "inputs": {
-            "Xi": 4,
-            "Xf": 4,
-            "isfloatX": 0
+            "value": 4
         },
-        "class_type": "mxSlider",
+        "class_type": "PrimitiveInt",
         "_meta": {
             "title": "Interpolation multiplier"
         }

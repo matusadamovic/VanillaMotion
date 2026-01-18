@@ -648,14 +648,16 @@ def load_and_patch_workflow_new(
 
     if total_steps is not None:
         for node in prompt.values():
-            if node.get("class_type") != "mxSlider":
-                continue
             title_l = _get_title(node).lower()
             if title_l != "steps":
                 continue
+            class_type = node.get("class_type")
             inputs = node.setdefault("inputs", {})
-            inputs["Xi"] = int(total_steps)
-            inputs["Xf"] = int(total_steps)
+            if class_type == "mxSlider":
+                inputs["Xi"] = int(total_steps)
+                inputs["Xf"] = int(total_steps)
+            elif class_type in {"PrimitiveInt", "PrimitiveFloat", "INTConstant", "FLOATConstant"}:
+                inputs["value"] = int(total_steps)
 
     if video_width is not None and video_height is not None:
         for node in prompt.values():
