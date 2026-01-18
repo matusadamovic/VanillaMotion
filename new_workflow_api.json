@@ -1,0 +1,2326 @@
+{
+    "82": {
+        "inputs": {
+            "Xi": 6,
+            "Xf": 6,
+            "isfloatX": 0
+        },
+        "class_type": "mxSlider",
+        "_meta": {
+            "title": "Steps"
+        }
+    },
+    "85": {
+        "inputs": {
+            "Xi": 1,
+            "Xf": 1,
+            "isfloatX": 1
+        },
+        "class_type": "mxSlider",
+        "_meta": {
+            "title": "CFG"
+        }
+    },
+    "157": {
+        "inputs": {
+            "Xi": 5,
+            "Xf": 5,
+            "isfloatX": 1
+        },
+        "class_type": "mxSlider",
+        "_meta": {
+            "title": "Speed / Shift"
+        }
+    },
+    "460": {
+        "inputs": {
+            "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+            "type": "wan",
+            "device": "default"
+        },
+        "class_type": "CLIPLoader",
+        "_meta": {
+            "title": "CLIP"
+        }
+    },
+    "461": {
+        "inputs": {
+            "vae_name": "wan_2.1_vae.safetensors"
+        },
+        "class_type": "VAELoader",
+        "_meta": {
+            "title": "VAE"
+        }
+    },
+    "495": {
+        "inputs": {
+            "unet_name": "wan2.2_i2v_high_noise_14B_Q8_0.gguf"
+        },
+        "class_type": "UnetLoaderGGUF",
+        "_meta": {
+            "title": "Model - High noise"
+        }
+    },
+    "496": {
+        "inputs": {
+            "unet_name": "wan2.2_i2v_low_noise_14B_Q8_0.gguf"
+        },
+        "class_type": "UnetLoaderGGUF",
+        "_meta": {
+            "title": "Model - Low noise"
+        }
+    },
+    "519": {
+        "inputs": {
+            "seed": 113694073662874
+        },
+        "class_type": "Seed (rgthree)",
+        "_meta": {
+            "title": "Seed: Part 1"
+        }
+    },
+    "523": {
+        "inputs": {
+            "image": "Screenshot 2025-12-20 at 20.57.50.png"
+        },
+        "class_type": "LoadImage",
+        "_meta": {
+            "title": "Load Image"
+        }
+    },
+    "527": {
+        "inputs": {
+            "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走, ",
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "Negative Prompt (everywhere)"
+        }
+    },
+    "528": {
+        "inputs": {
+            "text": "A 27-year-old French woman seated at a small round marble café table on a Parisian street terrace in the late afternoon, elegant and poised, warm golden sunlight brushing across her face. She has delicate oval features, warm brown eyes, faint freckles across the bridge of her nose, and a refined 1920s chestnut bob with sculpted finger waves framing her cheeks. She wears a deep-champagne satin evening dress with an intricate floral lace overlay across the bodice and sleeves, scalloped lace neckline shimmering softly in the light. A rich dark fur-trimmed coat rests loosely draped over her shoulders, the fabric hanging in a relaxed, fashionable way.\n\nThe motion begins gently as she lifts her hands to slowly slip the coat off her shoulders in a graceful, downward motion, revealing more of the detailed lace dress. She holds the coat over one arm. The camera stays close and intimate as the coat slides down with soft movement, vintage cinematic lighting, shallow depth of field, quiet Parisian street architecture blurred in the background, analog-film atmosphere, elegant and timeless.",
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "Positive prompt: Part 1"
+        }
+    },
+    "572": {
+        "inputs": {
+            "Xi": 70,
+            "Xf": 70,
+            "isfloatX": 1
+        },
+        "class_type": "mxSlider",
+        "_meta": {
+            "title": "FPS"
+        }
+    },
+    "573": {
+        "inputs": {
+            "Xi": 4,
+            "Xf": 4,
+            "isfloatX": 0
+        },
+        "class_type": "mxSlider",
+        "_meta": {
+            "title": "Interpolation multiplier"
+        }
+    },
+    "595": {
+        "inputs": {
+            "seed": 233236418999203
+        },
+        "class_type": "Seed (rgthree)",
+        "_meta": {
+            "title": "Seed: Part 2"
+        }
+    },
+    "606": {
+        "inputs": {
+            "ckpt_name": "rife49.pth",
+            "clear_cache_after_n_frames": 10,
+            "multiplier": [
+                "573",
+                0
+            ],
+            "fast_mode": true,
+            "ensemble": true,
+            "scale_factor": 1,
+            "frames": [
+                "1416",
+                2
+            ]
+        },
+        "class_type": "RIFE VFI",
+        "_meta": {
+            "title": "interpolations"
+        }
+    },
+    "718": {
+        "inputs": {
+            "images": [
+                "1091:1086",
+                0
+            ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+            "title": "Last Frame: Part 1"
+        }
+    },
+    "751": {
+        "inputs": {
+            "images": [
+                "1371:1086",
+                0
+            ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+            "title": "Last Frame: Part 2"
+        }
+    },
+    "760": {
+        "inputs": {
+            "seed": 833738976770809
+        },
+        "class_type": "Seed (rgthree)",
+        "_meta": {
+            "title": "Seed: Part 3"
+        }
+    },
+    "789": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "SVI_v2_PRO_Wan2.2-I2V-A14B_HIGH_lora_rank_128_fp16.safetensors",
+                "strength": 1
+            },
+            "lora_2": {
+                "on": true,
+                "lora": "BouncyWalk02_HighWan2_2-000048.safetensors",
+                "strength": 0.8
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1284",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA High Noise: Part 2"
+        }
+    },
+    "790": {
+        "inputs": {
+            "text": "The same 27-year-old French woman, same deep-champagne satin lace dress and chestnut finger-wave bob, now holding the dark fur-trimmed coat folded gracefully over one arm. She rises slowly from the marble café table and steps away from her chair with elegant posture, the lace overlay catching the warm late-afternoon light as she begins to walk along the Parisian street terrace. The camera follows her from a gentle three-quarter angle, lingering on the delicate movement of the lace fabric and the subtle sway of her dress as she walks, Haussmann façades and wrought-iron balconies softly blurred behind her, vintage analog-film look, warm cinematic glow, calm and confident motion.",
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "Positive prompt: Part 2"
+        }
+    },
+    "791": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "SVI_v2_PRO_Wan2.2-I2V-A14B_LOW_lora_rank_128_fp16.safetensors",
+                "strength": 1
+            },
+            "lora_2": {
+                "on": true,
+                "lora": "BouncyWalk02_LowWan2_2-000048.safetensors",
+                "strength": 0.8
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1285",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA Low Noise: Part 2"
+        }
+    },
+    "878": {
+        "inputs": {
+            "text": "The same woman continues walking down the boulevard, lace dress shimmering softly in the golden light. She walks past a well-dressed 1920s gentleman in a tailored suit and hat standing on the sidewalk. The man briefly turns his head to look back at her, quietly captivated by her elegance, while she keeps walking forward with composed confidence, gaze ahead, expression calm and self-assured. The camera tracks her movement from the front, the gentleman falling slightly out of focus in the background, Parisian architecture and café awnings framing the scene, subtle film-grain texture, restrained romantic atmosphere.",
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "Positive prompt: Part 3"
+        }
+    },
+    "889": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "SVI_v2_PRO_Wan2.2-I2V-A14B_HIGH_lora_rank_128_fp16.safetensors",
+                "strength": 1
+            },
+            "lora_2": {
+                "on": true,
+                "lora": "BouncyWalk02_HighWan2_2-000048.safetensors",
+                "strength": 0.8
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1352",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA High Noise: Part 3"
+        }
+    },
+    "890": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "SVI_v2_PRO_Wan2.2-I2V-A14B_LOW_lora_rank_128_fp16.safetensors",
+                "strength": 1
+            },
+            "lora_2": {
+                "on": true,
+                "lora": "BouncyWalk02_LowWan2_2-000048.safetensors",
+                "strength": 0.8
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1356",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA Low Noise: Part 3"
+        }
+    },
+    "895": {
+        "inputs": {
+            "images": [
+                "1091:1076",
+                0
+            ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+            "title": "All Frames: Part 1"
+        }
+    },
+    "896": {
+        "inputs": {
+            "images": [
+                "1371:1076",
+                0
+            ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+            "title": "All Frames: Part 2"
+        }
+    },
+    "962": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "SVI_v2_PRO_Wan2.2-I2V-A14B_HIGH_lora_rank_128_fp16.safetensors",
+                "strength": 1
+            },
+            "lora_2": {
+                "on": true,
+                "lora": "BouncyWalk02_HighWan2_2-000048.safetensors",
+                "strength": 0.8
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1354",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA High Noise: Part 4"
+        }
+    },
+    "963": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "SVI_v2_PRO_Wan2.2-I2V-A14B_LOW_lora_rank_128_fp16.safetensors",
+                "strength": 1
+            },
+            "lora_2": {
+                "on": true,
+                "lora": "BouncyWalk02_LowWan2_2-000048.safetensors",
+                "strength": 0.8
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1357",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA Low Noise: Part 4"
+        }
+    },
+    "964": {
+        "inputs": {
+            "seed": 230896040981649
+        },
+        "class_type": "Seed (rgthree)",
+        "_meta": {
+            "title": "Seed: Part 4"
+        }
+    },
+    "966": {
+        "inputs": {
+            "text": "The woman reaches the corner of the street and continous walking past an ornate iron streetlamp, the city opening wider behind her with rooftops and balconies stretching into the distance. She shifts the fur-trimmed coat more securely over her arm as a gentle breeze moves through the boulevard, lifting a few strands of her chestnut finger-wave bob and softly fluttering the lace overlay of her dress. She looks at the viewer with a faint, confident half-smile, poised and serene. The light warms toward early evening, creating a soft golden halo along the lace and satin, cinematic analog-film mood, timeless and elegant closing frame.",
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "Positive prompt: Part 4"
+        }
+    },
+    "967": {
+        "inputs": {
+            "images": [
+                "1414:1076",
+                0
+            ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+            "title": "All Frames: Part 3"
+        }
+    },
+    "968": {
+        "inputs": {
+            "images": [
+                "1436:1086",
+                0
+            ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+            "title": "Last Frame: Part 4"
+        }
+    },
+    "982": {
+        "inputs": {
+            "frame_rate": [
+                "1196",
+                3
+            ],
+            "loop_count": 0,
+            "filename_prefix": "WAN/2026-01-18/185441_P1",
+            "format": "video/nvenc_av1-mp4",
+            "pix_fmt": "p010le",
+            "bitrate": 20,
+            "megabit": true,
+            "save_metadata": true,
+            "pingpong": false,
+            "save_output": false,
+            "images": [
+                "1091:1076",
+                0
+            ]
+        },
+        "class_type": "VHS_VideoCombine",
+        "_meta": {
+            "title": "Output: Part 1"
+        }
+    },
+    "984": {
+        "inputs": {
+            "frame_rate": [
+                "1196",
+                3
+            ],
+            "loop_count": 0,
+            "filename_prefix": "WAN/2026-01-18/185441_P2",
+            "format": "video/nvenc_av1-mp4",
+            "pix_fmt": "p010le",
+            "bitrate": 20,
+            "megabit": true,
+            "save_metadata": true,
+            "pingpong": false,
+            "save_output": false,
+            "images": [
+                "1371:1076",
+                0
+            ]
+        },
+        "class_type": "VHS_VideoCombine",
+        "_meta": {
+            "title": "Output: Part 2"
+        }
+    },
+    "985": {
+        "inputs": {
+            "frame_rate": [
+                "1196",
+                3
+            ],
+            "loop_count": 0,
+            "filename_prefix": "WAN/2026-01-18/185441_P3",
+            "format": "video/nvenc_av1-mp4",
+            "pix_fmt": "p010le",
+            "bitrate": 20,
+            "megabit": true,
+            "save_metadata": true,
+            "pingpong": false,
+            "save_output": false,
+            "images": [
+                "1414:1076",
+                0
+            ]
+        },
+        "class_type": "VHS_VideoCombine",
+        "_meta": {
+            "title": "Output: Part 3"
+        }
+    },
+    "986": {
+        "inputs": {
+            "frame_rate": [
+                "1196",
+                3
+            ],
+            "loop_count": 0,
+            "filename_prefix": "WAN/2026-01-18/185441_P4",
+            "format": "video/nvenc_av1-mp4",
+            "pix_fmt": "p010le",
+            "bitrate": 20,
+            "megabit": true,
+            "save_metadata": true,
+            "pingpong": false,
+            "save_output": false,
+            "images": [
+                "1436:1076",
+                0
+            ]
+        },
+        "class_type": "VHS_VideoCombine",
+        "_meta": {
+            "title": "Output: Part 4"
+        }
+    },
+    "987": {
+        "inputs": {
+            "frame_rate": [
+                "1196",
+                3
+            ],
+            "loop_count": 0,
+            "filename_prefix": "WAN/2026-01-18/Full/185441_OG",
+            "format": "video/nvenc_av1-mp4",
+            "pix_fmt": "p010le",
+            "bitrate": 60,
+            "megabit": true,
+            "save_metadata": true,
+            "pingpong": false,
+            "save_output": false,
+            "images": [
+                "1416",
+                2
+            ]
+        },
+        "class_type": "VHS_VideoCombine",
+        "_meta": {
+            "title": "Output: Full"
+        }
+    },
+    "988": {
+        "inputs": {
+            "frame_rate": [
+                "572",
+                0
+            ],
+            "loop_count": 0,
+            "filename_prefix": "WAN/2026-01-18/Full/Interpolated/185441_IN",
+            "format": "video/nvenc_av1-mp4",
+            "pix_fmt": "p010le",
+            "bitrate": 20,
+            "megabit": true,
+            "save_metadata": true,
+            "pingpong": false,
+            "save_output": true,
+            "images": [
+                "606",
+                0
+            ]
+        },
+        "class_type": "VHS_VideoCombine",
+        "_meta": {
+            "title": "Output: Interpolation"
+        }
+    },
+    "989": {
+        "inputs": {
+            "images": [
+                "1436:1076",
+                0
+            ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+            "title": "All Frames: Part 4"
+        }
+    },
+    "990": {
+        "inputs": {
+            "images": [
+                "1414:1086",
+                0
+            ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+            "title": "Last Frame: Part 3"
+        }
+    },
+    "1024": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "SVI_v2_PRO_Wan2.2-I2V-A14B_HIGH_lora_rank_128_fp16.safetensors",
+                "strength": 1
+            },
+            "lora_2": {
+                "on": true,
+                "lora": "W22_NSFW_Posing_Nude_i2v_HN_v2.safetensors",
+                "strength": 0.7
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1280",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA High Noise: Part 1"
+        }
+    },
+    "1025": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "SVI_v2_PRO_Wan2.2-I2V-A14B_LOW_lora_rank_128_fp16.safetensors",
+                "strength": 1
+            },
+            "lora_2": {
+                "on": true,
+                "lora": "W22_NSFW_Posing_Nude_i2v_LN_v2.safetensors",
+                "strength": 0.7
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1281",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA Low Noise: Part 1"
+        }
+    },
+    "1026": {
+        "inputs": {
+            "anything": [
+                "460",
+                0
+            ],
+            "anything11": [
+                "461",
+                0
+            ]
+        },
+        "class_type": "Anything Everywhere",
+        "_meta": {
+            "title": "Anything Everywhere"
+        }
+    },
+    "1094": {
+        "inputs": {
+            "filename_prefix": "WAN/2026-01-18/185441_P1_LF",
+            "images": [
+                "1091:1086",
+                0
+            ]
+        },
+        "class_type": "SaveImage",
+        "_meta": {
+            "title": "Save Last Frame P1"
+        }
+    },
+    "1104": {
+        "inputs": {
+            "filename_prefix": "WAN/2026-01-18/185441_P2_LF",
+            "images": [
+                "1371:1086",
+                0
+            ]
+        },
+        "class_type": "SaveImage",
+        "_meta": {
+            "title": "Save last frame P2"
+        }
+    },
+    "1196": {
+        "inputs": {
+            "aspect_ratio": "Portrait (2:3)",
+            "resolution_level": "k30: 480x720 / 440x784 / 592x592",
+            "manual_override": false,
+            "manual_width": 0,
+            "manual_height": 0,
+            "framerate": "16",
+            "video_duration": 5
+        },
+        "class_type": "CustomResolutionI2V",
+        "_meta": {
+            "title": "CustomResolution_I2V_v1.1"
+        }
+    },
+    "1197": {
+        "inputs": {
+            "aspect_ratio": "Portrait (2:3)",
+            "resolution_level": "k44: 704x1056 / 648x1152 / 864x864",
+            "manual_override": false,
+            "manual_width": 0,
+            "manual_height": 0,
+            "framerate": "16",
+            "video_duration": 5
+        },
+        "class_type": "CustomResolutionI2V",
+        "_meta": {
+            "title": "CustomResolution_I2V_v1.1"
+        }
+    },
+    "1198": {
+        "inputs": {
+            "aspect_ratio": "Portrait (2:3)",
+            "resolution_level": "k44: 704x1056 / 648x1152 / 864x864",
+            "manual_override": false,
+            "manual_width": 0,
+            "manual_height": 0,
+            "framerate": "16",
+            "video_duration": 5
+        },
+        "class_type": "CustomResolutionI2V",
+        "_meta": {
+            "title": "CustomResolution_I2V_v1.1"
+        }
+    },
+    "1199": {
+        "inputs": {
+            "aspect_ratio": "Portrait (2:3)",
+            "resolution_level": "k44: 704x1056 / 648x1152 / 864x864",
+            "manual_override": false,
+            "manual_width": 0,
+            "manual_height": 0,
+            "framerate": "16",
+            "video_duration": 5
+        },
+        "class_type": "CustomResolutionI2V",
+        "_meta": {
+            "title": "CustomResolution_I2V_v1.1"
+        }
+    },
+    "1274": {
+        "inputs": {
+            "any_01": [
+                "495",
+                0
+            ],
+            "any_02": [
+                "1275",
+                0
+            ]
+        },
+        "class_type": "Any Switch (rgthree)",
+        "_meta": {
+            "title": "Any Switch (rgthree)"
+        }
+    },
+    "1275": {
+        "inputs": {
+            "unet_name": "smoothMixWan22I2VT2V_i2vHigh.safetensors",
+            "weight_dtype": "fp8_e4m3fn"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+            "title": "Load Diffusion Model"
+        }
+    },
+    "1276": {
+        "inputs": {
+            "unet_name": "smoothMixWan22I2VT2V_i2vLow.safetensors",
+            "weight_dtype": "fp8_e4m3fn"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+            "title": "Load Diffusion Model"
+        }
+    },
+    "1277": {
+        "inputs": {
+            "any_01": [
+                "496",
+                0
+            ],
+            "any_02": [
+                "1276",
+                0
+            ]
+        },
+        "class_type": "Any Switch (rgthree)",
+        "_meta": {
+            "title": "Any Switch (rgthree)"
+        }
+    },
+    "1280": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+                "strength": 1.4
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1349",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "Power Lora Loader (rgthree)"
+        }
+    },
+    "1281": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+                "strength": 1
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1350",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "Power Lora Loader (rgthree)"
+        }
+    },
+    "1284": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+                "strength": 1.4
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1349",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA High Noise: Part 2"
+        }
+    },
+    "1285": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+                "strength": 1
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1350",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA Low Noise: Part 2"
+        }
+    },
+    "1314": {
+        "inputs": {
+            "pixels": [
+                "1338",
+                0
+            ],
+            "vae": [
+                "461",
+                0
+            ]
+        },
+        "class_type": "VAEEncode",
+        "_meta": {
+            "title": "VAE Encode"
+        }
+    },
+    "1324": {
+        "inputs": {
+            "scheduler": "simple",
+            "steps": [
+                "82",
+                0
+            ],
+            "denoise": 1,
+            "model": [
+                "1335",
+                0
+            ]
+        },
+        "class_type": "BasicScheduler",
+        "_meta": {
+            "title": "BasicScheduler"
+        }
+    },
+    "1325": {
+        "inputs": {
+            "step": [
+                "1368",
+                0
+            ],
+            "sigmas": [
+                "1324",
+                0
+            ]
+        },
+        "class_type": "SplitSigmas",
+        "_meta": {
+            "title": "SplitSigmas"
+        }
+    },
+    "1328": {
+        "inputs": {
+            "sampler_name": "uni_pc"
+        },
+        "class_type": "KSamplerSelect",
+        "_meta": {
+            "title": "KSamplerSelect"
+        }
+    },
+    "1335": {
+        "inputs": {
+            "shift": [
+                "157",
+                0
+            ],
+            "model": [
+                "1349",
+                0
+            ]
+        },
+        "class_type": "ModelSamplingSD3",
+        "_meta": {
+            "title": "ModelSamplingSD3"
+        }
+    },
+    "1336": {
+        "inputs": {
+            "sage_attention": "sageattn_qk_int8_pv_fp8_cuda++",
+            "allow_compile": false,
+            "model": [
+                "1274",
+                0
+            ]
+        },
+        "class_type": "PathchSageAttentionKJ",
+        "_meta": {
+            "title": "Patch Sage Attention KJ"
+        }
+    },
+    "1337": {
+        "inputs": {
+            "sage_attention": "sageattn_qk_int8_pv_fp8_cuda++",
+            "allow_compile": false,
+            "model": [
+                "1277",
+                0
+            ]
+        },
+        "class_type": "PathchSageAttentionKJ",
+        "_meta": {
+            "title": "Patch Sage Attention KJ"
+        }
+    },
+    "1338": {
+        "inputs": {
+            "width": [
+                "1196",
+                0
+            ],
+            "height": [
+                "1196",
+                1
+            ],
+            "upscale_method": "lanczos",
+            "keep_proportion": "crop",
+            "pad_color": "0, 0, 0",
+            "crop_position": "center",
+            "divisible_by": 2,
+            "device": "cpu",
+            "image": [
+                "523",
+                0
+            ]
+        },
+        "class_type": "ImageResizeKJv2",
+        "_meta": {
+            "title": "Resize Image v2"
+        }
+    },
+    "1346": {
+        "inputs": {
+            "overlap": 5,
+            "overlap_side": "source",
+            "overlap_mode": "ease_in_out",
+            "source_images": [
+                "1091:1076",
+                0
+            ],
+            "new_images": [
+                "1371:1076",
+                0
+            ]
+        },
+        "class_type": "ImageBatchExtendWithOverlap",
+        "_meta": {
+            "title": "Image Batch Extend With Overlap 1"
+        }
+    },
+    "1349": {
+        "inputs": {
+            "enable_fp16_accumulation": true,
+            "model": [
+                "1336",
+                0
+            ]
+        },
+        "class_type": "ModelPatchTorchSettings",
+        "_meta": {
+            "title": "Model Patch Torch Settings"
+        }
+    },
+    "1350": {
+        "inputs": {
+            "enable_fp16_accumulation": true,
+            "model": [
+                "1337",
+                0
+            ]
+        },
+        "class_type": "ModelPatchTorchSettings",
+        "_meta": {
+            "title": "Model Patch Torch Settings"
+        }
+    },
+    "1352": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+                "strength": 1.4
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1349",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA High Noise: Part 3"
+        }
+    },
+    "1354": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+                "strength": 1.4
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1349",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA High Noise: Part 4"
+        }
+    },
+    "1356": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+                "strength": 1
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1350",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA Low Noise: Part 3"
+        }
+    },
+    "1357": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "lora_1": {
+                "on": true,
+                "lora": "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+                "strength": 1
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "1350",
+                0
+            ],
+            "clip": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "LoRA Low Noise: Part 4"
+        }
+    },
+    "1368": {
+        "inputs": {
+            "a": [
+                "82",
+                0
+            ],
+            "b": 2,
+            "operation": "divide"
+        },
+        "class_type": "easy mathInt",
+        "_meta": {
+            "title": "Math Int"
+        }
+    },
+    "1410": {
+        "inputs": {
+            "filename_prefix": "WAN/2026-01-18/185441_P3_LF",
+            "images": [
+                "1414:1086",
+                0
+            ]
+        },
+        "class_type": "SaveImage",
+        "_meta": {
+            "title": "Save last frame P3"
+        }
+    },
+    "1415": {
+        "inputs": {
+            "overlap": 5,
+            "overlap_side": "source",
+            "overlap_mode": "ease_in_out",
+            "source_images": [
+                "1346",
+                2
+            ],
+            "new_images": [
+                "1414:1076",
+                0
+            ]
+        },
+        "class_type": "ImageBatchExtendWithOverlap",
+        "_meta": {
+            "title": "Image Batch Extend With Overlap 2"
+        }
+    },
+    "1416": {
+        "inputs": {
+            "overlap": 5,
+            "overlap_side": "source",
+            "overlap_mode": "ease_in_out",
+            "source_images": [
+                "1415",
+                2
+            ],
+            "new_images": [
+                "1436:1076",
+                0
+            ]
+        },
+        "class_type": "ImageBatchExtendWithOverlap",
+        "_meta": {
+            "title": "Image Batch Extend With Overlap 2"
+        }
+    },
+    "1433": {
+        "inputs": {
+            "filename_prefix": "WAN/2026-01-18/185441_P4_LF",
+            "images": [
+                "1436:1086",
+                0
+            ]
+        },
+        "class_type": "SaveImage",
+        "_meta": {
+            "title": "Save last frame P4"
+        }
+    },
+    "1371:1092": {
+        "inputs": {
+            "cfg": [
+                "85",
+                0
+            ],
+            "start_percent": 0,
+            "end_percent": 1,
+            "model": [
+                "789",
+                0
+            ],
+            "positive": [
+                "1371:1090",
+                0
+            ],
+            "negative": [
+                "1371:1091",
+                1
+            ]
+        },
+        "class_type": "ScheduledCFGGuidance",
+        "_meta": {
+            "title": "Scheduled CFG Guidance"
+        }
+    },
+    "1371:1095": {
+        "inputs": {
+            "cfg": [
+                "85",
+                0
+            ],
+            "start_percent": 0,
+            "end_percent": 1,
+            "model": [
+                "791",
+                0
+            ],
+            "positive": [
+                "1371:1091",
+                0
+            ],
+            "negative": [
+                "1371:1091",
+                1
+            ]
+        },
+        "class_type": "ScheduledCFGGuidance",
+        "_meta": {
+            "title": "Scheduled CFG Guidance"
+        }
+    },
+    "1371:1088": {
+        "inputs": {
+            "value": [
+                "1371:1093",
+                0
+            ],
+            "model": [
+                "1349",
+                0
+            ]
+        },
+        "class_type": "UnloadModel",
+        "_meta": {
+            "title": "UnloadModel"
+        }
+    },
+    "1371:1081": {
+        "inputs": {
+            "value": [
+                "1371:1094",
+                0
+            ],
+            "model": [
+                "1350",
+                0
+            ]
+        },
+        "class_type": "UnloadModel",
+        "_meta": {
+            "title": "UnloadModel"
+        }
+    },
+    "1371:1096": {
+        "inputs": {},
+        "class_type": "DisableNoise",
+        "_meta": {
+            "title": "DisableNoise"
+        }
+    },
+    "1371:1086": {
+        "inputs": {
+            "batch_index": [
+                "1197",
+                2
+            ],
+            "length": 1,
+            "image": [
+                "1371:1087",
+                0
+            ]
+        },
+        "class_type": "ImageFromBatch",
+        "_meta": {
+            "title": "getLastFrame"
+        }
+    },
+    "1371:1090": {
+        "inputs": {
+            "value": [
+                "1371:1091",
+                0
+            ],
+            "model": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "UnloadModel",
+        "_meta": {
+            "title": "UnloadModel"
+        }
+    },
+    "1371:1097": {
+        "inputs": {
+            "noise_seed": [
+                "595",
+                0
+            ]
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+            "title": "RandomNoise"
+        }
+    },
+    "1371:1076": {
+        "inputs": {
+            "clean_file_cache": true,
+            "clean_processes": true,
+            "clean_dlls": true,
+            "retry_times": 3,
+            "anything": [
+                "1371:1087",
+                0
+            ]
+        },
+        "class_type": "RAMCleanup",
+        "_meta": {
+            "title": "🎈RAM-Cleanup"
+        }
+    },
+    "1371:1093": {
+        "inputs": {
+            "noise": [
+                "1371:1097",
+                0
+            ],
+            "guider": [
+                "1371:1092",
+                0
+            ],
+            "sampler": [
+                "1328",
+                0
+            ],
+            "sigmas": [
+                "1325",
+                0
+            ],
+            "latent_image": [
+                "1371:1091",
+                2
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "Sampler High Noise: Part 2"
+        }
+    },
+    "1371:1094": {
+        "inputs": {
+            "noise": [
+                "1371:1096",
+                0
+            ],
+            "guider": [
+                "1371:1095",
+                0
+            ],
+            "sampler": [
+                "1328",
+                0
+            ],
+            "sigmas": [
+                "1325",
+                1
+            ],
+            "latent_image": [
+                "1371:1088",
+                0
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "Sampler Low Noise: Part 2"
+        }
+    },
+    "1371:1087": {
+        "inputs": {
+            "samples": [
+                "1371:1081",
+                0
+            ],
+            "vae": [
+                "461",
+                0
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode: Part 2"
+        }
+    },
+    "1371:1091": {
+        "inputs": {
+            "length": [
+                "1197",
+                2
+            ],
+            "motion_latent_count": 1,
+            "positive": [
+                "790",
+                0
+            ],
+            "negative": [
+                "527",
+                0
+            ],
+            "anchor_samples": [
+                "1314",
+                0
+            ],
+            "prev_samples": [
+                "1091:1081",
+                0
+            ]
+        },
+        "class_type": "WanImageToVideoSVIPro",
+        "_meta": {
+            "title": "WanImageToVideoSVIPro"
+        }
+    },
+    "1414:1092": {
+        "inputs": {
+            "cfg": [
+                "85",
+                0
+            ],
+            "start_percent": 0,
+            "end_percent": 1,
+            "model": [
+                "889",
+                0
+            ],
+            "positive": [
+                "1414:1090",
+                0
+            ],
+            "negative": [
+                "1414:1091",
+                1
+            ]
+        },
+        "class_type": "ScheduledCFGGuidance",
+        "_meta": {
+            "title": "Scheduled CFG Guidance"
+        }
+    },
+    "1414:1095": {
+        "inputs": {
+            "cfg": [
+                "85",
+                0
+            ],
+            "start_percent": 0,
+            "end_percent": 1,
+            "model": [
+                "890",
+                0
+            ],
+            "positive": [
+                "1414:1091",
+                0
+            ],
+            "negative": [
+                "1414:1091",
+                1
+            ]
+        },
+        "class_type": "ScheduledCFGGuidance",
+        "_meta": {
+            "title": "Scheduled CFG Guidance"
+        }
+    },
+    "1414:1088": {
+        "inputs": {
+            "value": [
+                "1414:1093",
+                0
+            ],
+            "model": [
+                "1349",
+                0
+            ]
+        },
+        "class_type": "UnloadModel",
+        "_meta": {
+            "title": "UnloadModel"
+        }
+    },
+    "1414:1081": {
+        "inputs": {
+            "value": [
+                "1414:1094",
+                0
+            ],
+            "model": [
+                "1350",
+                0
+            ]
+        },
+        "class_type": "UnloadModel",
+        "_meta": {
+            "title": "UnloadModel"
+        }
+    },
+    "1414:1096": {
+        "inputs": {},
+        "class_type": "DisableNoise",
+        "_meta": {
+            "title": "DisableNoise"
+        }
+    },
+    "1414:1086": {
+        "inputs": {
+            "batch_index": [
+                "1198",
+                2
+            ],
+            "length": 1,
+            "image": [
+                "1414:1087",
+                0
+            ]
+        },
+        "class_type": "ImageFromBatch",
+        "_meta": {
+            "title": "getLastFrame"
+        }
+    },
+    "1414:1090": {
+        "inputs": {
+            "value": [
+                "1414:1091",
+                0
+            ],
+            "model": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "UnloadModel",
+        "_meta": {
+            "title": "UnloadModel"
+        }
+    },
+    "1414:1097": {
+        "inputs": {
+            "noise_seed": [
+                "760",
+                0
+            ]
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+            "title": "RandomNoise"
+        }
+    },
+    "1414:1076": {
+        "inputs": {
+            "clean_file_cache": true,
+            "clean_processes": true,
+            "clean_dlls": true,
+            "retry_times": 3,
+            "anything": [
+                "1414:1087",
+                0
+            ]
+        },
+        "class_type": "RAMCleanup",
+        "_meta": {
+            "title": "🎈RAM-Cleanup"
+        }
+    },
+    "1414:1091": {
+        "inputs": {
+            "length": [
+                "1198",
+                2
+            ],
+            "motion_latent_count": 1,
+            "positive": [
+                "878",
+                0
+            ],
+            "negative": [
+                "527",
+                0
+            ],
+            "anchor_samples": [
+                "1314",
+                0
+            ],
+            "prev_samples": [
+                "1371:1081",
+                0
+            ]
+        },
+        "class_type": "WanImageToVideoSVIPro",
+        "_meta": {
+            "title": "WanImageToVideoSVIPro"
+        }
+    },
+    "1414:1094": {
+        "inputs": {
+            "noise": [
+                "1414:1096",
+                0
+            ],
+            "guider": [
+                "1414:1095",
+                0
+            ],
+            "sampler": [
+                "1328",
+                0
+            ],
+            "sigmas": [
+                "1325",
+                1
+            ],
+            "latent_image": [
+                "1414:1088",
+                0
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "Sampler Low Noise: Part 3"
+        }
+    },
+    "1414:1087": {
+        "inputs": {
+            "samples": [
+                "1414:1081",
+                0
+            ],
+            "vae": [
+                "461",
+                0
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode: Part 3"
+        }
+    },
+    "1414:1093": {
+        "inputs": {
+            "noise": [
+                "1414:1097",
+                0
+            ],
+            "guider": [
+                "1414:1092",
+                0
+            ],
+            "sampler": [
+                "1328",
+                0
+            ],
+            "sigmas": [
+                "1325",
+                0
+            ],
+            "latent_image": [
+                "1414:1091",
+                2
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "Sampler High Noise: Part 3"
+        }
+    },
+    "1436:1092": {
+        "inputs": {
+            "cfg": [
+                "85",
+                0
+            ],
+            "start_percent": 0,
+            "end_percent": 1,
+            "model": [
+                "962",
+                0
+            ],
+            "positive": [
+                "1436:1090",
+                0
+            ],
+            "negative": [
+                "1436:1091",
+                1
+            ]
+        },
+        "class_type": "ScheduledCFGGuidance",
+        "_meta": {
+            "title": "Scheduled CFG Guidance"
+        }
+    },
+    "1436:1095": {
+        "inputs": {
+            "cfg": [
+                "85",
+                0
+            ],
+            "start_percent": 0,
+            "end_percent": 1,
+            "model": [
+                "963",
+                0
+            ],
+            "positive": [
+                "1436:1091",
+                0
+            ],
+            "negative": [
+                "1436:1091",
+                1
+            ]
+        },
+        "class_type": "ScheduledCFGGuidance",
+        "_meta": {
+            "title": "Scheduled CFG Guidance"
+        }
+    },
+    "1436:1088": {
+        "inputs": {
+            "value": [
+                "1436:1093",
+                0
+            ],
+            "model": [
+                "1349",
+                0
+            ]
+        },
+        "class_type": "UnloadModel",
+        "_meta": {
+            "title": "UnloadModel"
+        }
+    },
+    "1436:1081": {
+        "inputs": {
+            "value": [
+                "1436:1094",
+                0
+            ],
+            "model": [
+                "1350",
+                0
+            ]
+        },
+        "class_type": "UnloadModel",
+        "_meta": {
+            "title": "UnloadModel"
+        }
+    },
+    "1436:1096": {
+        "inputs": {},
+        "class_type": "DisableNoise",
+        "_meta": {
+            "title": "DisableNoise"
+        }
+    },
+    "1436:1086": {
+        "inputs": {
+            "batch_index": [
+                "1199",
+                2
+            ],
+            "length": 1,
+            "image": [
+                "1436:1087",
+                0
+            ]
+        },
+        "class_type": "ImageFromBatch",
+        "_meta": {
+            "title": "getLastFrame"
+        }
+    },
+    "1436:1090": {
+        "inputs": {
+            "value": [
+                "1436:1091",
+                0
+            ],
+            "model": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "UnloadModel",
+        "_meta": {
+            "title": "UnloadModel"
+        }
+    },
+    "1436:1097": {
+        "inputs": {
+            "noise_seed": [
+                "964",
+                0
+            ]
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+            "title": "RandomNoise"
+        }
+    },
+    "1436:1076": {
+        "inputs": {
+            "clean_file_cache": true,
+            "clean_processes": true,
+            "clean_dlls": true,
+            "retry_times": 3,
+            "anything": [
+                "1436:1087",
+                0
+            ]
+        },
+        "class_type": "RAMCleanup",
+        "_meta": {
+            "title": "🎈RAM-Cleanup"
+        }
+    },
+    "1436:1091": {
+        "inputs": {
+            "length": [
+                "1199",
+                2
+            ],
+            "motion_latent_count": 1,
+            "positive": [
+                "966",
+                0
+            ],
+            "negative": [
+                "527",
+                0
+            ],
+            "anchor_samples": [
+                "1314",
+                0
+            ],
+            "prev_samples": [
+                "1414:1081",
+                0
+            ]
+        },
+        "class_type": "WanImageToVideoSVIPro",
+        "_meta": {
+            "title": "WanImageToVideoSVIPro"
+        }
+    },
+    "1436:1087": {
+        "inputs": {
+            "samples": [
+                "1436:1081",
+                0
+            ],
+            "vae": [
+                "461",
+                0
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode: Part 4"
+        }
+    },
+    "1436:1094": {
+        "inputs": {
+            "noise": [
+                "1436:1096",
+                0
+            ],
+            "guider": [
+                "1436:1095",
+                0
+            ],
+            "sampler": [
+                "1328",
+                0
+            ],
+            "sigmas": [
+                "1325",
+                1
+            ],
+            "latent_image": [
+                "1436:1088",
+                0
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "Sampler Low Noise: Part 4"
+        }
+    },
+    "1436:1093": {
+        "inputs": {
+            "noise": [
+                "1436:1097",
+                0
+            ],
+            "guider": [
+                "1436:1092",
+                0
+            ],
+            "sampler": [
+                "1328",
+                0
+            ],
+            "sigmas": [
+                "1325",
+                0
+            ],
+            "latent_image": [
+                "1436:1091",
+                2
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "Sampler High Noise: Part 4"
+        }
+    },
+    "1091:1092": {
+        "inputs": {
+            "cfg": [
+                "85",
+                0
+            ],
+            "start_percent": 0,
+            "end_percent": 1,
+            "model": [
+                "1024",
+                0
+            ],
+            "positive": [
+                "1091:1090",
+                0
+            ],
+            "negative": [
+                "1091:1091",
+                1
+            ]
+        },
+        "class_type": "ScheduledCFGGuidance",
+        "_meta": {
+            "title": "Scheduled CFG Guidance"
+        }
+    },
+    "1091:1095": {
+        "inputs": {
+            "cfg": [
+                "85",
+                0
+            ],
+            "start_percent": 0,
+            "end_percent": 1,
+            "model": [
+                "1025",
+                0
+            ],
+            "positive": [
+                "1091:1091",
+                0
+            ],
+            "negative": [
+                "1091:1091",
+                1
+            ]
+        },
+        "class_type": "ScheduledCFGGuidance",
+        "_meta": {
+            "title": "Scheduled CFG Guidance"
+        }
+    },
+    "1091:1093": {
+        "inputs": {
+            "noise": [
+                "1091:1097",
+                0
+            ],
+            "guider": [
+                "1091:1092",
+                0
+            ],
+            "sampler": [
+                "1328",
+                0
+            ],
+            "sigmas": [
+                "1325",
+                0
+            ],
+            "latent_image": [
+                "1091:1091",
+                2
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "Sampler High Noise: Part 1"
+        }
+    },
+    "1091:1088": {
+        "inputs": {
+            "value": [
+                "1091:1093",
+                0
+            ],
+            "model": [
+                "1349",
+                0
+            ]
+        },
+        "class_type": "UnloadModel",
+        "_meta": {
+            "title": "UnloadModel"
+        }
+    },
+    "1091:1081": {
+        "inputs": {
+            "value": [
+                "1091:1094",
+                0
+            ],
+            "model": [
+                "1350",
+                0
+            ]
+        },
+        "class_type": "UnloadModel",
+        "_meta": {
+            "title": "UnloadModel"
+        }
+    },
+    "1091:1087": {
+        "inputs": {
+            "samples": [
+                "1091:1081",
+                0
+            ],
+            "vae": [
+                "461",
+                0
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode: Part 1"
+        }
+    },
+    "1091:1094": {
+        "inputs": {
+            "noise": [
+                "1091:1096",
+                0
+            ],
+            "guider": [
+                "1091:1095",
+                0
+            ],
+            "sampler": [
+                "1328",
+                0
+            ],
+            "sigmas": [
+                "1325",
+                1
+            ],
+            "latent_image": [
+                "1091:1088",
+                0
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "Sampler Low Noise: Part 1"
+        }
+    },
+    "1091:1096": {
+        "inputs": {},
+        "class_type": "DisableNoise",
+        "_meta": {
+            "title": "DisableNoise"
+        }
+    },
+    "1091:1086": {
+        "inputs": {
+            "batch_index": [
+                "1196",
+                2
+            ],
+            "length": 1,
+            "image": [
+                "1091:1087",
+                0
+            ]
+        },
+        "class_type": "ImageFromBatch",
+        "_meta": {
+            "title": "getLastFrame"
+        }
+    },
+    "1091:1090": {
+        "inputs": {
+            "value": [
+                "1091:1091",
+                0
+            ],
+            "model": [
+                "460",
+                0
+            ]
+        },
+        "class_type": "UnloadModel",
+        "_meta": {
+            "title": "UnloadModel"
+        }
+    },
+    "1091:1097": {
+        "inputs": {
+            "noise_seed": [
+                "519",
+                0
+            ]
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+            "title": "RandomNoise"
+        }
+    },
+    "1091:1076": {
+        "inputs": {
+            "clean_file_cache": true,
+            "clean_processes": true,
+            "clean_dlls": true,
+            "retry_times": 3,
+            "anything": [
+                "1091:1087",
+                0
+            ]
+        },
+        "class_type": "RAMCleanup",
+        "_meta": {
+            "title": "🎈RAM-Cleanup"
+        }
+    },
+    "1091:1091": {
+        "inputs": {
+            "length": [
+                "1196",
+                2
+            ],
+            "motion_latent_count": 0,
+            "positive": [
+                "528",
+                0
+            ],
+            "negative": [
+                "527",
+                0
+            ],
+            "anchor_samples": [
+                "1314",
+                0
+            ]
+        },
+        "class_type": "WanImageToVideoSVIPro",
+        "_meta": {
+            "title": "WanImageToVideoSVIPro"
+        }
+    }
+}

@@ -69,6 +69,7 @@ RUN if [ "$INSTALL_CUSTOM_NODE_DEPS" = "true" ]; then \
 # Workflow a skriptyyyy
 WORKDIR /app
 COPY workflow_api.json /app/workflow.json
+COPY new_workflow_api.json /app/workflow_new.json
 COPY worker/bootstrap.sh /app/bootstrap.sh
 COPY worker/runner.py /app/runner.py
 RUN chmod +x /app/bootstrap.sh

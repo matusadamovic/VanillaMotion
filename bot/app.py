@@ -74,6 +74,8 @@ rate_limit_cache: Dict[int, float] = {}
 dedup_cache: Dict[int, float] = {}  # update_id -> timestamp
 EXTENDED_SESSION_TTL_SECONDS = int(os.environ.get("EXTENDED_SESSION_TTL_SECONDS", "3600"))
 extended_sessions: Dict[str, Dict[str, Any]] = {}
+WORKFLOW4_PARTS = 4
+workflow4_sessions: Dict[str, Dict[str, Any]] = {}
 
 
 def _ext_session_get(job_id: str) -> Optional[Dict[str, Any]]:
@@ -93,6 +95,25 @@ def _ext_session_touch(sess: Dict[str, Any]) -> None:
 
 def _ext_session_clear(job_id: str) -> None:
     extended_sessions.pop(job_id, None)
+
+
+def _wf4_session_get(job_id: str) -> Optional[Dict[str, Any]]:
+    sess = workflow4_sessions.get(job_id)
+    if not sess:
+        return None
+    updated_at = float(sess.get("updated_at") or 0.0)
+    if time.time() - updated_at > EXTENDED_SESSION_TTL_SECONDS:
+        workflow4_sessions.pop(job_id, None)
+        return None
+    return sess
+
+
+def _wf4_session_touch(sess: Dict[str, Any]) -> None:
+    sess["updated_at"] = time.time()
+
+
+def _wf4_session_clear(job_id: str) -> None:
+    workflow4_sessions.pop(job_id, None)
 
 
 def db_conn():
@@ -576,10 +597,11 @@ def build_mode_keyboard(job_id: str) -> str:
             {"text": "Extended10s", "callback_data": f"mode:ext:{job_id}"},
         ]
     ]
+    rows.append([{"text": "Workflow4", "callback_data": f"mode:new:{job_id}"}])
     return json.dumps({"inline_keyboard": rows})
 
 
-def build_lora_keyboard_ext(job_id: str, page: int = 0) -> str:
+def build_lora_keyboard_ext(job_id: str, page: int = 0, *, tag_prefix: str = "e") -> str:
     total = len(LORA_KEYS)
     if total == 0:
         return json.dumps({"inline_keyboard": []})
@@ -602,21 +624,21 @@ def build_lora_keyboard_ext(job_id: str, page: int = 0) -> str:
             cfg = LORA_CATALOG[key]
             label = str(cfg.get("label") or key)
             idx = start + (i + j)
-            row.append({"text": label, "callback_data": f"el:{idx}:{job_id}"})
+            row.append({"text": label, "callback_data": f"{tag_prefix}l:{idx}:{job_id}"})
         rows.append(row)
 
     nav = []
     if page > 0:
-        nav.append({"text": "‹", "callback_data": f"ep:{page-1}:{job_id}"})
+        nav.append({"text": "‹", "callback_data": f"{tag_prefix}p:{page-1}:{job_id}"})
     nav.append({"text": f"{page+1}/{max_page+1}", "callback_data": f"noop:{job_id}"})
     if page < max_page:
-        nav.append({"text": "›", "callback_data": f"ep:{page+1}:{job_id}"})
+        nav.append({"text": "›", "callback_data": f"{tag_prefix}p:{page+1}:{job_id}"})
     rows.append(nav)
 
     return json.dumps({"inline_keyboard": rows})
 
 
-def build_weight_keyboard_ext(job_id: str, cfg: Dict[str, Any], kind: str) -> str:
+def build_weight_keyboard_ext(job_id: str, cfg: Dict[str, Any], kind: str, *, tag_prefix: str = "e") -> str:
     options, default = _weight_options_for(cfg, kind)
     if not options:
         return json.dumps({"inline_keyboard": []})
@@ -633,18 +655,18 @@ def build_weight_keyboard_ext(job_id: str, cfg: Dict[str, Any], kind: str) -> st
                 label = f"{label} (default)"
 
             if kind == "single":
-                data = f"ews:{i + j}:{job_id}"
+                data = f"{tag_prefix}ws:{i + j}:{job_id}"
             elif kind == "high":
-                data = f"ewh:{i + j}:{job_id}"
+                data = f"{tag_prefix}wh:{i + j}:{job_id}"
             else:
-                data = f"ewl:{i + j}:{job_id}"
+                data = f"{tag_prefix}wl:{i + j}:{job_id}"
             row.append({"text": label, "callback_data": data})
         rows.append(row)
 
     return json.dumps({"inline_keyboard": rows})
 
 
-def build_model_keyboard_ext(job_id: str) -> str:
+def build_model_keyboard_ext(job_id: str, *, tag_prefix: str = "e") -> str:
     rows = []
     for i in range(0, len(MODEL_CHOICES), 2):
         row = []
@@ -652,13 +674,13 @@ def build_model_keyboard_ext(job_id: str) -> str:
             if i + j >= len(MODEL_CHOICES):
                 break
             label, key = MODEL_CHOICES[i + j]
-            row.append({"text": label, "callback_data": f"emt:{key}:{job_id}"})
+            row.append({"text": label, "callback_data": f"{tag_prefix}mt:{key}:{job_id}"})
         rows.append(row)
 
     return json.dumps({"inline_keyboard": rows})
 
 
-def build_unet_keyboard_ext(job_id: str, model_type: str, page: int = 0) -> str:
+def build_unet_keyboard_ext(job_id: str, model_type: str, page: int = 0, *, tag_prefix: str = "e") -> str:
     keys = MODEL_KEYS_BY_TYPE.get(model_type) or []
     if not keys:
         return json.dumps({"inline_keyboard": []})
@@ -681,31 +703,31 @@ def build_unet_keyboard_ext(job_id: str, model_type: str, page: int = 0) -> str:
             cfg = MODEL_CATALOG.get(key) or {}
             label = str(cfg.get("label") or key)
             idx = start + (i + j)
-            row.append({"text": label, "callback_data": f"emm:{model_type}:{idx}:{job_id}"})
+            row.append({"text": label, "callback_data": f"{tag_prefix}mm:{model_type}:{idx}:{job_id}"})
         rows.append(row)
 
     nav = []
     if page > 0:
-        nav.append({"text": "‹", "callback_data": f"epm:{model_type}:{page-1}:{job_id}"})
+        nav.append({"text": "‹", "callback_data": f"{tag_prefix}pm:{model_type}:{page-1}:{job_id}"})
     nav.append({"text": f"{page+1}/{max_page+1}", "callback_data": f"noop:{job_id}"})
     if page < max_page:
-        nav.append({"text": "›", "callback_data": f"epm:{model_type}:{page+1}:{job_id}"})
+        nav.append({"text": "›", "callback_data": f"{tag_prefix}pm:{model_type}:{page+1}:{job_id}"})
     rows.append(nav)
 
     return json.dumps({"inline_keyboard": rows})
 
 
-def build_last_frame_keyboard_ext(job_id: str) -> str:
+def build_last_frame_keyboard_ext(job_id: str, *, tag_prefix: str = "e") -> str:
     rows = [
         [
-            {"text": "Last frame: ON", "callback_data": f"elf:1:{job_id}"},
-            {"text": "Last frame: OFF", "callback_data": f"elf:0:{job_id}"},
+            {"text": "Last frame: ON", "callback_data": f"{tag_prefix}lf:1:{job_id}"},
+            {"text": "Last frame: OFF", "callback_data": f"{tag_prefix}lf:0:{job_id}"},
         ]
     ]
     return json.dumps({"inline_keyboard": rows})
 
 
-def build_resolution_keyboard_ext(job_id: str) -> str:
+def build_resolution_keyboard_ext(job_id: str, *, tag_prefix: str = "e") -> str:
     rows = []
     for i in range(0, len(RESOLUTION_OPTIONS), 2):
         row = []
@@ -717,12 +739,12 @@ def build_resolution_keyboard_ext(job_id: str) -> str:
             label = str(opt.get("label") or "")
             if idx == DEFAULT_RESOLUTION_IDX:
                 label = f"{label} (default)"
-            row.append({"text": label, "callback_data": f"ers:{idx}:{job_id}"})
+            row.append({"text": label, "callback_data": f"{tag_prefix}rs:{idx}:{job_id}"})
         rows.append(row)
     return json.dumps({"inline_keyboard": rows})
 
 
-def build_steps_keyboard_ext(job_id: str) -> str:
+def build_steps_keyboard_ext(job_id: str, *, tag_prefix: str = "e") -> str:
     rows = []
     for i in range(0, len(STEPS_OPTIONS), 2):
         row = []
@@ -734,16 +756,16 @@ def build_steps_keyboard_ext(job_id: str) -> str:
             label = f"{steps}"
             if steps == DEFAULT_STEPS:
                 label = f"{label} (default)"
-            row.append({"text": label, "callback_data": f"est:{idx}:{job_id}"})
+            row.append({"text": label, "callback_data": f"{tag_prefix}st:{idx}:{job_id}"})
         rows.append(row)
     return json.dumps({"inline_keyboard": rows})
 
 
-def build_prompt_keyboard_ext(job_id: str) -> str:
+def build_prompt_keyboard_ext(job_id: str, *, tag_prefix: str = "e") -> str:
     rows = [
         [
-            {"text": "Prompt: LoRA (default)", "callback_data": f"epu:1:{job_id}"},
-            {"text": "Prompt: Default", "callback_data": f"epu:0:{job_id}"},
+            {"text": "Prompt: LoRA (default)", "callback_data": f"{tag_prefix}pu:1:{job_id}"},
+            {"text": "Prompt: Default", "callback_data": f"{tag_prefix}pu:0:{job_id}"},
         ]
     ]
     return json.dumps({"inline_keyboard": rows})
@@ -905,10 +927,11 @@ async def prompt_extended_model(
     message_id: int,
     label: str,
     job_id: str,
+    tag_prefix: str = "e",
 ) -> None:
     if not (chat_id and message_id):
         return
-    reply_markup = build_model_keyboard_ext(job_id)
+    reply_markup = build_model_keyboard_ext(job_id, tag_prefix=tag_prefix)
     await edit_message_text(chat_id, message_id, f"{label}: vyber model (WAN/GGUF)", reply_markup)
 
 
@@ -918,10 +941,11 @@ async def prompt_extended_last_frame(
     message_id: int,
     label: str,
     job_id: str,
+    tag_prefix: str = "e",
 ) -> None:
     if not (chat_id and message_id):
         return
-    reply_markup = build_last_frame_keyboard_ext(job_id)
+    reply_markup = build_last_frame_keyboard_ext(job_id, tag_prefix=tag_prefix)
     await edit_message_text(chat_id, message_id, f"{label}: použiť last frame?", reply_markup)
 
 
@@ -931,10 +955,11 @@ async def prompt_extended_resolution(
     message_id: int,
     label: str,
     job_id: str,
+    tag_prefix: str = "e",
 ) -> None:
     if not (chat_id and message_id):
         return
-    reply_markup = build_resolution_keyboard_ext(job_id)
+    reply_markup = build_resolution_keyboard_ext(job_id, tag_prefix=tag_prefix)
     await edit_message_text(chat_id, message_id, f"{label}: vyber rozlisenie", reply_markup)
 
 
@@ -944,10 +969,11 @@ async def prompt_extended_steps(
     message_id: int,
     label: str,
     job_id: str,
+    tag_prefix: str = "e",
 ) -> None:
     if not (chat_id and message_id):
         return
-    reply_markup = build_steps_keyboard_ext(job_id)
+    reply_markup = build_steps_keyboard_ext(job_id, tag_prefix=tag_prefix)
     await edit_message_text(chat_id, message_id, f"{label}: vyber pocet krokov", reply_markup)
 
 
@@ -957,10 +983,11 @@ async def prompt_extended_prompt(
     message_id: int,
     label: str,
     job_id: str,
+    tag_prefix: str = "e",
 ) -> None:
     if not (chat_id and message_id):
         return
-    reply_markup = build_prompt_keyboard_ext(job_id)
+    reply_markup = build_prompt_keyboard_ext(job_id, tag_prefix=tag_prefix)
     await edit_message_text(chat_id, message_id, f"{label}: pouzit LoRA prompt?", reply_markup)
 
 
@@ -1052,6 +1079,19 @@ def _extended_combo_label(sess: Dict[str, Any]) -> str:
     if l1 and l2:
         return f"{l1} + {l2}"
     return l1 or l2 or "Extended10s"
+
+
+def _workflow4_combo_label(sess: Dict[str, Any]) -> str:
+    labels = []
+    for i in range(1, WORKFLOW4_PARTS + 1):
+        label = (sess.get(f"lora{i}") or {}).get("label")
+        if label:
+            labels.append(label)
+    if len(labels) == WORKFLOW4_PARTS:
+        return " + ".join(labels)
+    if labels:
+        return " + ".join(labels)
+    return "Workflow4"
 
 
 async def _submit_single_job(
@@ -1265,6 +1305,136 @@ async def _submit_extended_job(
         await edit_keyboard(chat_id, message_id, json.dumps({"inline_keyboard": []}))
 
 
+async def _submit_workflow4_job(
+    *,
+    job_id: str,
+    lora1_key: str,
+    lora1_cfg: Dict[str, Any],
+    lora1_weights: Dict[str, float],
+    lora2_key: str,
+    lora2_cfg: Dict[str, Any],
+    lora2_weights: Dict[str, float],
+    lora3_key: str,
+    lora3_cfg: Dict[str, Any],
+    lora3_weights: Dict[str, float],
+    lora4_key: str,
+    lora4_cfg: Dict[str, Any],
+    lora4_weights: Dict[str, float],
+    use_gguf: bool,
+    use_last_frame: bool,
+    video_width: Optional[int],
+    video_height: Optional[int],
+    total_steps: Optional[int],
+    positive_prompt_1: Optional[str],
+    positive_prompt_2: Optional[str],
+    positive_prompt_3: Optional[str],
+    positive_prompt_4: Optional[str],
+    model_label: Optional[str],
+    model_high_filename: Optional[str],
+    model_low_filename: Optional[str],
+    chat_id: int,
+    message_id: int,
+) -> None:
+    combined_key = f"{lora1_key}+{lora2_key}+{lora3_key}+{lora4_key}"
+    row = set_queue(job_id, combined_key)
+
+    label1 = str(lora1_cfg.get("label") or lora1_key)
+    label2 = str(lora2_cfg.get("label") or lora2_key)
+    label3 = str(lora3_cfg.get("label") or lora3_key)
+    label4 = str(lora4_cfg.get("label") or lora4_key)
+    lora1_type = str(lora1_cfg.get("type") or "single")
+    lora2_type = str(lora2_cfg.get("type") or "single")
+    lora3_type = str(lora3_cfg.get("type") or "single")
+    lora4_type = str(lora4_cfg.get("type") or "single")
+
+    payload: Dict[str, Any] = {
+        "mode": "workflow4",
+        "workflow_key": "new",
+        "job_id": job_id,
+        "chat_id": int(row["chat_id"]),
+        "input_file_id": row["input_file_id"],
+        "lora_key": lora1_key,
+        "lora_label": label1,
+        "lora_type": lora1_type,
+        "lora2_key": lora2_key,
+        "lora2_label": label2,
+        "lora2_type": lora2_type,
+        "lora3_key": lora3_key,
+        "lora3_label": label3,
+        "lora3_type": lora3_type,
+        "lora4_key": lora4_key,
+        "lora4_label": label4,
+        "lora4_type": lora4_type,
+        "positive_prompt": positive_prompt_1,
+        "positive_prompt_2": positive_prompt_2 or positive_prompt_1,
+        "positive_prompt_3": positive_prompt_3 or positive_prompt_1,
+        "positive_prompt_4": positive_prompt_4 or positive_prompt_1,
+        "use_gguf": use_gguf,
+        "use_last_frame": use_last_frame,
+        "video_width": video_width,
+        "video_height": video_height,
+        "total_steps": total_steps,
+    }
+
+    if lora1_type.lower() == "pair":
+        payload["lora_high_filename"] = lora1_cfg.get("high_filename")
+        payload["lora_high_strength"] = lora1_weights.get("high_weight")
+        payload["lora_low_filename"] = lora1_cfg.get("low_filename")
+        payload["lora_low_strength"] = lora1_weights.get("low_weight")
+    else:
+        payload["lora_filename"] = lora1_cfg.get("filename")
+        payload["lora_strength"] = lora1_weights.get("weight")
+
+    if lora2_type.lower() == "pair":
+        payload["lora2_high_filename"] = lora2_cfg.get("high_filename")
+        payload["lora2_high_strength"] = lora2_weights.get("high_weight")
+        payload["lora2_low_filename"] = lora2_cfg.get("low_filename")
+        payload["lora2_low_strength"] = lora2_weights.get("low_weight")
+    else:
+        payload["lora2_filename"] = lora2_cfg.get("filename")
+        payload["lora2_strength"] = lora2_weights.get("weight")
+
+    if lora3_type.lower() == "pair":
+        payload["lora3_high_filename"] = lora3_cfg.get("high_filename")
+        payload["lora3_high_strength"] = lora3_weights.get("high_weight")
+        payload["lora3_low_filename"] = lora3_cfg.get("low_filename")
+        payload["lora3_low_strength"] = lora3_weights.get("low_weight")
+    else:
+        payload["lora3_filename"] = lora3_cfg.get("filename")
+        payload["lora3_strength"] = lora3_weights.get("weight")
+
+    if lora4_type.lower() == "pair":
+        payload["lora4_high_filename"] = lora4_cfg.get("high_filename")
+        payload["lora4_high_strength"] = lora4_weights.get("high_weight")
+        payload["lora4_low_filename"] = lora4_cfg.get("low_filename")
+        payload["lora4_low_strength"] = lora4_weights.get("low_weight")
+    else:
+        payload["lora4_filename"] = lora4_cfg.get("filename")
+        payload["lora4_strength"] = lora4_weights.get("weight")
+
+    if model_label:
+        payload["model_label"] = model_label
+    if model_high_filename:
+        payload["model_high_filename"] = model_high_filename
+    if model_low_filename:
+        payload["model_low_filename"] = model_low_filename
+
+    runpod_id = await submit_runpod(payload)
+    if runpod_id:
+        set_runpod_request_id(job_id, runpod_id)
+
+    model_type_label = _model_type_label(use_gguf)
+    suffix = f": {model_label}" if model_label else ""
+    combo_label = f"{label1} + {label2} + {label3} + {label4}"
+    await edit_placeholder(
+        int(row["chat_id"]),
+        int(row["placeholder_message_id"]),
+        f"Renderujem ({combo_label}, {model_type_label}{suffix})…",
+    )
+    if chat_id and message_id:
+        await edit_keyboard(chat_id, message_id, json.dumps({"inline_keyboard": []}))
+
+
 # ---------------- Update processing ----------------
 
 def rate_limit(chat_id: int):
@@ -1321,7 +1491,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
     message_id = int(msg.get("message_id") or 0)
 
     # Supported:
-    # - mode:<std|ext>:<job_id>                (select mode)
+    # - mode:<std|ext|new>:<job_id>            (select mode)
     # - el:<idx>:<job_id>                      (select LoRA, extended)
     # - ep:<page>:<job_id>                     (LoRA page, extended)
     # - ews:<w_idx>:<job_id>                   (single weight, extended)
@@ -1334,6 +1504,18 @@ async def process_callback(update: Dict[str, Any]) -> None:
     # - ers:<r_idx>:<job_id>                   (resolution, extended)
     # - est:<s_idx>:<job_id>                   (steps, extended)
     # - epu:<p>:<job_id>                       (prompt, extended)
+    # - nl:<idx>:<job_id>                      (select LoRA, workflow4)
+    # - np:<page>:<job_id>                     (LoRA page, workflow4)
+    # - nws:<w_idx>:<job_id>                   (single weight, workflow4)
+    # - nwh:<h_idx>:<job_id>                   (pair high, workflow4)
+    # - nwl:<l_idx>:<job_id>                   (pair low, workflow4)
+    # - nmt:<model>:<job_id>                   (select model type, workflow4)
+    # - npm:<model>:<page>:<job_id>            (model page, workflow4)
+    # - nmm:<model>:<m_idx>:<job_id>           (select model, workflow4)
+    # - nlf:<on>:<job_id>                      (last frame, workflow4)
+    # - nrs:<r_idx>:<job_id>                   (resolution, workflow4)
+    # - nst:<s_idx>:<job_id>                   (steps, workflow4)
+    # - npu:<p>:<job_id>                       (prompt, workflow4)
     # - l:<idx>:<job_id>                       (select LoRA)
     # - p:<page>:<job_id>                      (LoRA page)
     # - pm:<model>:<page>:<lora_idx>:<w_idx>:<job_id> (model page, single)
@@ -1372,9 +1554,11 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         if choice == "std":
             _ext_session_clear(job_id)
+            _wf4_session_clear(job_id)
             await edit_message_text(chat_id, message_id, "Vyber štýl (LoRA):", build_lora_keyboard(job_id, page=0))
             return
         if choice == "ext":
+            _wf4_session_clear(job_id)
             extended_sessions[job_id] = {"mode": "extended10s", "current_lora": 1}
             _ext_session_touch(extended_sessions[job_id])
             await edit_message_text(
@@ -1384,6 +1568,444 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 build_lora_keyboard_ext(job_id, page=0),
             )
             return
+        if choice == "new":
+            _ext_session_clear(job_id)
+            workflow4_sessions[job_id] = {"mode": "workflow4", "current_lora": 1}
+            _wf4_session_touch(workflow4_sessions[job_id])
+            await edit_message_text(
+                chat_id,
+                message_id,
+                "Workflow4: vyber 1. LoRA",
+                build_lora_keyboard_ext(job_id, page=0, tag_prefix="n"),
+            )
+            return
+        return
+
+    if tag == "np":
+        if len(parts) != 3:
+            return
+        try:
+            page = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+        if not _wf4_session_get(job_id):
+            return
+        if chat_id and message_id:
+            await edit_keyboard(chat_id, message_id, build_lora_keyboard_ext(job_id, page=page, tag_prefix="n"))
+        return
+
+    if tag == "nl":
+        if len(parts) != 3:
+            return
+        try:
+            idx = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        lora_key, cfg = _get_lora_cfg_by_index(idx)
+        if not cfg:
+            return
+        lora_type = str(cfg.get("type") or "single").lower()
+        label = str(cfg.get("label") or lora_key)
+        current = int(sess.get("current_lora") or 1)
+        sess[f"lora{current}"] = {"key": lora_key, "label": label, "cfg": cfg, "type": lora_type}
+        _wf4_session_touch(sess)
+
+        if not (chat_id and message_id):
+            return
+        if lora_type == "pair":
+            reply_markup = build_weight_keyboard_ext(job_id, cfg, "high", tag_prefix="n")
+            await edit_message_text(chat_id, message_id, f"{label}: vyber HIGH vahu", reply_markup)
+        else:
+            reply_markup = build_weight_keyboard_ext(job_id, cfg, "single", tag_prefix="n")
+            await edit_message_text(chat_id, message_id, f"{label}: vyber vahu", reply_markup)
+        return
+
+    if tag == "nws":
+        if len(parts) != 3:
+            return
+        try:
+            weight_idx = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        current = int(sess.get("current_lora") or 1)
+        lora = sess.get(f"lora{current}") or {}
+        cfg = lora.get("cfg")
+        if not isinstance(cfg, dict):
+            return
+        if str(lora.get("type") or "single").lower() == "pair":
+            return
+        options, _ = _weight_options_for(cfg, "single")
+        if weight_idx < 0 or weight_idx >= len(options):
+            return
+        lora["weight"] = options[weight_idx]
+        sess[f"lora{current}"] = lora
+        _wf4_session_touch(sess)
+
+        if not (chat_id and message_id):
+            return
+        if current < WORKFLOW4_PARTS:
+            sess["current_lora"] = current + 1
+            _wf4_session_touch(sess)
+            await edit_message_text(
+                chat_id,
+                message_id,
+                f"Workflow4: vyber {current + 1}. LoRA",
+                build_lora_keyboard_ext(job_id, page=0, tag_prefix="n"),
+            )
+            return
+
+        label = _workflow4_combo_label(sess)
+        await prompt_extended_model(chat_id=chat_id, message_id=message_id, label=label, job_id=job_id, tag_prefix="n")
+        return
+
+    if tag == "nwh":
+        if len(parts) != 3:
+            return
+        try:
+            weight_idx = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        current = int(sess.get("current_lora") or 1)
+        lora = sess.get(f"lora{current}") or {}
+        cfg = lora.get("cfg")
+        if not isinstance(cfg, dict):
+            return
+        if str(lora.get("type") or "single").lower() != "pair":
+            return
+        options, _ = _weight_options_for(cfg, "high")
+        if weight_idx < 0 or weight_idx >= len(options):
+            return
+        lora["high_weight"] = options[weight_idx]
+        sess[f"lora{current}"] = lora
+        _wf4_session_touch(sess)
+
+        if chat_id and message_id:
+            reply_markup = build_weight_keyboard_ext(job_id, cfg, "low", tag_prefix="n")
+            await edit_message_text(chat_id, message_id, f"{lora.get('label')}: vyber LOW vahu", reply_markup)
+        return
+
+    if tag == "nwl":
+        if len(parts) != 3:
+            return
+        try:
+            weight_idx = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        current = int(sess.get("current_lora") or 1)
+        lora = sess.get(f"lora{current}") or {}
+        cfg = lora.get("cfg")
+        if not isinstance(cfg, dict):
+            return
+        if str(lora.get("type") or "single").lower() != "pair":
+            return
+        options, _ = _weight_options_for(cfg, "low")
+        if weight_idx < 0 or weight_idx >= len(options):
+            return
+        lora["low_weight"] = options[weight_idx]
+        sess[f"lora{current}"] = lora
+        _wf4_session_touch(sess)
+
+        if not (chat_id and message_id):
+            return
+        if current < WORKFLOW4_PARTS:
+            sess["current_lora"] = current + 1
+            _wf4_session_touch(sess)
+            await edit_message_text(
+                chat_id,
+                message_id,
+                f"Workflow4: vyber {current + 1}. LoRA",
+                build_lora_keyboard_ext(job_id, page=0, tag_prefix="n"),
+            )
+            return
+
+        label = _workflow4_combo_label(sess)
+        await prompt_extended_model(chat_id=chat_id, message_id=message_id, label=label, job_id=job_id, tag_prefix="n")
+        return
+
+    if tag == "nmt":
+        if len(parts) != 3:
+            return
+        model_type = parts[1]
+        job_id = parts[2]
+        if model_type not in ("wan", "gguf"):
+            return
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        sess["model_type"] = model_type
+        _wf4_session_touch(sess)
+
+        model_keys = MODEL_KEYS_BY_TYPE.get(model_type) or []
+        if len(model_keys) > 1:
+            if chat_id and message_id:
+                label = _workflow4_combo_label(sess)
+                model_type_label = _model_type_label(model_type == "gguf")
+                reply_markup = build_unet_keyboard_ext(job_id, model_type, page=0, tag_prefix="n")
+                await edit_message_text(chat_id, message_id, f"{label}: vyber {model_type_label} model", reply_markup)
+            return
+
+        sess["model_idx"] = 0 if model_keys else -1
+        _wf4_session_touch(sess)
+        if chat_id and message_id:
+            label = _workflow4_combo_label(sess)
+            await prompt_extended_last_frame(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                tag_prefix="n",
+            )
+        return
+
+    if tag == "npm":
+        if len(parts) != 4:
+            return
+        try:
+            model_type = parts[1]
+            page = int(parts[2])
+            job_id = parts[3]
+        except Exception:
+            return
+        if model_type not in ("wan", "gguf"):
+            return
+        if not _wf4_session_get(job_id):
+            return
+        if chat_id and message_id:
+            await edit_keyboard(
+                chat_id,
+                message_id,
+                build_unet_keyboard_ext(job_id, model_type, page=page, tag_prefix="n"),
+            )
+        return
+
+    if tag == "nmm":
+        if len(parts) != 4:
+            return
+        try:
+            model_type = parts[1]
+            model_idx = int(parts[2])
+            job_id = parts[3]
+        except Exception:
+            return
+        if model_type not in ("wan", "gguf"):
+            return
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        sess["model_type"] = model_type
+        sess["model_idx"] = model_idx
+        _wf4_session_touch(sess)
+        if chat_id and message_id:
+            label = _workflow4_combo_label(sess)
+            await prompt_extended_last_frame(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                tag_prefix="n",
+            )
+        return
+
+    if tag == "nlf":
+        if len(parts) != 3:
+            return
+        use_last_frame = str(parts[1]).strip().lower() in ("1", "true", "yes", "y", "on")
+        job_id = parts[2]
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        sess["use_last_frame"] = use_last_frame
+        _wf4_session_touch(sess)
+        if chat_id and message_id:
+            label = _workflow4_combo_label(sess)
+            await prompt_extended_resolution(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                tag_prefix="n",
+            )
+        return
+
+    if tag == "nrs":
+        if len(parts) != 3:
+            return
+        try:
+            resolution_idx = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+        if _resolution_by_index(resolution_idx) is None:
+            return
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        sess["resolution_idx"] = resolution_idx
+        _wf4_session_touch(sess)
+        if chat_id and message_id:
+            label = _workflow4_combo_label(sess)
+            await prompt_extended_steps(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                tag_prefix="n",
+            )
+        return
+
+    if tag == "nst":
+        if len(parts) != 3:
+            return
+        try:
+            steps_idx = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+        if _steps_by_index(steps_idx) is None:
+            return
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        sess["steps_idx"] = steps_idx
+        _wf4_session_touch(sess)
+        if chat_id and message_id:
+            label = _workflow4_combo_label(sess)
+            await prompt_extended_prompt(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                tag_prefix="n",
+            )
+        return
+
+    if tag == "npu":
+        if len(parts) != 3:
+            return
+        use_prompt = str(parts[1]).strip().lower() in ("1", "true", "yes", "y", "on")
+        job_id = parts[2]
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        sess["use_prompt"] = use_prompt
+        _wf4_session_touch(sess)
+
+        lora1 = sess.get("lora1") or {}
+        lora2 = sess.get("lora2") or {}
+        lora3 = sess.get("lora3") or {}
+        lora4 = sess.get("lora4") or {}
+        if not lora1 or not lora2 or not lora3 or not lora4:
+            return
+        cfg1 = lora1.get("cfg")
+        cfg2 = lora2.get("cfg")
+        cfg3 = lora3.get("cfg")
+        cfg4 = lora4.get("cfg")
+        if not isinstance(cfg1, dict) or not isinstance(cfg2, dict) or not isinstance(cfg3, dict) or not isinstance(cfg4, dict):
+            return
+
+        if sess.get("resolution_idx") is None:
+            resolution_idx = DEFAULT_RESOLUTION_IDX
+        else:
+            resolution_idx = int(sess.get("resolution_idx"))
+        default_steps_idx = STEPS_OPTIONS.index(DEFAULT_STEPS) if DEFAULT_STEPS in STEPS_OPTIONS else 0
+        if sess.get("steps_idx") is None:
+            steps_idx = default_steps_idx
+        else:
+            steps_idx = int(sess.get("steps_idx"))
+        resolution = _resolution_by_index(resolution_idx)
+        steps = _steps_by_index(steps_idx)
+        if not resolution or steps is None:
+            return
+
+        model_type = str(sess.get("model_type") or "")
+        model_idx = int(sess.get("model_idx") or -1)
+        if model_type not in ("wan", "gguf"):
+            return
+
+        model_label = None
+        model_high_filename = None
+        model_low_filename = None
+        if model_idx >= 0:
+            model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
+            if not model_cfg:
+                return
+            model_label = str(model_cfg.get("label") or model_key)
+            model_high_filename = model_cfg.get("high_filename")
+            model_low_filename = model_cfg.get("low_filename")
+
+        prompt_text_1 = (cfg1.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
+        prompt_text_2 = (cfg2.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
+        prompt_text_3 = (cfg3.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
+        prompt_text_4 = (cfg4.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
+
+        weights1 = {
+            "weight": lora1.get("weight"),
+            "high_weight": lora1.get("high_weight"),
+            "low_weight": lora1.get("low_weight"),
+        }
+        weights2 = {
+            "weight": lora2.get("weight"),
+            "high_weight": lora2.get("high_weight"),
+            "low_weight": lora2.get("low_weight"),
+        }
+        weights3 = {
+            "weight": lora3.get("weight"),
+            "high_weight": lora3.get("high_weight"),
+            "low_weight": lora3.get("low_weight"),
+        }
+        weights4 = {
+            "weight": lora4.get("weight"),
+            "high_weight": lora4.get("high_weight"),
+            "low_weight": lora4.get("low_weight"),
+        }
+
+        await _submit_workflow4_job(
+            job_id=job_id,
+            lora1_key=str(lora1.get("key")),
+            lora1_cfg=cfg1,
+            lora1_weights=weights1,
+            lora2_key=str(lora2.get("key")),
+            lora2_cfg=cfg2,
+            lora2_weights=weights2,
+            lora3_key=str(lora3.get("key")),
+            lora3_cfg=cfg3,
+            lora3_weights=weights3,
+            lora4_key=str(lora4.get("key")),
+            lora4_cfg=cfg4,
+            lora4_weights=weights4,
+            use_gguf=(model_type == "gguf"),
+            use_last_frame=bool(sess.get("use_last_frame")),
+            video_width=int(resolution["width"]),
+            video_height=int(resolution["height"]),
+            total_steps=int(steps),
+            positive_prompt_1=prompt_text_1,
+            positive_prompt_2=prompt_text_2,
+            positive_prompt_3=prompt_text_3,
+            positive_prompt_4=prompt_text_4,
+            model_label=model_label,
+            model_high_filename=model_high_filename,
+            model_low_filename=model_low_filename,
+            chat_id=chat_id,
+            message_id=message_id,
+        )
+        _wf4_session_clear(job_id)
         return
 
     if tag == "ep":
