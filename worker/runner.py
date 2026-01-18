@@ -459,7 +459,7 @@ def load_and_patch_workflow(
             if "video height" in title and video_height is not None:
                 node.setdefault("inputs", {})["int"] = int(video_height)
 
-    # Patch Total Steps if provided
+    # Patch Total Steps if providedd
     if total_steps is not None:
         for node in prompt.values():
             if node.get("class_type") != "INTConstant":
