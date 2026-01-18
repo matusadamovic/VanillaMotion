@@ -1004,34 +1004,6 @@
             "title": "ModelSamplingSD3"
         }
     },
-    "1336": {
-        "inputs": {
-            "sage_attention": "sageattn_qk_int8_pv_fp8_cuda++",
-            "allow_compile": false,
-            "model": [
-                "1274",
-                0
-            ]
-        },
-        "class_type": "PathchSageAttentionKJ",
-        "_meta": {
-            "title": "Patch Sage Attention KJ"
-        }
-    },
-    "1337": {
-        "inputs": {
-            "sage_attention": "sageattn_qk_int8_pv_fp8_cuda++",
-            "allow_compile": false,
-            "model": [
-                "1277",
-                0
-            ]
-        },
-        "class_type": "PathchSageAttentionKJ",
-        "_meta": {
-            "title": "Patch Sage Attention KJ"
-        }
-    },
     "1338": {
         "inputs": {
             "width": [
@@ -1081,7 +1053,7 @@
         "inputs": {
             "enable_fp16_accumulation": true,
             "model": [
-                "1336",
+                "1274",
                 0
             ]
         },
@@ -1094,7 +1066,7 @@
         "inputs": {
             "enable_fp16_accumulation": true,
             "model": [
-                "1337",
+                "1277",
                 0
             ]
         },
