@@ -1205,14 +1205,13 @@
     },
     "1368": {
         "inputs": {
+            "value": "a / 2",
             "a": [
                 "82",
                 0
-            ],
-            "b": 2,
-            "operation": "divide"
+            ]
         },
-        "class_type": "easy mathInt",
+        "class_type": "SimpleMath+",
         "_meta": {
             "title": "Math Int"
         }
