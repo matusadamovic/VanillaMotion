@@ -137,16 +137,21 @@ done
 rm -rf /runpod-volume/models || true
 ln -s /comfyui/models /runpod-volume/models
 
-# Disable ComfyUI-Manager in headless workers (avoid registry fetches)
-DISABLE_COMFYUI_MANAGER="${DISABLE_COMFYUI_MANAGER:-1}"
+# Enable ComfyUI-Manager by default so it can fetch missing nodes.
+DISABLE_COMFYUI_MANAGER="${DISABLE_COMFYUI_MANAGER:-0}"
+mgr_src="$COMFY_ROOT/custom_nodes/ComfyUI-Manager"
+mgr_dst="$COMFY_ROOT/custom_nodes.disabled/ComfyUI-Manager"
 if [ "$DISABLE_COMFYUI_MANAGER" = "1" ]; then
-  mgr_src="$COMFY_ROOT/custom_nodes/ComfyUI-Manager"
-  mgr_dst="$COMFY_ROOT/custom_nodes.disabled/ComfyUI-Manager"
   if [ -d "$mgr_src" ]; then
     mkdir -p "$COMFY_ROOT/custom_nodes.disabled"
     if [ ! -d "$mgr_dst" ]; then
       mv "$mgr_src" "$mgr_dst"
     fi
+  fi
+else
+  if [ -d "$mgr_dst" ] && [ ! -d "$mgr_src" ]; then
+    mkdir -p "$COMFY_ROOT/custom_nodes"
+    mv "$mgr_dst" "$mgr_src"
   fi
 fi
 

@@ -51,6 +51,9 @@ RUN --mount=type=secret,id=github_token,required=false set -eux; \
     git clone --depth 1 "$base/ltdrdata/ComfyUI-Impact-Pack.git" comfyui-impact-pack && \
     git clone --depth 1 "$base/farizrifqi/ComfyUI-Image-Saver.git" comfyui-image-saver
 
+# Local fallback nodes to avoid missing custom types in workflows.
+COPY custom_nodes/vanillamotion_nodes /comfyui/custom_nodes/vanillamotion_nodes
+
 # Dotahovanie zavislosti custom nodes (optional; can be large)
 ARG INSTALL_CUSTOM_NODE_DEPS=false
 RUN if [ "$INSTALL_CUSTOM_NODE_DEPS" = "true" ]; then \
