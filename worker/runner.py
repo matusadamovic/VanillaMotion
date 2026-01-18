@@ -659,6 +659,16 @@ def load_and_patch_workflow_new(
             elif class_type in {"PrimitiveInt", "PrimitiveFloat", "INTConstant", "FLOATConstant"}:
                 inputs["value"] = int(total_steps)
 
+    if video_width is not None or video_height is not None:
+        for node in prompt.values():
+            if node.get("class_type") != "Width/Height Literal (Image Saver)":
+                continue
+            title_l = _get_title(node).lower()
+            if "video width" in title_l and video_width is not None:
+                node.setdefault("inputs", {})["int"] = int(video_width)
+            if "video height" in title_l and video_height is not None:
+                node.setdefault("inputs", {})["int"] = int(video_height)
+
     if video_width is not None and video_height is not None:
         for node in prompt.values():
             if node.get("class_type") != "CustomResolutionI2V":

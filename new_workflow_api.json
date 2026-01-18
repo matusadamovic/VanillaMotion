@@ -468,8 +468,8 @@
     "982": {
         "inputs": {
             "frame_rate": [
-                "1196",
-                3
+                "1199",
+                0
             ],
             "loop_count": 0,
             "filename_prefix": "WAN/2026-01-18/185441_P1",
@@ -493,8 +493,8 @@
     "984": {
         "inputs": {
             "frame_rate": [
-                "1196",
-                3
+                "1199",
+                0
             ],
             "loop_count": 0,
             "filename_prefix": "WAN/2026-01-18/185441_P2",
@@ -518,8 +518,8 @@
     "985": {
         "inputs": {
             "frame_rate": [
-                "1196",
-                3
+                "1199",
+                0
             ],
             "loop_count": 0,
             "filename_prefix": "WAN/2026-01-18/185441_P3",
@@ -543,8 +543,8 @@
     "986": {
         "inputs": {
             "frame_rate": [
-                "1196",
-                3
+                "1199",
+                0
             ],
             "loop_count": 0,
             "filename_prefix": "WAN/2026-01-18/185441_P4",
@@ -568,8 +568,8 @@
     "987": {
         "inputs": {
             "frame_rate": [
-                "1196",
-                3
+                "1199",
+                0
             ],
             "loop_count": 0,
             "filename_prefix": "WAN/2026-01-18/Full/185441_OG",
@@ -743,62 +743,38 @@
     },
     "1196": {
         "inputs": {
-            "aspect_ratio": "Portrait (2:3)",
-            "resolution_level": "k30: 480x720 / 440x784 / 592x592",
-            "manual_override": false,
-            "manual_width": 0,
-            "manual_height": 0,
-            "framerate": "16",
-            "video_duration": 5
+            "int": 480
         },
-        "class_type": "CustomResolutionI2V",
+        "class_type": "Width/Height Literal (Image Saver)",
         "_meta": {
-            "title": "CustomResolution_I2V_v1.1"
+            "title": "Video Width"
         }
     },
     "1197": {
         "inputs": {
-            "aspect_ratio": "Portrait (2:3)",
-            "resolution_level": "k44: 704x1056 / 648x1152 / 864x864",
-            "manual_override": false,
-            "manual_width": 0,
-            "manual_height": 0,
-            "framerate": "16",
-            "video_duration": 5
+            "int": 720
         },
-        "class_type": "CustomResolutionI2V",
+        "class_type": "Width/Height Literal (Image Saver)",
         "_meta": {
-            "title": "CustomResolution_I2V_v1.1"
+            "title": "Video Height"
         }
     },
     "1198": {
         "inputs": {
-            "aspect_ratio": "Portrait (2:3)",
-            "resolution_level": "k44: 704x1056 / 648x1152 / 864x864",
-            "manual_override": false,
-            "manual_width": 0,
-            "manual_height": 0,
-            "framerate": "16",
-            "video_duration": 5
+            "value": 80
         },
-        "class_type": "CustomResolutionI2V",
+        "class_type": "INTConstant",
         "_meta": {
-            "title": "CustomResolution_I2V_v1.1"
+            "title": "Video Length"
         }
     },
     "1199": {
         "inputs": {
-            "aspect_ratio": "Portrait (2:3)",
-            "resolution_level": "k44: 704x1056 / 648x1152 / 864x864",
-            "manual_override": false,
-            "manual_width": 0,
-            "manual_height": 0,
-            "framerate": "16",
-            "video_duration": 5
+            "value": 16
         },
-        "class_type": "CustomResolutionI2V",
+        "class_type": "PrimitiveFloat",
         "_meta": {
-            "title": "CustomResolution_I2V_v1.1"
+            "title": "Video Frame Rate"
         }
     },
     "1274": {
@@ -1063,8 +1039,8 @@
                 0
             ],
             "height": [
-                "1196",
-                1
+                "1197",
+                0
             ],
             "upscale_method": "lanczos",
             "keep_proportion": "crop",
@@ -1399,8 +1375,8 @@
     "1371:1086": {
         "inputs": {
             "batch_index": [
-                "1197",
-                2
+                "1198",
+                0
             ],
             "length": 1,
             "image": [
@@ -1532,8 +1508,8 @@
     "1371:1091": {
         "inputs": {
             "length": [
-                "1197",
-                2
+                "1198",
+                0
             ],
             "motion_latent_count": 1,
             "positive": [
@@ -1653,7 +1629,7 @@
         "inputs": {
             "batch_index": [
                 "1198",
-                2
+                0
             ],
             "length": 1,
             "image": [
@@ -1714,7 +1690,7 @@
         "inputs": {
             "length": [
                 "1198",
-                2
+                0
             ],
             "motion_latent_count": 1,
             "positive": [
@@ -1905,8 +1881,8 @@
     "1436:1086": {
         "inputs": {
             "batch_index": [
-                "1199",
-                2
+                "1198",
+                0
             ],
             "length": 1,
             "image": [
@@ -1966,8 +1942,8 @@
     "1436:1091": {
         "inputs": {
             "length": [
-                "1199",
-                2
+                "1198",
+                0
             ],
             "motion_latent_count": 1,
             "positive": [
@@ -2230,8 +2206,8 @@
     "1091:1086": {
         "inputs": {
             "batch_index": [
-                "1196",
-                2
+                "1198",
+                0
             ],
             "length": 1,
             "image": [
@@ -2291,8 +2267,8 @@
     "1091:1091": {
         "inputs": {
             "length": [
-                "1196",
-                2
+                "1198",
+                0
             ],
             "motion_latent_count": 0,
             "positive": [
