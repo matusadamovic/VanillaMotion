@@ -159,7 +159,7 @@ def _get_title(node: Dict[str, Any]) -> str:
 
 
 def _extract_part_index(title: str) -> Optional[int]:
-    match = re.search(r"part\\s*(\\d+)", title, re.IGNORECASE)
+    match = re.search(r"part\s*(\d+)", title, re.IGNORECASE)
     if not match:
         return None
     try:
