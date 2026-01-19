@@ -791,12 +791,34 @@ def load_and_patch_workflow_new(
         ),
     }
 
+    def _get_lora_name(node: Dict[str, Any], slot: str) -> str:
+        inputs = node.get("inputs") or {}
+        v = inputs.get(slot)
+        if isinstance(v, dict):
+            return str(v.get("lora") or "")
+        return ""
+
+    def _is_lightx2v_node(node: Dict[str, Any]) -> bool:
+        return "lightx2v" in _get_lora_name(node, "lora_1").lower()
+
+    def _is_svi_node(node: Dict[str, Any]) -> bool:
+        return "svi" in _get_lora_name(node, "lora_1").lower()
+
+    # Disable Lightning (LightX2v) so we only use base model -> SVI + user LoRA.
+    for node in prompt.values():
+        if node.get("class_type") != "Power Lora Loader (rgthree)":
+            continue
+        if _is_lightx2v_node(node):
+            _disable_lora_slot(node, "lora_1")
+
     for node in prompt.values():
         if node.get("class_type") != "Power Lora Loader (rgthree)":
             continue
         title = _get_title(node)
         title_l = title.lower()
         if "lora high noise" not in title_l and "lora low noise" not in title_l:
+            continue
+        if not _is_svi_node(node):
             continue
         part_idx = _extract_part_index(title)
         if not part_idx:
