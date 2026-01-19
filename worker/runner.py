@@ -30,6 +30,9 @@ COMFY_PROMPT_TIMEOUT = int(os.environ.get("COMFY_PROMPT_TIMEOUT", "1800"))
 
 PERSIST_ROOT = os.environ.get("PERSIST_ROOT", "/runpod-volume/out")
 
+VIDEO_OUTPUT_FORMAT = os.environ.get("VIDEO_OUTPUT_FORMAT")
+VIDEO_OUTPUT_PIX_FMT = os.environ.get("VIDEO_OUTPUT_PIX_FMT")
+
 PLACEHOLDER_DONE = {"COMPLETED", "FAILED", "CANCELLED"}
 
 
@@ -310,6 +313,30 @@ def summarize_workflow(prompt: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _patch_video_combine_outputs(prompt: Dict[str, Any]) -> None:
+    fallback_format = "video/h264-mp4"
+    fallback_pix_fmt = "yuv420p"
+
+    for node in prompt.values():
+        if node.get("class_type") != "VHS_VideoCombine":
+            continue
+        inputs = node.setdefault("inputs", {})
+        current_format = inputs.get("format")
+
+        # Avoid AV1 NVENC failures on hosts that don't support it.
+        if VIDEO_OUTPUT_FORMAT:
+            inputs["format"] = VIDEO_OUTPUT_FORMAT
+        elif current_format == "video/nvenc_av1-mp4":
+            inputs["format"] = fallback_format
+
+        if VIDEO_OUTPUT_PIX_FMT:
+            inputs["pix_fmt"] = VIDEO_OUTPUT_PIX_FMT
+        elif inputs.get("format") == fallback_format:
+            current_pix_fmt = inputs.get("pix_fmt")
+            if current_pix_fmt in (None, "", "p010le"):
+                inputs["pix_fmt"] = fallback_pix_fmt
+
+
 def _set_lora_slot(node: Dict[str, Any], slot: str, filename: str, strength: float) -> None:
     inputs = node.setdefault("inputs", {})
     inputs[slot] = {"on": True, "lora": filename, "strength": float(strength)}
@@ -571,6 +598,8 @@ def load_and_patch_workflow(
                 # Keep lora_1 reserved/off; apply user lora into lora_2
                 _set_off(inputs, "lora_1")
                 _set_lora(inputs, "lora_2", lora_filename, s)
+
+    _patch_video_combine_outputs(prompt)
 
     return prompt
 
@@ -871,6 +900,8 @@ def load_and_patch_workflow_new(
                 for k, v in inputs.items():
                     if isinstance(v, list) and v and str(v[0]) == info["switch_id"]:
                         inputs[k] = list(replacement)
+
+    _patch_video_combine_outputs(prompt)
 
     return prompt
 
