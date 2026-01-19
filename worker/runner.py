@@ -657,6 +657,10 @@ def load_and_patch_workflow_new(
     video_width: Optional[int],
     video_height: Optional[int],
     total_steps: Optional[int],
+    drift_speed_shift: Optional[float],
+    drift_denoise: Optional[float],
+    drift_overlap: Optional[int],
+    drift_rife_multiplier: Optional[int],
 ) -> Dict[str, Any]:
     with open(WORKFLOW_PATH_NEW, "r", encoding="utf-8") as f:
         prompt = json.load(f)
@@ -721,6 +725,38 @@ def load_and_patch_workflow_new(
             inputs["manual_override"] = True
             inputs["manual_width"] = int(video_width)
             inputs["manual_height"] = int(video_height)
+
+    if drift_speed_shift is not None:
+        for node in prompt.values():
+            title_l = _get_title(node).lower()
+            if title_l != "speed / shift":
+                continue
+            class_type = node.get("class_type")
+            inputs = node.setdefault("inputs", {})
+            if class_type in {"PrimitiveFloat", "PrimitiveInt", "FLOATConstant", "INTConstant"}:
+                inputs["value"] = float(drift_speed_shift)
+
+    if drift_denoise is not None:
+        for node in prompt.values():
+            if node.get("class_type") != "BasicScheduler":
+                continue
+            node.setdefault("inputs", {})["denoise"] = float(drift_denoise)
+
+    if drift_overlap is not None:
+        for node in prompt.values():
+            if node.get("class_type") != "ImageBatchExtendWithOverlap":
+                continue
+            node.setdefault("inputs", {})["overlap"] = int(drift_overlap)
+
+    if drift_rife_multiplier is not None:
+        for node in prompt.values():
+            title_l = _get_title(node).lower()
+            if title_l != "interpolation multiplier":
+                continue
+            class_type = node.get("class_type")
+            inputs = node.setdefault("inputs", {})
+            if class_type in {"PrimitiveFloat", "PrimitiveInt", "FLOATConstant", "INTConstant"}:
+                inputs["value"] = int(drift_rife_multiplier)
 
     apply_loras = True if use_lora is None else bool(use_lora)
 
@@ -1102,6 +1138,10 @@ def run_comfy_prompt(
     video_width: Optional[int],
     video_height: Optional[int],
     total_steps: Optional[int],
+    drift_speed_shift: Optional[float] = None,
+    drift_denoise: Optional[float] = None,
+    drift_overlap: Optional[int] = None,
+    drift_rife_multiplier: Optional[int] = None,
     output_dir: pathlib.Path,
 ) -> tuple[Dict[str, Any], pathlib.Path]:
     if workflow_key == "new":
@@ -1146,6 +1186,10 @@ def run_comfy_prompt(
             video_width=video_width,
             video_height=video_height,
             total_steps=total_steps,
+            drift_speed_shift=drift_speed_shift,
+            drift_denoise=drift_denoise,
+            drift_overlap=drift_overlap,
+            drift_rife_multiplier=drift_rife_multiplier,
         )
     else:
         workflow = load_and_patch_workflow(
@@ -1864,9 +1908,23 @@ def handler(event):
             except Exception:
                 return None
 
+    def _to_float(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return float(int(value))
+        try:
+            return float(value)
+        except Exception:
+            return None
+
     video_width = _to_int(payload.get("video_width"))
     video_height = _to_int(payload.get("video_height"))
     total_steps = _to_int(payload.get("total_steps"))
+    drift_speed_shift = _to_float(payload.get("drift_speed_shift"))
+    drift_denoise = _to_float(payload.get("drift_denoise"))
+    drift_overlap = _to_int(payload.get("drift_overlap"))
+    drift_rife_multiplier = _to_int(payload.get("drift_rife_multiplier"))
 
     job_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"job_{job_id}_", dir="/tmp"))
     temp_dir = job_dir / "temp"
@@ -2007,6 +2065,10 @@ def handler(event):
                     video_width=video_width,
                     video_height=video_height,
                     total_steps=total_steps,
+                    drift_speed_shift=drift_speed_shift,
+                    drift_denoise=drift_denoise,
+                    drift_overlap=drift_overlap,
+                    drift_rife_multiplier=drift_rife_multiplier,
                     output_dir=output_dir,
                 )
             else:

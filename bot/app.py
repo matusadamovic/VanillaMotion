@@ -193,6 +193,26 @@ DEFAULT_PROMPT = (
     "minimal head movement, micro-expression only, no dramatic rotation, no sudden tilt"
 )
 
+DRIFT_PRESETS = [
+    {
+        "key": "default",
+        "label": "Drift: Default",
+        "speed_shift": None,
+        "denoise": None,
+        "overlap": None,
+        "rife_multiplier": None,
+    },
+    {
+        "key": "reduce",
+        "label": "Drift: Reduced",
+        "speed_shift": 2,
+        "denoise": 0.7,
+        "overlap": 2,
+        "rife_multiplier": 2,
+    },
+]
+DRIFT_PRESETS_BY_KEY = {p["key"]: p for p in DRIFT_PRESETS}
+
 
 def _format_weight(value: float) -> str:
     s = f"{value:.2f}".rstrip("0").rstrip(".")
@@ -224,6 +244,12 @@ def _steps_by_index(idx: int) -> Optional[int]:
     if idx < 0 or idx >= len(STEPS_OPTIONS):
         return None
     return STEPS_OPTIONS[idx]
+
+
+def _get_drift_preset(key: str) -> Optional[Dict[str, Any]]:
+    if not key:
+        return None
+    return DRIFT_PRESETS_BY_KEY.get(key)
 
 
 def _get_lora_cfg_by_index(idx: int) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
@@ -835,6 +861,20 @@ def build_prompt_keyboard_ext(job_id: str, *, tag_prefix: str = "e") -> str:
     return json.dumps({"inline_keyboard": rows})
 
 
+def build_drift_keyboard(job_id: str, *, tag_prefix: str = "n") -> str:
+    rows = []
+    row = []
+    for preset in DRIFT_PRESETS:
+        key = str(preset.get("key") or "")
+        label = str(preset.get("label") or key)
+        if key == "default":
+            label = f"{label} (default)"
+        row.append({"text": label, "callback_data": f"{tag_prefix}d:{key}:{job_id}"})
+    if row:
+        rows.append(row)
+    return json.dumps({"inline_keyboard": rows})
+
+
 async def send_lora_picker(chat_id: int, job_id: str) -> None:
     await tg_post(
         "sendMessage",
@@ -1055,6 +1095,23 @@ async def prompt_extended_prompt(
     text = f"{label}: pouzit LoRA prompt?"
     if tag_prefix == "n":
         text = f"{label}: vyber prompt rezim"
+    await edit_message_text(chat_id, message_id, text, reply_markup)
+
+
+async def prompt_workflow4_drift(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+) -> None:
+    if not (chat_id and message_id):
+        return
+    reply_markup = build_drift_keyboard(job_id, tag_prefix="n")
+    text = (
+        f"{label}: drift rezim\n"
+        "Default = povodne, Reduced = shift 2 / denoise 0.7 / overlap 2 / RIFE 2"
+    )
     await edit_message_text(chat_id, message_id, text, reply_markup)
 
 
@@ -1428,6 +1485,10 @@ async def _submit_workflow4_job(
     video_width: Optional[int],
     video_height: Optional[int],
     total_steps: Optional[int],
+    drift_speed_shift: Optional[float],
+    drift_denoise: Optional[float],
+    drift_overlap: Optional[int],
+    drift_rife_multiplier: Optional[int],
     positive_prompt_1: Optional[str],
     positive_prompt_2: Optional[str],
     positive_prompt_3: Optional[str],
@@ -1479,6 +1540,14 @@ async def _submit_workflow4_job(
         "video_height": video_height,
         "total_steps": total_steps,
     }
+    if drift_speed_shift is not None:
+        payload["drift_speed_shift"] = float(drift_speed_shift)
+    if drift_denoise is not None:
+        payload["drift_denoise"] = float(drift_denoise)
+    if drift_overlap is not None:
+        payload["drift_overlap"] = int(drift_overlap)
+    if drift_rife_multiplier is not None:
+        payload["drift_rife_multiplier"] = int(drift_rife_multiplier)
 
     if lora1_type.lower() == "pair":
         payload["lora_high_filename"] = lora1_cfg.get("high_filename")
@@ -1539,6 +1608,130 @@ async def _submit_workflow4_job(
     )
     if chat_id and message_id:
         await edit_keyboard(chat_id, message_id, json.dumps({"inline_keyboard": []}))
+
+
+async def _workflow4_submit_from_session(
+    *,
+    job_id: str,
+    chat_id: int,
+    message_id: int,
+    sess: Dict[str, Any],
+    drift_preset: Optional[Dict[str, Any]],
+) -> bool:
+    lora1 = sess.get("lora1") or {}
+    lora2 = sess.get("lora2") or {}
+    lora3 = sess.get("lora3") or {}
+    lora4 = sess.get("lora4") or {}
+    if not lora1 or not lora2 or not lora3 or not lora4:
+        return False
+    cfg1 = lora1.get("cfg")
+    cfg2 = lora2.get("cfg")
+    cfg3 = lora3.get("cfg")
+    cfg4 = lora4.get("cfg")
+    if not isinstance(cfg1, dict) or not isinstance(cfg2, dict) or not isinstance(cfg3, dict) or not isinstance(cfg4, dict):
+        return False
+    if "use_prompt" not in sess or "use_lora" not in sess:
+        return False
+
+    if sess.get("resolution_idx") is None:
+        resolution_idx = DEFAULT_RESOLUTION_IDX
+    else:
+        resolution_idx = int(sess.get("resolution_idx"))
+    default_steps_idx = STEPS_OPTIONS.index(DEFAULT_STEPS) if DEFAULT_STEPS in STEPS_OPTIONS else 0
+    if sess.get("steps_idx") is None:
+        steps_idx = default_steps_idx
+    else:
+        steps_idx = int(sess.get("steps_idx"))
+    resolution = _resolution_by_index(resolution_idx)
+    steps = _steps_by_index(steps_idx)
+    if not resolution or steps is None:
+        return False
+
+    model_type = str(sess.get("model_type") or "")
+    model_idx = int(sess.get("model_idx") or -1)
+    if model_type not in ("wan", "gguf"):
+        return False
+
+    model_label = None
+    model_high_filename = None
+    model_low_filename = None
+    if model_idx >= 0:
+        model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
+        if not model_cfg:
+            return False
+        model_label = str(model_cfg.get("label") or model_key)
+        model_high_filename = model_cfg.get("high_filename")
+        model_low_filename = model_cfg.get("low_filename")
+
+    use_prompt = bool(sess.get("use_prompt"))
+    use_lora = bool(sess.get("use_lora"))
+    prompt_text_1 = _workflow4_prompt_for(cfg1, lora1, use_prompt)
+    prompt_text_2 = _workflow4_prompt_for(cfg2, lora2, use_prompt)
+    prompt_text_3 = _workflow4_prompt_for(cfg3, lora3, use_prompt)
+    prompt_text_4 = _workflow4_prompt_for(cfg4, lora4, use_prompt)
+
+    weights1 = {
+        "weight": lora1.get("weight"),
+        "high_weight": lora1.get("high_weight"),
+        "low_weight": lora1.get("low_weight"),
+    }
+    weights2 = {
+        "weight": lora2.get("weight"),
+        "high_weight": lora2.get("high_weight"),
+        "low_weight": lora2.get("low_weight"),
+    }
+    weights3 = {
+        "weight": lora3.get("weight"),
+        "high_weight": lora3.get("high_weight"),
+        "low_weight": lora3.get("low_weight"),
+    }
+    weights4 = {
+        "weight": lora4.get("weight"),
+        "high_weight": lora4.get("high_weight"),
+        "low_weight": lora4.get("low_weight"),
+    }
+
+    drift_speed_shift = None if not drift_preset else drift_preset.get("speed_shift")
+    drift_denoise = None if not drift_preset else drift_preset.get("denoise")
+    drift_overlap = None if not drift_preset else drift_preset.get("overlap")
+    drift_rife_multiplier = None if not drift_preset else drift_preset.get("rife_multiplier")
+
+    await _submit_workflow4_job(
+        job_id=job_id,
+        lora1_key=str(lora1.get("key")),
+        lora1_cfg=cfg1,
+        lora1_weights=weights1,
+        lora2_key=str(lora2.get("key")),
+        lora2_cfg=cfg2,
+        lora2_weights=weights2,
+        lora3_key=str(lora3.get("key")),
+        lora3_cfg=cfg3,
+        lora3_weights=weights3,
+        lora4_key=str(lora4.get("key")),
+        lora4_cfg=cfg4,
+        lora4_weights=weights4,
+        use_lora=use_lora,
+        use_gguf=(model_type == "gguf"),
+        use_last_frame=bool(sess.get("use_last_frame")),
+        video_width=int(resolution["width"]),
+        video_height=int(resolution["height"]),
+        total_steps=int(steps),
+        drift_speed_shift=drift_speed_shift,
+        drift_denoise=drift_denoise,
+        drift_overlap=drift_overlap,
+        drift_rife_multiplier=drift_rife_multiplier,
+        positive_prompt_1=prompt_text_1,
+        positive_prompt_2=prompt_text_2,
+        positive_prompt_3=prompt_text_3,
+        positive_prompt_4=prompt_text_4,
+        model_label=model_label,
+        model_high_filename=model_high_filename,
+        model_low_filename=model_low_filename,
+        chat_id=chat_id,
+        message_id=message_id,
+    )
+    _wf4_session_clear(job_id)
+    return True
 
 
 # ---------------- Update processing ----------------
@@ -1624,6 +1817,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
     # - nrs:<r_idx>:<job_id>                   (resolution, workflow4)
     # - nst:<s_idx>:<job_id>                   (steps, workflow4)
     # - npu:<p>:<job_id>                       (prompt / prompt-only, workflow4)
+    # - nd:<mode>:<job_id>                     (drift mode, workflow4)
     # - l:<idx>:<job_id>                       (select LoRA)
     # - p:<page>:<job_id>                      (LoRA page)
     # - pm:<model>:<page>:<lora_idx>:<w_idx>:<job_id> (model page, single)
@@ -1678,7 +1872,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         if choice == "new":
             _ext_session_clear(job_id)
-            workflow4_sessions[job_id] = {"mode": "workflow4", "current_lora": 1}
+            workflow4_sessions[job_id] = {"mode": "workflow4", "current_lora": 1, "drift_key": None}
             _wf4_session_touch(workflow4_sessions[job_id])
             if LORA_GROUP_KEYS:
                 await edit_message_text(
@@ -2106,108 +2300,38 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         sess["use_prompt"] = use_prompt
         sess["use_lora"] = use_lora
+        sess["drift_key"] = None
         _wf4_session_touch(sess)
+        if chat_id and message_id:
+            label = _workflow4_combo_label(sess)
+            await prompt_workflow4_drift(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+            )
+        return
 
-        lora1 = sess.get("lora1") or {}
-        lora2 = sess.get("lora2") or {}
-        lora3 = sess.get("lora3") or {}
-        lora4 = sess.get("lora4") or {}
-        if not lora1 or not lora2 or not lora3 or not lora4:
+    if tag == "nd":
+        if len(parts) != 3:
             return
-        cfg1 = lora1.get("cfg")
-        cfg2 = lora2.get("cfg")
-        cfg3 = lora3.get("cfg")
-        cfg4 = lora4.get("cfg")
-        if not isinstance(cfg1, dict) or not isinstance(cfg2, dict) or not isinstance(cfg3, dict) or not isinstance(cfg4, dict):
+        drift_key = parts[1]
+        job_id = parts[2]
+        sess = _wf4_session_get(job_id)
+        if not sess:
             return
-
-        if sess.get("resolution_idx") is None:
-            resolution_idx = DEFAULT_RESOLUTION_IDX
-        else:
-            resolution_idx = int(sess.get("resolution_idx"))
-        default_steps_idx = STEPS_OPTIONS.index(DEFAULT_STEPS) if DEFAULT_STEPS in STEPS_OPTIONS else 0
-        if sess.get("steps_idx") is None:
-            steps_idx = default_steps_idx
-        else:
-            steps_idx = int(sess.get("steps_idx"))
-        resolution = _resolution_by_index(resolution_idx)
-        steps = _steps_by_index(steps_idx)
-        if not resolution or steps is None:
+        preset = _get_drift_preset(drift_key)
+        if not preset:
             return
-
-        model_type = str(sess.get("model_type") or "")
-        model_idx = int(sess.get("model_idx") or -1)
-        if model_type not in ("wan", "gguf"):
-            return
-
-        model_label = None
-        model_high_filename = None
-        model_low_filename = None
-        if model_idx >= 0:
-            model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
-            if not model_cfg:
-                return
-            model_label = str(model_cfg.get("label") or model_key)
-            model_high_filename = model_cfg.get("high_filename")
-            model_low_filename = model_cfg.get("low_filename")
-
-        prompt_text_1 = _workflow4_prompt_for(cfg1, lora1, use_prompt)
-        prompt_text_2 = _workflow4_prompt_for(cfg2, lora2, use_prompt)
-        prompt_text_3 = _workflow4_prompt_for(cfg3, lora3, use_prompt)
-        prompt_text_4 = _workflow4_prompt_for(cfg4, lora4, use_prompt)
-
-        weights1 = {
-            "weight": lora1.get("weight"),
-            "high_weight": lora1.get("high_weight"),
-            "low_weight": lora1.get("low_weight"),
-        }
-        weights2 = {
-            "weight": lora2.get("weight"),
-            "high_weight": lora2.get("high_weight"),
-            "low_weight": lora2.get("low_weight"),
-        }
-        weights3 = {
-            "weight": lora3.get("weight"),
-            "high_weight": lora3.get("high_weight"),
-            "low_weight": lora3.get("low_weight"),
-        }
-        weights4 = {
-            "weight": lora4.get("weight"),
-            "high_weight": lora4.get("high_weight"),
-            "low_weight": lora4.get("low_weight"),
-        }
-
-        await _submit_workflow4_job(
+        sess["drift_key"] = drift_key
+        _wf4_session_touch(sess)
+        await _workflow4_submit_from_session(
             job_id=job_id,
-            lora1_key=str(lora1.get("key")),
-            lora1_cfg=cfg1,
-            lora1_weights=weights1,
-            lora2_key=str(lora2.get("key")),
-            lora2_cfg=cfg2,
-            lora2_weights=weights2,
-            lora3_key=str(lora3.get("key")),
-            lora3_cfg=cfg3,
-            lora3_weights=weights3,
-            lora4_key=str(lora4.get("key")),
-            lora4_cfg=cfg4,
-            lora4_weights=weights4,
-            use_lora=use_lora,
-            use_gguf=(model_type == "gguf"),
-            use_last_frame=bool(sess.get("use_last_frame")),
-            video_width=int(resolution["width"]),
-            video_height=int(resolution["height"]),
-            total_steps=int(steps),
-            positive_prompt_1=prompt_text_1,
-            positive_prompt_2=prompt_text_2,
-            positive_prompt_3=prompt_text_3,
-            positive_prompt_4=prompt_text_4,
-            model_label=model_label,
-            model_high_filename=model_high_filename,
-            model_low_filename=model_low_filename,
             chat_id=chat_id,
             message_id=message_id,
+            sess=sess,
+            drift_preset=preset,
         )
-        _wf4_session_clear(job_id)
         return
 
     if tag == "ep":
