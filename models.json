@@ -11,6 +11,12 @@
     "high_filename": "wan22EnhancedNSFWCameraPrompt_nsfwV2Q8High.gguf",
     "low_filename": "wan22EnhancedNSFWCameraPrompt_nsfwV2Q8Low.gguf"
   },
+  "gguf_wan22_q8": {
+    "label": "WAN 2.2 Q8 (GGUF)",
+    "type": "gguf",
+    "high_filename": "wan2.2_i2v_high_noise_14B_Q8_0.gguf",
+    "low_filename": "wan2.2_i2v_low_noise_14B_Q8_0.gguf"
+  },
   "gguf_tastysin_v8": {
     "label": "Tastysin V8 (GGUF)",
     "type": "gguf",

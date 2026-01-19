@@ -20,6 +20,7 @@ RATE_LIMIT_SECONDS = int(os.environ.get("RATE_LIMIT_SECONDS", "30"))
 DEDUP_TTL_SECONDS = int(os.environ.get("DEDUP_TTL_SECONDS", "600"))
 
 LORA_CATALOG_PATH = os.environ.get("LORA_CATALOG_PATH", "/app/loras.json")
+LORA_GROUPS_PATH = os.environ.get("LORA_GROUPS_PATH", "/app/lora_groups.json")
 MODEL_CATALOG_PATH = os.environ.get("MODEL_CATALOG_PATH", "/app/models.json")
 
 # 4 buttons max (2x2 grid) + paging arrows
@@ -33,6 +34,16 @@ def load_lora_catalog() -> Dict[str, Any]:
         data = json.load(f)
     if not isinstance(data, dict) or not data:
         raise RuntimeError("loras.json must be a non-empty JSON object")
+    return data
+
+
+def load_lora_group_catalog() -> Dict[str, Any]:
+    if not os.path.exists(LORA_GROUPS_PATH):
+        return {}
+    with open(LORA_GROUPS_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise RuntimeError("lora_groups.json must be a JSON object")
     return data
 
 
@@ -57,6 +68,8 @@ def _normalize_model_type(value: Any) -> Optional[str]:
 
 LORA_CATALOG = load_lora_catalog()
 LORA_KEYS = sorted(LORA_CATALOG.keys())
+LORA_GROUP_CATALOG = load_lora_group_catalog()
+LORA_GROUP_KEYS = sorted(LORA_GROUP_CATALOG.keys())
 MODEL_CATALOG = load_model_catalog()
 MODEL_KEYS_BY_TYPE: Dict[str, List[str]] = {"wan": [], "gguf": []}
 for key, cfg in MODEL_CATALOG.items():
@@ -219,6 +232,16 @@ def _get_lora_cfg_by_index(idx: int) -> Tuple[Optional[str], Optional[Dict[str, 
     if not isinstance(cfg, dict):
         return None, None
     return lora_key, cfg
+
+
+def _get_lora_group_by_index(idx: int) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    if idx < 0 or idx >= len(LORA_GROUP_KEYS):
+        return None, None
+    group_key = LORA_GROUP_KEYS[idx]
+    cfg = LORA_GROUP_CATALOG.get(group_key)
+    if not isinstance(cfg, dict):
+        return None, None
+    return group_key, cfg
 
 
 def _get_model_cfg_by_index(model_type: str, idx: int) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
@@ -598,6 +621,43 @@ def build_mode_keyboard(job_id: str) -> str:
         ]
     ]
     rows.append([{"text": "Workflow4", "callback_data": f"mode:new:{job_id}"}])
+    return json.dumps({"inline_keyboard": rows})
+
+
+def build_lora_group_keyboard(job_id: str, page: int = 0, *, tag_prefix: str = "n") -> str:
+    total = len(LORA_GROUP_KEYS)
+    if total == 0:
+        return json.dumps({"inline_keyboard": []})
+
+    page_size = max(1, int(PAGE_SIZE))
+    max_page = (total - 1) // page_size
+    page = max(0, min(int(page), max_page))
+
+    start = page * page_size
+    end = min(start + page_size, total)
+    chunk = LORA_GROUP_KEYS[start:end]
+
+    rows = []
+    for i in range(0, len(chunk), 2):
+        row = []
+        for j in range(2):
+            if i + j >= len(chunk):
+                break
+            key = chunk[i + j]
+            cfg = LORA_GROUP_CATALOG[key]
+            label = str(cfg.get("label") or key)
+            idx = start + (i + j)
+            row.append({"text": label, "callback_data": f"{tag_prefix}g:{idx}:{job_id}"})
+        rows.append(row)
+
+    nav = []
+    if page > 0:
+        nav.append({"text": "‹", "callback_data": f"{tag_prefix}gp:{page-1}:{job_id}"})
+    nav.append({"text": f"{page+1}/{max_page+1}", "callback_data": f"noop:{job_id}"})
+    if page < max_page:
+        nav.append({"text": "›", "callback_data": f"{tag_prefix}gp:{page+1}:{job_id}"})
+    rows.append(nav)
+
     return json.dumps({"inline_keyboard": rows})
 
 
@@ -1094,6 +1154,41 @@ def _workflow4_combo_label(sess: Dict[str, Any]) -> str:
     return "Workflow4"
 
 
+def _workflow4_prompt_for(cfg: Dict[str, Any], lora: Dict[str, Any], use_prompt: bool) -> str:
+    if not use_prompt:
+        return DEFAULT_PROMPT
+    override = lora.get("positive")
+    if isinstance(override, str) and override.strip():
+        return override
+    candidate = cfg.get("positive")
+    return candidate if isinstance(candidate, str) and candidate.strip() else DEFAULT_PROMPT
+
+
+async def _workflow4_prompt_current_weight(
+    *,
+    chat_id: int,
+    message_id: int,
+    job_id: str,
+    sess: Dict[str, Any],
+) -> bool:
+    if not (chat_id and message_id):
+        return False
+    current = int(sess.get("current_lora") or 1)
+    lora = sess.get(f"lora{current}") or {}
+    cfg = lora.get("cfg")
+    if not isinstance(cfg, dict):
+        return False
+    lora_type = str(lora.get("type") or "single").lower()
+    label = str(lora.get("label") or "")
+    if lora_type == "pair":
+        reply_markup = build_weight_keyboard_ext(job_id, cfg, "high", tag_prefix="n")
+        await edit_message_text(chat_id, message_id, f"{label}: vyber HIGH vahu", reply_markup)
+    else:
+        reply_markup = build_weight_keyboard_ext(job_id, cfg, "single", tag_prefix="n")
+        await edit_message_text(chat_id, message_id, f"{label}: vyber vahu", reply_markup)
+    return True
+
+
 async def _submit_single_job(
     *,
     job_id: str,
@@ -1504,6 +1599,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
     # - ers:<r_idx>:<job_id>                   (resolution, extended)
     # - est:<s_idx>:<job_id>                   (steps, extended)
     # - epu:<p>:<job_id>                       (prompt, extended)
+    # - ng:<idx>:<job_id>                      (select LoRA group, workflow4)
+    # - ngp:<page>:<job_id>                    (group page, workflow4)
     # - nl:<idx>:<job_id>                      (select LoRA, workflow4)
     # - np:<page>:<job_id>                     (LoRA page, workflow4)
     # - nws:<w_idx>:<job_id>                   (single weight, workflow4)
@@ -1572,12 +1669,20 @@ async def process_callback(update: Dict[str, Any]) -> None:
             _ext_session_clear(job_id)
             workflow4_sessions[job_id] = {"mode": "workflow4", "current_lora": 1}
             _wf4_session_touch(workflow4_sessions[job_id])
-            await edit_message_text(
-                chat_id,
-                message_id,
-                "Workflow4: vyber 1. LoRA",
-                build_lora_keyboard_ext(job_id, page=0, tag_prefix="n"),
-            )
+            if LORA_GROUP_KEYS:
+                await edit_message_text(
+                    chat_id,
+                    message_id,
+                    "Workflow4: vyber skupinu",
+                    build_lora_group_keyboard(job_id, page=0, tag_prefix="n"),
+                )
+            else:
+                await edit_message_text(
+                    chat_id,
+                    message_id,
+                    "Workflow4: vyber 1. LoRA",
+                    build_lora_keyboard_ext(job_id, page=0, tag_prefix="n"),
+                )
             return
         return
 
@@ -1593,6 +1698,71 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         if chat_id and message_id:
             await edit_keyboard(chat_id, message_id, build_lora_keyboard_ext(job_id, page=page, tag_prefix="n"))
+        return
+
+    if tag == "ngp":
+        if len(parts) != 3:
+            return
+        try:
+            page = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+        if not _wf4_session_get(job_id):
+            return
+        if chat_id and message_id:
+            await edit_keyboard(chat_id, message_id, build_lora_group_keyboard(job_id, page=page, tag_prefix="n"))
+        return
+
+    if tag == "ng":
+        if len(parts) != 3:
+            return
+        try:
+            idx = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        group_key, group_cfg = _get_lora_group_by_index(idx)
+        if not group_cfg:
+            return
+        parts_cfg = group_cfg.get("parts")
+        if not isinstance(parts_cfg, list) or len(parts_cfg) != WORKFLOW4_PARTS:
+            return
+        sess["group_key"] = group_key
+        sess["group_label"] = str(group_cfg.get("label") or group_key)
+        sess["current_lora"] = 1
+        for i in range(1, WORKFLOW4_PARTS + 1):
+            part = parts_cfg[i - 1]
+            if not isinstance(part, dict):
+                return
+            lora_key = str(part.get("lora_key") or "").strip()
+            if not lora_key:
+                return
+            lora_cfg = LORA_CATALOG.get(lora_key)
+            if not isinstance(lora_cfg, dict):
+                return
+            lora_type = str(lora_cfg.get("type") or "single").lower()
+            lora_entry: Dict[str, Any] = {
+                "key": lora_key,
+                "label": str(lora_cfg.get("label") or lora_key),
+                "cfg": lora_cfg,
+                "type": lora_type,
+            }
+            positive_override = part.get("positive")
+            if isinstance(positive_override, str) and positive_override.strip():
+                lora_entry["positive"] = positive_override
+            sess[f"lora{i}"] = lora_entry
+        _wf4_session_touch(sess)
+        if chat_id and message_id:
+            await _workflow4_prompt_current_weight(
+                chat_id=chat_id,
+                message_id=message_id,
+                job_id=job_id,
+                sess=sess,
+            )
         return
 
     if tag == "nl":
@@ -1655,6 +1825,14 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if current < WORKFLOW4_PARTS:
             sess["current_lora"] = current + 1
             _wf4_session_touch(sess)
+            if sess.get("group_key"):
+                if await _workflow4_prompt_current_weight(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    job_id=job_id,
+                    sess=sess,
+                ):
+                    return
             await edit_message_text(
                 chat_id,
                 message_id,
@@ -1727,6 +1905,14 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if current < WORKFLOW4_PARTS:
             sess["current_lora"] = current + 1
             _wf4_session_touch(sess)
+            if sess.get("group_key"):
+                if await _workflow4_prompt_current_weight(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    job_id=job_id,
+                    sess=sess,
+                ):
+                    return
             await edit_message_text(
                 chat_id,
                 message_id,
@@ -1950,10 +2136,10 @@ async def process_callback(update: Dict[str, Any]) -> None:
             model_high_filename = model_cfg.get("high_filename")
             model_low_filename = model_cfg.get("low_filename")
 
-        prompt_text_1 = (cfg1.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
-        prompt_text_2 = (cfg2.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
-        prompt_text_3 = (cfg3.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
-        prompt_text_4 = (cfg4.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
+        prompt_text_1 = _workflow4_prompt_for(cfg1, lora1, use_prompt)
+        prompt_text_2 = _workflow4_prompt_for(cfg2, lora2, use_prompt)
+        prompt_text_3 = _workflow4_prompt_for(cfg3, lora3, use_prompt)
+        prompt_text_4 = _workflow4_prompt_for(cfg4, lora4, use_prompt)
 
         weights1 = {
             "weight": lora1.get("weight"),

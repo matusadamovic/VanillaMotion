@@ -34,6 +34,7 @@ VIDEO_OUTPUT_FORMAT = os.environ.get("VIDEO_OUTPUT_FORMAT")
 VIDEO_OUTPUT_PIX_FMT = os.environ.get("VIDEO_OUTPUT_PIX_FMT")
 
 PLACEHOLDER_DONE = {"COMPLETED", "FAILED", "CANCELLED"}
+SAME_WOMAN_PROMPT = "The exact same woman"
 
 
 def db_conn():
@@ -167,6 +168,17 @@ def _extract_part_index(title: str) -> Optional[int]:
     except Exception:
         return None
     return value if value > 0 else None
+
+
+def _inject_same_woman_prompt(text: Optional[str]) -> Optional[str]:
+    if not isinstance(text, str):
+        return text
+    stripped = text.strip()
+    if not stripped:
+        return text
+    if SAME_WOMAN_PROMPT.lower() in stripped.lower():
+        return text
+    return f"{SAME_WOMAN_PROMPT}, {stripped}"
 
 
 def _guess_model_fields(inputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -661,6 +673,8 @@ def load_and_patch_workflow_new(
         3: positive_prompt_3,
         4: positive_prompt_4,
     }
+    for part_idx in (2, 3, 4):
+        prompts_by_part[part_idx] = _inject_same_woman_prompt(prompts_by_part.get(part_idx))
     for node in prompt.values():
         if node.get("class_type") != "CLIPTextEncode":
             continue
