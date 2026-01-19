@@ -652,6 +652,7 @@ def load_and_patch_workflow_new(
     positive_prompt_2: Optional[str],
     positive_prompt_3: Optional[str],
     positive_prompt_4: Optional[str],
+    use_lora: Optional[bool],
     use_gguf: Optional[bool],
     video_width: Optional[int],
     video_height: Optional[int],
@@ -721,6 +722,8 @@ def load_and_patch_workflow_new(
             inputs["manual_width"] = int(video_width)
             inputs["manual_height"] = int(video_height)
 
+    apply_loras = True if use_lora is None else bool(use_lora)
+
     def _assert_lora_exists(filename: str) -> None:
         p = pathlib.Path("/runpod-volume/models/loras") / filename
         if not p.exists():
@@ -762,48 +765,50 @@ def load_and_patch_workflow_new(
             "low_strength": s,
         }
 
-    part_loras = {
-        1: _normalize_lora_part(
-            "workflow4 lora1",
-            lora_type,
-            lora_filename,
-            lora_strength,
-            lora_high_filename,
-            lora_high_strength,
-            lora_low_filename,
-            lora_low_strength,
-        ),
-        2: _normalize_lora_part(
-            "workflow4 lora2",
-            lora2_type,
-            lora2_filename,
-            lora2_strength,
-            lora2_high_filename,
-            lora2_high_strength,
-            lora2_low_filename,
-            lora2_low_strength,
-        ),
-        3: _normalize_lora_part(
-            "workflow4 lora3",
-            lora3_type,
-            lora3_filename,
-            lora3_strength,
-            lora3_high_filename,
-            lora3_high_strength,
-            lora3_low_filename,
-            lora3_low_strength,
-        ),
-        4: _normalize_lora_part(
-            "workflow4 lora4",
-            lora4_type,
-            lora4_filename,
-            lora4_strength,
-            lora4_high_filename,
-            lora4_high_strength,
-            lora4_low_filename,
-            lora4_low_strength,
-        ),
-    }
+    part_loras: Dict[int, Dict[str, Any]] = {}
+    if apply_loras:
+        part_loras = {
+            1: _normalize_lora_part(
+                "workflow4 lora1",
+                lora_type,
+                lora_filename,
+                lora_strength,
+                lora_high_filename,
+                lora_high_strength,
+                lora_low_filename,
+                lora_low_strength,
+            ),
+            2: _normalize_lora_part(
+                "workflow4 lora2",
+                lora2_type,
+                lora2_filename,
+                lora2_strength,
+                lora2_high_filename,
+                lora2_high_strength,
+                lora2_low_filename,
+                lora2_low_strength,
+            ),
+            3: _normalize_lora_part(
+                "workflow4 lora3",
+                lora3_type,
+                lora3_filename,
+                lora3_strength,
+                lora3_high_filename,
+                lora3_high_strength,
+                lora3_low_filename,
+                lora3_low_strength,
+            ),
+            4: _normalize_lora_part(
+                "workflow4 lora4",
+                lora4_type,
+                lora4_filename,
+                lora4_strength,
+                lora4_high_filename,
+                lora4_high_strength,
+                lora4_low_filename,
+                lora4_low_strength,
+            ),
+        }
 
     def _get_lora_name(node: Dict[str, Any], slot: str) -> str:
         inputs = node.get("inputs") or {}
@@ -833,6 +838,9 @@ def load_and_patch_workflow_new(
         if "lora high noise" not in title_l and "lora low noise" not in title_l:
             continue
         if not _is_svi_node(node):
+            continue
+        if not apply_loras:
+            _disable_lora_slot(node, "lora_2")
             continue
         part_idx = _extract_part_index(title)
         if not part_idx:
@@ -1088,6 +1096,7 @@ def run_comfy_prompt(
     positive_prompt_2: Optional[str] = None,
     positive_prompt_3: Optional[str] = None,
     positive_prompt_4: Optional[str] = None,
+    use_lora: Optional[bool] = None,
     use_gguf: Optional[bool],
     use_last_frame: Optional[bool],
     video_width: Optional[int],
@@ -1132,6 +1141,7 @@ def run_comfy_prompt(
             positive_prompt_2=positive_prompt_2,
             positive_prompt_3=positive_prompt_3,
             positive_prompt_4=positive_prompt_4,
+            use_lora=use_lora,
             use_gguf=use_gguf,
             video_width=video_width,
             video_height=video_height,
@@ -1786,7 +1796,15 @@ def handler(event):
             if not single_filename:
                 raise ValueError(f"{name} requires lora filename")
 
-    if is_workflow4:
+    use_lora = payload.get("use_lora")
+    if use_lora is None:
+        use_lora = True
+    elif isinstance(use_lora, str):
+        use_lora = use_lora.strip().lower() in ("1", "true", "yes", "y", "on")
+    elif isinstance(use_lora, (int, float)) and not isinstance(use_lora, bool):
+        use_lora = bool(use_lora)
+
+    if is_workflow4 and use_lora:
         _require_lora_payload(
             "workflow4 lora1",
             lora_type,
@@ -1903,6 +1921,7 @@ def handler(event):
                     model_high_filename=model_high_filename,
                     model_low_filename=model_low_filename,
                     positive_prompt=positive_prompt,
+                    use_lora=use_lora,
                     use_gguf=use_gguf,
                     use_last_frame=use_last_frame,
                     video_width=video_width,
@@ -1931,6 +1950,7 @@ def handler(event):
                     model_high_filename=model_high_filename,
                     model_low_filename=model_low_filename,
                     positive_prompt=prompt2,
+                    use_lora=use_lora,
                     use_gguf=use_gguf,
                     use_last_frame=use_last_frame,
                     video_width=video_width,
@@ -1981,6 +2001,7 @@ def handler(event):
                     positive_prompt_2=positive_prompt_2,
                     positive_prompt_3=positive_prompt_3,
                     positive_prompt_4=positive_prompt_4,
+                    use_lora=use_lora,
                     use_gguf=use_gguf,
                     use_last_frame=use_last_frame,
                     video_width=video_width,
@@ -2002,6 +2023,7 @@ def handler(event):
                     model_high_filename=model_high_filename,
                     model_low_filename=model_low_filename,
                     positive_prompt=positive_prompt,
+                    use_lora=use_lora,
                     use_gguf=use_gguf,
                     use_last_frame=use_last_frame,
                     video_width=video_width,

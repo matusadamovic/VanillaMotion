@@ -830,6 +830,8 @@ def build_prompt_keyboard_ext(job_id: str, *, tag_prefix: str = "e") -> str:
             {"text": "Prompt: Default", "callback_data": f"{tag_prefix}pu:0:{job_id}"},
         ]
     ]
+    if tag_prefix == "n":
+        rows.append([{"text": "Len prompt (bez LoRA)", "callback_data": f"{tag_prefix}pu:2:{job_id}"}])
     return json.dumps({"inline_keyboard": rows})
 
 
@@ -1050,7 +1052,10 @@ async def prompt_extended_prompt(
     if not (chat_id and message_id):
         return
     reply_markup = build_prompt_keyboard_ext(job_id, tag_prefix=tag_prefix)
-    await edit_message_text(chat_id, message_id, f"{label}: pouzit LoRA prompt?", reply_markup)
+    text = f"{label}: pouzit LoRA prompt?"
+    if tag_prefix == "n":
+        text = f"{label}: vyber prompt rezim"
+    await edit_message_text(chat_id, message_id, text, reply_markup)
 
 
 def clear_webhook():
@@ -1417,6 +1422,7 @@ async def _submit_workflow4_job(
     lora4_key: str,
     lora4_cfg: Dict[str, Any],
     lora4_weights: Dict[str, float],
+    use_lora: bool,
     use_gguf: bool,
     use_last_frame: bool,
     video_width: Optional[int],
@@ -1466,6 +1472,7 @@ async def _submit_workflow4_job(
         "positive_prompt_2": positive_prompt_2 or positive_prompt_1,
         "positive_prompt_3": positive_prompt_3 or positive_prompt_1,
         "positive_prompt_4": positive_prompt_4 or positive_prompt_1,
+        "use_lora": use_lora,
         "use_gguf": use_gguf,
         "use_last_frame": use_last_frame,
         "video_width": video_width,
@@ -1523,6 +1530,8 @@ async def _submit_workflow4_job(
     model_type_label = _model_type_label(use_gguf)
     suffix = f": {model_label}" if model_label else ""
     combo_label = f"{label1} + {label2} + {label3} + {label4}"
+    if not use_lora:
+        combo_label = f"{combo_label} (prompt-only)"
     await edit_placeholder(
         int(row["chat_id"]),
         int(row["placeholder_message_id"]),
@@ -1614,7 +1623,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
     # - nlf:<on>:<job_id>                      (last frame, workflow4)
     # - nrs:<r_idx>:<job_id>                   (resolution, workflow4)
     # - nst:<s_idx>:<job_id>                   (steps, workflow4)
-    # - npu:<p>:<job_id>                       (prompt, workflow4)
+    # - npu:<p>:<job_id>                       (prompt / prompt-only, workflow4)
     # - l:<idx>:<job_id>                       (select LoRA)
     # - p:<page>:<job_id>                      (LoRA page)
     # - pm:<model>:<page>:<lora_idx>:<w_idx>:<job_id> (model page, single)
@@ -2087,12 +2096,16 @@ async def process_callback(update: Dict[str, Any]) -> None:
     if tag == "npu":
         if len(parts) != 3:
             return
-        use_prompt = str(parts[1]).strip().lower() in ("1", "true", "yes", "y", "on")
+        prompt_mode = str(parts[1]).strip().lower()
+        prompt_only = prompt_mode in ("2", "prompt-only", "prompt_only")
+        use_prompt = prompt_only or prompt_mode in ("1", "true", "yes", "y", "on")
+        use_lora = not prompt_only
         job_id = parts[2]
         sess = _wf4_session_get(job_id)
         if not sess:
             return
         sess["use_prompt"] = use_prompt
+        sess["use_lora"] = use_lora
         _wf4_session_touch(sess)
 
         lora1 = sess.get("lora1") or {}
@@ -2178,6 +2191,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             lora4_key=str(lora4.get("key")),
             lora4_cfg=cfg4,
             lora4_weights=weights4,
+            use_lora=use_lora,
             use_gguf=(model_type == "gguf"),
             use_last_frame=bool(sess.get("use_last_frame")),
             video_width=int(resolution["width"]),

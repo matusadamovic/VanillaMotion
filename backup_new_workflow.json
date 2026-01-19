@@ -210,8 +210,8 @@
                 "strength": 1
             },
             "lora_2": {
-                "on": true,
-                "lora": "BouncyWalk02_HighWan2_2-000048.safetensors",
+                "on": false,
+                "lora": "",
                 "strength": 0.8
             },
             "➕ Add Lora": "",
@@ -253,8 +253,8 @@
                 "strength": 1
             },
             "lora_2": {
-                "on": true,
-                "lora": "BouncyWalk02_LowWan2_2-000048.safetensors",
+                "on": false,
+                "lora": "",
                 "strength": 0.8
             },
             "➕ Add Lora": "",
@@ -296,8 +296,8 @@
                 "strength": 1
             },
             "lora_2": {
-                "on": true,
-                "lora": "BouncyWalk02_HighWan2_2-000048.safetensors",
+                "on": false,
+                "lora": "",
                 "strength": 0.8
             },
             "➕ Add Lora": "",
@@ -326,8 +326,8 @@
                 "strength": 1
             },
             "lora_2": {
-                "on": true,
-                "lora": "BouncyWalk02_LowWan2_2-000048.safetensors",
+                "on": false,
+                "lora": "",
                 "strength": 0.8
             },
             "➕ Add Lora": "",
@@ -380,8 +380,8 @@
                 "strength": 1
             },
             "lora_2": {
-                "on": true,
-                "lora": "BouncyWalk02_HighWan2_2-000048.safetensors",
+                "on": false,
+                "lora": "",
                 "strength": 0.8
             },
             "➕ Add Lora": "",
@@ -410,8 +410,8 @@
                 "strength": 1
             },
             "lora_2": {
-                "on": true,
-                "lora": "BouncyWalk02_LowWan2_2-000048.safetensors",
+                "on": false,
+                "lora": "",
                 "strength": 0.8
             },
             "➕ Add Lora": "",
