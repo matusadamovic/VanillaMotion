@@ -11,7 +11,7 @@ class RAMCleanup:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "anything": ("ANY",),
+                "anything": ("IMAGE",),
                 "clean_file_cache": ("BOOLEAN", {"default": True}),
                 "clean_processes": ("BOOLEAN", {"default": True}),
                 "clean_dlls": ("BOOLEAN", {"default": True}),
@@ -19,7 +19,7 @@ class RAMCleanup:
             }
         }
 
-    RETURN_TYPES = ("ANY",)
+    RETURN_TYPES = ("IMAGE",)
     FUNCTION = "cleanup"
     CATEGORY = "VanillaMotion"
 

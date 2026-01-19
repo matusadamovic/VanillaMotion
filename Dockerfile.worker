@@ -69,7 +69,7 @@ RUN if [ "$INSTALL_CUSTOM_NODE_DEPS" = "true" ]; then \
 
 
 
-# Workflow a skriptyyyyyy
+# Workflow a skriptyyyyyyy
 WORKDIR /app
 COPY workflow_api.json /app/workflow.json
 COPY new_workflow_api.json /app/workflow_new.json
