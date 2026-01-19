@@ -20,7 +20,9 @@ RATE_LIMIT_SECONDS = int(os.environ.get("RATE_LIMIT_SECONDS", "30"))
 DEDUP_TTL_SECONDS = int(os.environ.get("DEDUP_TTL_SECONDS", "600"))
 
 LORA_CATALOG_PATH = os.environ.get("LORA_CATALOG_PATH", "/app/loras.json")
-LORA_GROUPS_PATH = os.environ.get("LORA_GROUPS_PATH", "/app/lora_groups.json")
+LORA_GROUPS_PATH = os.environ.get("LORA_GROUPS_PATH")
+if not LORA_GROUPS_PATH:
+    LORA_GROUPS_PATH = os.path.join(os.path.dirname(LORA_CATALOG_PATH), "lora_groups.json")
 MODEL_CATALOG_PATH = os.environ.get("MODEL_CATALOG_PATH", "/app/models.json")
 
 # 4 buttons max (2x2 grid) + paging arrows
