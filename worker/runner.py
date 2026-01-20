@@ -446,6 +446,32 @@ def _patch_video_combine_outputs(prompt: Dict[str, Any]) -> None:
                 inputs["pix_fmt"] = fallback_pix_fmt
 
 
+def _patch_interpolation_multiplier(prompt: Dict[str, Any], value: int) -> None:
+    for node in prompt.values():
+        title_l = _get_title(node).lower()
+        if title_l != "interpolation multiplier":
+            continue
+        class_type = node.get("class_type")
+        if class_type in {"PrimitiveFloat", "PrimitiveInt", "FLOATConstant", "INTConstant"}:
+            node.setdefault("inputs", {})["value"] = int(value)
+
+
+def _disable_rife_interpolation(prompt: Dict[str, Any]) -> None:
+    for rife_id, rife_node in prompt.items():
+        if rife_node.get("class_type") != "RIFE VFI":
+            continue
+        frames_ref = (rife_node.get("inputs") or {}).get("frames")
+        if not (isinstance(frames_ref, list) and frames_ref):
+            continue
+        for node in prompt.values():
+            inputs = node.get("inputs")
+            if not isinstance(inputs, dict):
+                continue
+            for key, value in list(inputs.items()):
+                if isinstance(value, list) and value and str(value[0]) == str(rife_id):
+                    inputs[key] = list(frames_ref)
+
+
 def _set_lora_slot(node: Dict[str, Any], slot: str, filename: str, strength: float) -> None:
     inputs = node.setdefault("inputs", {})
     inputs[slot] = {"on": True, "lora": filename, "strength": float(strength)}
@@ -544,6 +570,7 @@ def load_and_patch_workflow(
     video_width: Optional[int],
     video_height: Optional[int],
     total_steps: Optional[int],
+    rife_multiplier: Optional[int],
 ) -> Dict[str, Any]:
     with open(WORKFLOW_PATH, "r", encoding="utf-8") as f:
         prompt = json.load(f)
@@ -603,6 +630,13 @@ def load_and_patch_workflow(
             title = _get_title(node).lower()
             if "total steps" in title:
                 node.setdefault("inputs", {})["value"] = int(total_steps)
+
+    # Patch interpolation (RIFE) if provided
+    if rife_multiplier is not None:
+        if int(rife_multiplier) <= 0:
+            _disable_rife_interpolation(prompt)
+        else:
+            _patch_interpolation_multiplier(prompt, int(rife_multiplier))
 
     # Patch UNET selection if provided
     if model_high_filename or model_low_filename:
@@ -759,6 +793,7 @@ def load_and_patch_workflow_new(
     drift_denoise: Optional[float],
     drift_overlap: Optional[int],
     drift_rife_multiplier: Optional[int],
+    rife_multiplier: Optional[int],
 ) -> Dict[str, Any]:
     with open(WORKFLOW_PATH_NEW, "r", encoding="utf-8") as f:
         prompt = json.load(f)
@@ -846,15 +881,16 @@ def load_and_patch_workflow_new(
                 continue
             node.setdefault("inputs", {})["overlap"] = int(drift_overlap)
 
-    if drift_rife_multiplier is not None:
-        for node in prompt.values():
-            title_l = _get_title(node).lower()
-            if title_l != "interpolation multiplier":
-                continue
-            class_type = node.get("class_type")
-            inputs = node.setdefault("inputs", {})
-            if class_type in {"PrimitiveFloat", "PrimitiveInt", "FLOATConstant", "INTConstant"}:
-                inputs["value"] = int(drift_rife_multiplier)
+    effective_rife = None
+    if rife_multiplier is not None:
+        effective_rife = int(rife_multiplier)
+    elif drift_rife_multiplier is not None:
+        effective_rife = int(drift_rife_multiplier)
+    if effective_rife is not None:
+        if effective_rife <= 0:
+            _disable_rife_interpolation(prompt)
+        else:
+            _patch_interpolation_multiplier(prompt, effective_rife)
 
     _apply_workflow4_last_frame_mode(prompt, last_frame_mode)
 
@@ -1243,6 +1279,7 @@ def run_comfy_prompt(
     drift_denoise: Optional[float] = None,
     drift_overlap: Optional[int] = None,
     drift_rife_multiplier: Optional[int] = None,
+    rife_multiplier: Optional[int] = None,
     output_dir: pathlib.Path,
 ) -> tuple[Dict[str, Any], pathlib.Path]:
     if workflow_key == "new":
@@ -1292,6 +1329,7 @@ def run_comfy_prompt(
             drift_denoise=drift_denoise,
             drift_overlap=drift_overlap,
             drift_rife_multiplier=drift_rife_multiplier,
+            rife_multiplier=rife_multiplier,
         )
     else:
         workflow = load_and_patch_workflow(
@@ -1311,13 +1349,14 @@ def run_comfy_prompt(
             video_width=video_width,
             video_height=video_height,
             total_steps=total_steps,
+            rife_multiplier=rife_multiplier,
         )
 
     label_tag = f"segment={label}" if label else "segment=single"
     summary = summarize_workflow(workflow)
     logging.info("WORKFLOW_SUMMARY %s %s", label_tag, json.dumps(summary, ensure_ascii=False))
     logging.info(
-        "JOB_PARAMS %s lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s model_high=%s model_low=%s use_gguf=%s use_last_frame=%s last_frame_mode=%s video=%sx%s steps=%s positive_prompt=%s",
+        "JOB_PARAMS %s lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s model_high=%s model_low=%s use_gguf=%s use_last_frame=%s last_frame_mode=%s video=%sx%s steps=%s rife_multiplier=%s positive_prompt=%s",
         label_tag,
         lora_type,
         lora_filename,
@@ -1334,6 +1373,7 @@ def run_comfy_prompt(
         video_width,
         video_height,
         total_steps,
+        rife_multiplier,
         (positive_prompt[:120] + "…")
         if isinstance(positive_prompt, str) and len(positive_prompt) > 120
         else positive_prompt,
@@ -2028,6 +2068,9 @@ def handler(event):
     drift_denoise = _to_float(payload.get("drift_denoise"))
     drift_overlap = _to_int(payload.get("drift_overlap"))
     drift_rife_multiplier = _to_int(payload.get("drift_rife_multiplier"))
+    rife_multiplier = _to_int(payload.get("rife_multiplier"))
+    if rife_multiplier is None:
+        rife_multiplier = drift_rife_multiplier
     last_frame_mode = payload.get("anchor_mode")
 
     job_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"job_{job_id}_", dir="/tmp"))
@@ -2089,6 +2132,7 @@ def handler(event):
                     video_width=video_width,
                     video_height=video_height,
                     total_steps=total_steps,
+                    rife_multiplier=rife_multiplier,
                     output_dir=output_dir,
                 )
 
@@ -2118,6 +2162,7 @@ def handler(event):
                     video_width=video_width,
                     video_height=video_height,
                     total_steps=total_steps,
+                    rife_multiplier=rife_multiplier,
                     output_dir=output_dir,
                 )
 
@@ -2174,6 +2219,7 @@ def handler(event):
                     drift_denoise=drift_denoise,
                     drift_overlap=drift_overlap,
                     drift_rife_multiplier=drift_rife_multiplier,
+                    rife_multiplier=rife_multiplier,
                     output_dir=output_dir,
                 )
             else:
@@ -2196,6 +2242,7 @@ def handler(event):
                     video_width=video_width,
                     video_height=video_height,
                     total_steps=total_steps,
+                    rife_multiplier=rife_multiplier,
                     output_dir=output_dir,
                 )
         finally:

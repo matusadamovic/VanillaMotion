@@ -200,7 +200,6 @@ DRIFT_PRESETS = [
         "speed_shift": None,
         "denoise": None,
         "overlap": None,
-        "rife_multiplier": None,
     },
     {
         "key": "reduce",
@@ -208,10 +207,13 @@ DRIFT_PRESETS = [
         "speed_shift": 2,
         "denoise": 0.7,
         "overlap": 2,
-        "rife_multiplier": 2,
     },
 ]
 DRIFT_PRESETS_BY_KEY = {p["key"]: p for p in DRIFT_PRESETS}
+
+INTERPOLATION_OPTIONS = [0, 4, 3, 2, 1]
+DEFAULT_INTERPOLATION_CLASSIC = 3
+DEFAULT_INTERPOLATION_NEW = 4
 
 
 def _format_weight(value: float) -> str:
@@ -244,6 +246,21 @@ def _steps_by_index(idx: int) -> Optional[int]:
     if idx < 0 or idx >= len(STEPS_OPTIONS):
         return None
     return STEPS_OPTIONS[idx]
+
+
+def _normalize_interpolation_value(value: Any, default_value: int) -> int:
+    try:
+        v = int(value)
+    except Exception:
+        return default_value
+    return v if v in INTERPOLATION_OPTIONS else default_value
+
+
+def _interpolation_label(value: int, default_value: int) -> str:
+    label = "OFF" if value <= 0 else f"{value}x"
+    if value == default_value:
+        label = f"{label} (default)"
+    return label
 
 
 def _get_drift_preset(key: str) -> Optional[Dict[str, Any]]:
@@ -638,6 +655,63 @@ def build_prompt_keyboard(
             {"text": "Prompt: Default", "callback_data": no_data},
         ]
     ]
+    return json.dumps({"inline_keyboard": rows})
+
+
+def build_interpolation_keyboard(
+    job_id: str,
+    *,
+    prompt_mode: int,
+    is_pair: bool,
+    lora_idx: int,
+    model_type: str,
+    model_idx: int,
+    use_last_frame: bool,
+    resolution_idx: int,
+    steps_idx: int,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+) -> str:
+    rows = []
+    for i in range(0, len(INTERPOLATION_OPTIONS), 2):
+        row = []
+        for j in range(2):
+            if i + j >= len(INTERPOLATION_OPTIONS):
+                break
+            value = INTERPOLATION_OPTIONS[i + j]
+            label = _interpolation_label(value, DEFAULT_INTERPOLATION_CLASSIC)
+            if is_pair:
+                data = (
+                    f"ri:{value}:{prompt_mode}:{steps_idx}:{resolution_idx}:{int(use_last_frame)}:"
+                    f"{lora_idx}:{high_idx}:{low_idx}:{model_type}:{model_idx}:{job_id}"
+                )
+            else:
+                data = (
+                    f"ri:{value}:{prompt_mode}:{steps_idx}:{resolution_idx}:{int(use_last_frame)}:"
+                    f"{lora_idx}:{weight_idx}:{model_type}:{model_idx}:{job_id}"
+                )
+            row.append({"text": label, "callback_data": data})
+        rows.append(row)
+    return json.dumps({"inline_keyboard": rows})
+
+
+def build_interpolation_keyboard_ext(
+    job_id: str,
+    *,
+    tag_prefix: str = "e",
+    default_value: int,
+) -> str:
+    rows = []
+    for i in range(0, len(INTERPOLATION_OPTIONS), 2):
+        row = []
+        for j in range(2):
+            if i + j >= len(INTERPOLATION_OPTIONS):
+                break
+            value = INTERPOLATION_OPTIONS[i + j]
+            label = _interpolation_label(value, default_value)
+            row.append({"text": label, "callback_data": f"{tag_prefix}ri:{value}:{job_id}"})
+        rows.append(row)
     return json.dumps({"inline_keyboard": rows})
 
 
@@ -1038,6 +1112,44 @@ async def prompt_use_prompt(
     await edit_message_text(chat_id, message_id, f"{label}: pouzit LoRA prompt?", reply_markup)
 
 
+async def prompt_interpolation(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+    prompt_mode: int,
+    is_pair: bool,
+    lora_idx: int,
+    model_type: str,
+    model_idx: int,
+    use_last_frame: bool,
+    resolution_idx: int,
+    steps_idx: int,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+) -> None:
+    if not (chat_id and message_id):
+        return
+    reply_markup = build_interpolation_keyboard(
+        job_id,
+        prompt_mode=prompt_mode,
+        is_pair=is_pair,
+        lora_idx=lora_idx,
+        model_type=model_type,
+        model_idx=model_idx,
+        use_last_frame=use_last_frame,
+        resolution_idx=resolution_idx,
+        steps_idx=steps_idx,
+        weight_idx=weight_idx,
+        high_idx=high_idx,
+        low_idx=low_idx,
+    )
+    text = f"{label}: interpolacia (RIFE)\nOFF = bez interpolacie"
+    await edit_message_text(chat_id, message_id, text, reply_markup)
+
+
 async def prompt_extended_model(
     *,
     chat_id: int,
@@ -1064,6 +1176,26 @@ async def prompt_extended_last_frame(
         return
     reply_markup = build_last_frame_keyboard_ext(job_id, tag_prefix=tag_prefix)
     await edit_message_text(chat_id, message_id, f"{label}: použiť last frame?", reply_markup)
+
+
+async def prompt_extended_interpolation(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+    tag_prefix: str = "e",
+    default_value: int = DEFAULT_INTERPOLATION_CLASSIC,
+) -> None:
+    if not (chat_id and message_id):
+        return
+    reply_markup = build_interpolation_keyboard_ext(
+        job_id,
+        tag_prefix=tag_prefix,
+        default_value=default_value,
+    )
+    text = f"{label}: interpolacia (RIFE)\nOFF = bez interpolacie"
+    await edit_message_text(chat_id, message_id, text, reply_markup)
 
 
 async def prompt_extended_resolution(
@@ -1123,8 +1255,26 @@ async def prompt_workflow4_drift(
     reply_markup = build_drift_keyboard(job_id, tag_prefix="n")
     text = (
         f"{label}: drift rezim\n"
-        "Default = povodne, Reduced = shift 2 / denoise 0.7 / overlap 2 / RIFE 2"
+        "Default = povodne, Reduced = shift 2 / denoise 0.7 / overlap 2"
     )
+    await edit_message_text(chat_id, message_id, text, reply_markup)
+
+
+async def prompt_workflow4_interpolation(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+) -> None:
+    if not (chat_id and message_id):
+        return
+    reply_markup = build_interpolation_keyboard_ext(
+        job_id,
+        tag_prefix="n",
+        default_value=DEFAULT_INTERPOLATION_NEW,
+    )
+    text = f"{label}: interpolacia (RIFE)\nOFF = bez interpolacie"
     await edit_message_text(chat_id, message_id, text, reply_markup)
 
 
@@ -1295,6 +1445,7 @@ async def _submit_single_job(
     video_height: Optional[int],
     total_steps: Optional[int],
     positive_prompt: Optional[str],
+    rife_multiplier: Optional[int],
     model_label: Optional[str],
     model_high_filename: Optional[str],
     model_low_filename: Optional[str],
@@ -1320,6 +1471,8 @@ async def _submit_single_job(
         "lora_filename": cfg.get("filename"),
         "lora_strength": weight,
     }
+    if rife_multiplier is not None:
+        payload["rife_multiplier"] = int(rife_multiplier)
     if model_label:
         payload["model_label"] = model_label
     if model_high_filename:
@@ -1355,6 +1508,7 @@ async def _submit_pair_job(
     video_height: Optional[int],
     total_steps: Optional[int],
     positive_prompt: Optional[str],
+    rife_multiplier: Optional[int],
     model_label: Optional[str],
     model_high_filename: Optional[str],
     model_low_filename: Optional[str],
@@ -1382,6 +1536,8 @@ async def _submit_pair_job(
         "lora_low_filename": cfg.get("low_filename"),
         "lora_low_strength": low_weight,
     }
+    if rife_multiplier is not None:
+        payload["rife_multiplier"] = int(rife_multiplier)
     if model_label:
         payload["model_label"] = model_label
     if model_high_filename:
@@ -1420,6 +1576,7 @@ async def _submit_extended_job(
     total_steps: Optional[int],
     positive_prompt_1: Optional[str],
     positive_prompt_2: Optional[str],
+    rife_multiplier: Optional[int],
     model_label: Optional[str],
     model_high_filename: Optional[str],
     model_low_filename: Optional[str],
@@ -1453,6 +1610,8 @@ async def _submit_extended_job(
         "video_height": video_height,
         "total_steps": total_steps,
     }
+    if rife_multiplier is not None:
+        payload["rife_multiplier"] = int(rife_multiplier)
 
     if lora1_type.lower() == "pair":
         payload["lora_high_filename"] = lora1_cfg.get("high_filename")
@@ -1518,7 +1677,7 @@ async def _submit_workflow4_job(
     drift_speed_shift: Optional[float],
     drift_denoise: Optional[float],
     drift_overlap: Optional[int],
-    drift_rife_multiplier: Optional[int],
+    rife_multiplier: Optional[int],
     anchor_mode: str,
     positive_prompt_1: Optional[str],
     positive_prompt_2: Optional[str],
@@ -1578,8 +1737,8 @@ async def _submit_workflow4_job(
         payload["drift_denoise"] = float(drift_denoise)
     if drift_overlap is not None:
         payload["drift_overlap"] = int(drift_overlap)
-    if drift_rife_multiplier is not None:
-        payload["drift_rife_multiplier"] = int(drift_rife_multiplier)
+    if rife_multiplier is not None:
+        payload["rife_multiplier"] = int(rife_multiplier)
 
     if lora1_type.lower() == "pair":
         payload["lora_high_filename"] = lora1_cfg.get("high_filename")
@@ -1726,7 +1885,10 @@ async def _workflow4_submit_from_session(
     drift_speed_shift = None if not drift_preset else drift_preset.get("speed_shift")
     drift_denoise = None if not drift_preset else drift_preset.get("denoise")
     drift_overlap = None if not drift_preset else drift_preset.get("overlap")
-    drift_rife_multiplier = None if not drift_preset else drift_preset.get("rife_multiplier")
+    rife_multiplier = _normalize_interpolation_value(
+        sess.get("rife_multiplier"),
+        DEFAULT_INTERPOLATION_NEW,
+    )
     anchor_mode = str(sess.get("anchor_mode") or "off").strip().lower()
     if anchor_mode not in ("off", "anchor", "blend"):
         anchor_mode = "off"
@@ -1754,7 +1916,7 @@ async def _workflow4_submit_from_session(
         drift_speed_shift=drift_speed_shift,
         drift_denoise=drift_denoise,
         drift_overlap=drift_overlap,
-        drift_rife_multiplier=drift_rife_multiplier,
+        rife_multiplier=rife_multiplier,
         anchor_mode=anchor_mode,
         positive_prompt_1=prompt_text_1,
         positive_prompt_2=prompt_text_2,
@@ -1855,6 +2017,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
     # - nst:<s_idx>:<job_id>                   (steps, workflow4)
     # - npu:<p>:<job_id>                       (prompt / prompt-only, workflow4)
     # - nd:<mode>:<job_id>                     (drift mode, workflow4)
+    # - nri:<interp>:<job_id>                  (interpolation, workflow4)
     # - l:<idx>:<job_id>                       (select LoRA)
     # - p:<page>:<job_id>                      (LoRA page)
     # - pm:<model>:<page>:<lora_idx>:<w_idx>:<job_id> (model page, single)
@@ -1874,6 +2037,9 @@ async def process_callback(update: Dict[str, Any]) -> None:
     # - st:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (steps, pair)
     # - pu:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (prompt, single)
     # - pu:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (prompt, pair)
+    # - ri:<interp>:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (interpolation, single)
+    # - ri:<interp>:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (interpolation, pair)
+    # - eri:<interp>:<job_id>                  (interpolation, extended)
     # - noop:<job_id>                          (do nothing)
     parts = data.split(":")
     if len(parts) < 2:
@@ -1898,7 +2064,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         if choice == "ext":
             _wf4_session_clear(job_id)
-            extended_sessions[job_id] = {"mode": "extended10s", "current_lora": 1}
+            extended_sessions[job_id] = {"mode": "extended10s", "current_lora": 1, "rife_multiplier": None}
             _ext_session_touch(extended_sessions[job_id])
             await edit_message_text(
                 chat_id,
@@ -1913,6 +2079,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 "mode": "workflow4",
                 "current_lora": 1,
                 "drift_key": "default",
+                "rife_multiplier": None,
                 "anchor_mode": "off",
                 "use_prompt": True,
                 "use_lora": True,
@@ -2347,15 +2514,15 @@ async def process_callback(update: Dict[str, Any]) -> None:
         sess["use_last_frame"] = False
         sess["anchor_mode"] = "off"
         sess["drift_key"] = "default"
+        sess["rife_multiplier"] = None
         _wf4_session_touch(sess)
         if chat_id and message_id:
-            preset = _get_drift_preset("default")
-            await _workflow4_submit_from_session(
-                job_id=job_id,
+            label = _workflow4_combo_label(sess)
+            await prompt_workflow4_interpolation(
                 chat_id=chat_id,
                 message_id=message_id,
-                sess=sess,
-                drift_preset=preset,
+                label=label,
+                job_id=job_id,
             )
         return
 
@@ -2373,6 +2540,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
         sess["use_prompt"] = use_prompt
         sess["use_lora"] = use_lora
         sess["drift_key"] = None
+        sess["rife_multiplier"] = None
         _wf4_session_touch(sess)
         if chat_id and message_id:
             label = _workflow4_combo_label(sess)
@@ -2397,6 +2565,35 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         sess["drift_key"] = drift_key
         _wf4_session_touch(sess)
+        if chat_id and message_id:
+            label = _workflow4_combo_label(sess)
+            await prompt_workflow4_interpolation(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+            )
+        return
+
+    if tag == "nri":
+        if len(parts) != 3:
+            return
+        try:
+            rife_multiplier = int(parts[1])
+        except Exception:
+            return
+        if rife_multiplier not in INTERPOLATION_OPTIONS:
+            return
+        job_id = parts[2]
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        sess["rife_multiplier"] = rife_multiplier
+        _wf4_session_touch(sess)
+        drift_key = str(sess.get("drift_key") or "default")
+        preset = _get_drift_preset(drift_key)
+        if not preset:
+            return
         await _workflow4_submit_from_session(
             job_id=job_id,
             chat_id=chat_id,
@@ -2696,6 +2893,33 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if not sess:
             return
         sess["use_prompt"] = use_prompt
+        sess["rife_multiplier"] = None
+        _ext_session_touch(sess)
+        if chat_id and message_id:
+            label = _extended_combo_label(sess)
+            await prompt_extended_interpolation(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                default_value=DEFAULT_INTERPOLATION_CLASSIC,
+            )
+        return
+
+    if tag == "eri":
+        if len(parts) != 3:
+            return
+        try:
+            rife_multiplier = int(parts[1])
+        except Exception:
+            return
+        if rife_multiplier not in INTERPOLATION_OPTIONS:
+            return
+        job_id = parts[2]
+        sess = _ext_session_get(job_id)
+        if not sess:
+            return
+        sess["rife_multiplier"] = rife_multiplier
         _ext_session_touch(sess)
 
         lora1 = sess.get("lora1") or {}
@@ -2737,6 +2961,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             model_high_filename = model_cfg.get("high_filename")
             model_low_filename = model_cfg.get("low_filename")
 
+        use_prompt = bool(sess.get("use_prompt"))
         prompt_text_1 = (cfg1.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
         prompt_text_2 = (cfg2.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
 
@@ -2766,6 +2991,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             total_steps=int(steps),
             positive_prompt_1=prompt_text_1,
             positive_prompt_2=prompt_text_2,
+            rife_multiplier=rife_multiplier,
             model_label=model_label,
             model_high_filename=model_high_filename,
             model_low_filename=model_low_filename,
@@ -3036,11 +3262,12 @@ async def process_callback(update: Dict[str, Any]) -> None:
                     use_last_frame=False,
                     video_width=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["width"],
                     video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
-                    total_steps=DEFAULT_STEPS,
-                    positive_prompt=cfg.get("positive"),
-                    model_label=str(model_cfg.get("label") or model_key),
-                    model_high_filename=model_cfg.get("high_filename"),
-                    model_low_filename=model_cfg.get("low_filename"),
+                total_steps=DEFAULT_STEPS,
+                positive_prompt=cfg.get("positive"),
+                rife_multiplier=DEFAULT_INTERPOLATION_CLASSIC,
+                model_label=str(model_cfg.get("label") or model_key),
+                model_high_filename=model_cfg.get("high_filename"),
+                model_low_filename=model_cfg.get("low_filename"),
                     chat_id=chat_id,
                     message_id=message_id,
                 )
@@ -3102,6 +3329,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
                 total_steps=DEFAULT_STEPS,
                 positive_prompt=cfg.get("positive"),
+                rife_multiplier=DEFAULT_INTERPOLATION_CLASSIC,
                 model_label=str(model_cfg.get("label") or model_key),
                 model_high_filename=model_cfg.get("high_filename"),
                 model_low_filename=model_cfg.get("low_filename"),
@@ -3393,6 +3621,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
 
         use_prompt = str(parts[1]).strip().lower() in ("1", "true", "yes", "y", "on")
+        prompt_mode = 1 if use_prompt else 0
         try:
             steps_idx = int(parts[2])
             resolution_idx = int(parts[3])
@@ -3415,13 +3644,11 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if not cfg:
             return
         lora_type = str(cfg.get("type") or "single").lower()
+        label = str(cfg.get("label") or lora_key)
 
         resolution = _resolution_by_index(resolution_idx)
         if not resolution:
             return
-        video_width = int(resolution["width"])
-        video_height = int(resolution["height"])
-        prompt_text = (cfg.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
 
         if len(parts) == 10:
             if lora_type == "pair":
@@ -3431,6 +3658,121 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 model_type = parts[7]
                 model_idx = int(parts[8])
                 job_id = parts[9]
+            except Exception:
+                return
+
+            if model_type not in ("wan", "gguf"):
+                return
+
+            options, _ = _weight_options_for(cfg, "single")
+            if weight_idx < 0 or weight_idx >= len(options):
+                return
+
+            await prompt_interpolation(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                prompt_mode=prompt_mode,
+                is_pair=False,
+                lora_idx=lora_idx,
+                weight_idx=weight_idx,
+                model_type=model_type,
+                model_idx=model_idx,
+                use_last_frame=use_last_frame,
+                resolution_idx=resolution_idx,
+                steps_idx=steps_idx,
+            )
+            return
+
+        if lora_type != "pair":
+            return
+        try:
+            high_idx = int(parts[6])
+            low_idx = int(parts[7])
+            model_type = parts[8]
+            model_idx = int(parts[9])
+            job_id = parts[10]
+        except Exception:
+            return
+
+        if model_type not in ("wan", "gguf"):
+            return
+
+        options_high, _ = _weight_options_for(cfg, "high")
+        options_low, _ = _weight_options_for(cfg, "low")
+        if high_idx < 0 or high_idx >= len(options_high):
+            return
+        if low_idx < 0 or low_idx >= len(options_low):
+            return
+
+        await prompt_interpolation(
+            chat_id=chat_id,
+            message_id=message_id,
+            label=label,
+            job_id=job_id,
+            prompt_mode=prompt_mode,
+            is_pair=True,
+            lora_idx=lora_idx,
+            high_idx=high_idx,
+            low_idx=low_idx,
+            model_type=model_type,
+            model_idx=model_idx,
+            use_last_frame=use_last_frame,
+            resolution_idx=resolution_idx,
+            steps_idx=steps_idx,
+        )
+        return
+
+    if tag == "ri":
+        if len(parts) not in (11, 12):
+            return
+        try:
+            rife_multiplier = int(parts[1])
+        except Exception:
+            return
+        if rife_multiplier not in INTERPOLATION_OPTIONS:
+            return
+
+        use_prompt = str(parts[2]).strip().lower() in ("1", "true", "yes", "y", "on")
+        try:
+            steps_idx = int(parts[3])
+            resolution_idx = int(parts[4])
+        except Exception:
+            return
+        if _resolution_by_index(resolution_idx) is None:
+            return
+        steps = _steps_by_index(steps_idx)
+        if steps is None:
+            return
+
+        use_last_frame = str(parts[5]).strip().lower() in ("1", "true", "yes", "y", "on")
+
+        try:
+            lora_idx = int(parts[6])
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        lora_type = str(cfg.get("type") or "single").lower()
+
+        resolution = _resolution_by_index(resolution_idx)
+        if not resolution:
+            return
+        video_width = int(resolution["width"])
+        video_height = int(resolution["height"])
+        prompt_text = (cfg.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
+
+        if len(parts) == 11:
+            if lora_type == "pair":
+                return
+            try:
+                weight_idx = int(parts[7])
+                model_type = parts[8]
+                model_idx = int(parts[9])
+                job_id = parts[10]
             except Exception:
                 return
 
@@ -3463,6 +3805,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 video_height=video_height,
                 total_steps=steps,
                 positive_prompt=prompt_text,
+                rife_multiplier=rife_multiplier,
                 model_label=model_label,
                 model_high_filename=model_high_filename,
                 model_low_filename=model_low_filename,
@@ -3474,11 +3817,11 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if lora_type != "pair":
             return
         try:
-            high_idx = int(parts[6])
-            low_idx = int(parts[7])
-            model_type = parts[8]
-            model_idx = int(parts[9])
-            job_id = parts[10]
+            high_idx = int(parts[7])
+            low_idx = int(parts[8])
+            model_type = parts[9]
+            model_idx = int(parts[10])
+            job_id = parts[11]
         except Exception:
             return
 
@@ -3515,6 +3858,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             video_height=video_height,
             total_steps=steps,
             positive_prompt=prompt_text,
+            rife_multiplier=rife_multiplier,
             model_label=model_label,
             model_high_filename=model_high_filename,
             model_low_filename=model_low_filename,
@@ -3600,6 +3944,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
             total_steps=DEFAULT_STEPS,
             positive_prompt=cfg.get("positive"),
+            rife_multiplier=DEFAULT_INTERPOLATION_CLASSIC,
             model_label=model_label,
             model_high_filename=model_high_filename,
             model_low_filename=model_low_filename,
@@ -3692,6 +4037,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
             total_steps=DEFAULT_STEPS,
             positive_prompt=cfg.get("positive"),
+            rife_multiplier=DEFAULT_INTERPOLATION_CLASSIC,
             model_label=model_label,
             model_high_filename=model_high_filename,
             model_low_filename=model_low_filename,
