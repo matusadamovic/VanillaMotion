@@ -1912,8 +1912,11 @@ async def process_callback(update: Dict[str, Any]) -> None:
             workflow4_sessions[job_id] = {
                 "mode": "workflow4",
                 "current_lora": 1,
-                "drift_key": None,
+                "drift_key": "default",
                 "anchor_mode": "off",
+                "use_prompt": True,
+                "use_lora": True,
+                "use_last_frame": False,
             }
             _wf4_session_touch(workflow4_sessions[job_id])
             if LORA_GROUP_KEYS:
@@ -2198,7 +2201,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
         _wf4_session_touch(sess)
         if chat_id and message_id:
             label = _workflow4_combo_label(sess)
-            await prompt_extended_last_frame(
+            await prompt_extended_resolution(
                 chat_id=chat_id,
                 message_id=message_id,
                 label=label,
@@ -2247,7 +2250,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
         _wf4_session_touch(sess)
         if chat_id and message_id:
             label = _workflow4_combo_label(sess)
-            await prompt_extended_last_frame(
+            await prompt_extended_resolution(
                 chat_id=chat_id,
                 message_id=message_id,
                 label=label,
@@ -2339,15 +2342,20 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if not sess:
             return
         sess["steps_idx"] = steps_idx
+        sess["use_prompt"] = True
+        sess["use_lora"] = True
+        sess["use_last_frame"] = False
+        sess["anchor_mode"] = "off"
+        sess["drift_key"] = "default"
         _wf4_session_touch(sess)
         if chat_id and message_id:
-            label = _workflow4_combo_label(sess)
-            await prompt_extended_prompt(
+            preset = _get_drift_preset("default")
+            await _workflow4_submit_from_session(
+                job_id=job_id,
                 chat_id=chat_id,
                 message_id=message_id,
-                label=label,
-                job_id=job_id,
-                tag_prefix="n",
+                sess=sess,
+                drift_preset=preset,
             )
         return
 
