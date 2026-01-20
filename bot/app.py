@@ -815,6 +815,19 @@ def build_last_frame_keyboard_ext(job_id: str, *, tag_prefix: str = "e") -> str:
     return json.dumps({"inline_keyboard": rows})
 
 
+def build_anchor_mode_keyboard(job_id: str, *, tag_prefix: str = "n") -> str:
+    rows = [
+        [
+            {"text": "Stabilita: OFF", "callback_data": f"{tag_prefix}la:off:{job_id}"},
+            {"text": "Anchor LF", "callback_data": f"{tag_prefix}la:anchor:{job_id}"},
+        ],
+        [
+            {"text": "Blend LF", "callback_data": f"{tag_prefix}la:blend:{job_id}"},
+        ],
+    ]
+    return json.dumps({"inline_keyboard": rows})
+
+
 def build_resolution_keyboard_ext(job_id: str, *, tag_prefix: str = "e") -> str:
     rows = []
     for i in range(0, len(RESOLUTION_OPTIONS), 2):
@@ -1111,6 +1124,23 @@ async def prompt_workflow4_drift(
     text = (
         f"{label}: drift rezim\n"
         "Default = povodne, Reduced = shift 2 / denoise 0.7 / overlap 2 / RIFE 2"
+    )
+    await edit_message_text(chat_id, message_id, text, reply_markup)
+
+
+async def prompt_workflow4_anchor_mode(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+) -> None:
+    if not (chat_id and message_id):
+        return
+    reply_markup = build_anchor_mode_keyboard(job_id, tag_prefix="n")
+    text = (
+        f"{label}: stabilita (last frame)\n"
+        "Anchor = nahradí prev_samples, Blend = ponechá prev_samples"
     )
     await edit_message_text(chat_id, message_id, text, reply_markup)
 
@@ -1489,6 +1519,7 @@ async def _submit_workflow4_job(
     drift_denoise: Optional[float],
     drift_overlap: Optional[int],
     drift_rife_multiplier: Optional[int],
+    anchor_mode: str,
     positive_prompt_1: Optional[str],
     positive_prompt_2: Optional[str],
     positive_prompt_3: Optional[str],
@@ -1536,6 +1567,7 @@ async def _submit_workflow4_job(
         "use_lora": use_lora,
         "use_gguf": use_gguf,
         "use_last_frame": use_last_frame,
+        "anchor_mode": anchor_mode,
         "video_width": video_width,
         "video_height": video_height,
         "total_steps": total_steps,
@@ -1695,6 +1727,9 @@ async def _workflow4_submit_from_session(
     drift_denoise = None if not drift_preset else drift_preset.get("denoise")
     drift_overlap = None if not drift_preset else drift_preset.get("overlap")
     drift_rife_multiplier = None if not drift_preset else drift_preset.get("rife_multiplier")
+    anchor_mode = str(sess.get("anchor_mode") or "off").strip().lower()
+    if anchor_mode not in ("off", "anchor", "blend"):
+        anchor_mode = "off"
 
     await _submit_workflow4_job(
         job_id=job_id,
@@ -1720,6 +1755,7 @@ async def _workflow4_submit_from_session(
         drift_denoise=drift_denoise,
         drift_overlap=drift_overlap,
         drift_rife_multiplier=drift_rife_multiplier,
+        anchor_mode=anchor_mode,
         positive_prompt_1=prompt_text_1,
         positive_prompt_2=prompt_text_2,
         positive_prompt_3=prompt_text_3,
@@ -1814,6 +1850,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
     # - npm:<model>:<page>:<job_id>            (model page, workflow4)
     # - nmm:<model>:<m_idx>:<job_id>           (select model, workflow4)
     # - nlf:<on>:<job_id>                      (last frame, workflow4)
+    # - nla:<mode>:<job_id>                    (last-frame anchor mode, workflow4)
     # - nrs:<r_idx>:<job_id>                   (resolution, workflow4)
     # - nst:<s_idx>:<job_id>                   (steps, workflow4)
     # - npu:<p>:<job_id>                       (prompt / prompt-only, workflow4)
@@ -1872,7 +1909,12 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         if choice == "new":
             _ext_session_clear(job_id)
-            workflow4_sessions[job_id] = {"mode": "workflow4", "current_lora": 1, "drift_key": None}
+            workflow4_sessions[job_id] = {
+                "mode": "workflow4",
+                "current_lora": 1,
+                "drift_key": None,
+                "anchor_mode": "off",
+            }
             _wf4_session_touch(workflow4_sessions[job_id])
             if LORA_GROUP_KEYS:
                 await edit_message_text(
@@ -2223,6 +2265,28 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if not sess:
             return
         sess["use_last_frame"] = use_last_frame
+        _wf4_session_touch(sess)
+        if chat_id and message_id:
+            label = _workflow4_combo_label(sess)
+            await prompt_workflow4_anchor_mode(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+            )
+        return
+
+    if tag == "nla":
+        if len(parts) != 3:
+            return
+        anchor_mode = str(parts[1]).strip().lower()
+        if anchor_mode not in ("off", "anchor", "blend"):
+            return
+        job_id = parts[2]
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        sess["anchor_mode"] = anchor_mode
         _wf4_session_touch(sess)
         if chat_id and message_id:
             label = _workflow4_combo_label(sess)

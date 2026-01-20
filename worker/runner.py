@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import psycopg2
 import requests
@@ -179,6 +179,103 @@ def _inject_same_woman_prompt(text: Optional[str]) -> Optional[str]:
     if SAME_WOMAN_PROMPT.lower() in stripped.lower():
         return text
     return f"{SAME_WOMAN_PROMPT}, {stripped}"
+
+
+def _next_numeric_node_id(prompt: Dict[str, Any]) -> int:
+    max_id = 0
+    for key in prompt.keys():
+        s = str(key)
+        if s.isdigit():
+            max_id = max(max_id, int(s))
+    return max_id + 1
+
+
+def _part_index_from_ref(prompt: Dict[str, Any], ref: Any) -> Optional[int]:
+    if not isinstance(ref, list) or not ref:
+        return None
+    node = prompt.get(str(ref[0]))
+    if not isinstance(node, dict):
+        return None
+    return _extract_part_index(_get_title(node))
+
+
+def _collect_part_nodes(prompt: Dict[str, Any]) -> Dict[int, str]:
+    part_nodes: Dict[int, str] = {}
+    for node_id, node in prompt.items():
+        if node.get("class_type") != "WanImageToVideoSVIPro":
+            continue
+        inputs = node.get("inputs") or {}
+        part_idx = _part_index_from_ref(prompt, inputs.get("positive"))
+        if part_idx:
+            part_nodes[part_idx] = str(node_id)
+    return part_nodes
+
+
+def _collect_last_frame_nodes(prompt: Dict[str, Any]) -> Dict[int, str]:
+    last_frame_nodes: Dict[int, str] = {}
+    for node_id, node in prompt.items():
+        if node.get("class_type") != "ImageFromBatch":
+            continue
+        inputs = node.get("inputs") or {}
+        part_idx = _part_index_from_ref(prompt, inputs.get("image"))
+        if part_idx:
+            last_frame_nodes[part_idx] = str(node_id)
+    return last_frame_nodes
+
+
+def _get_vae_ref(prompt: Dict[str, Any]) -> Optional[List[Any]]:
+    for node in prompt.values():
+        if node.get("class_type") != "VAEEncode":
+            continue
+        inputs = node.get("inputs") or {}
+        ref = inputs.get("vae")
+        if isinstance(ref, list) and ref:
+            return ref
+    return None
+
+
+def _apply_workflow4_last_frame_mode(prompt: Dict[str, Any], mode: Optional[str]) -> None:
+    mode_value = str(mode or "").strip().lower()
+    if mode_value in ("", "off", "none", "0"):
+        return
+    if mode_value not in ("anchor", "blend"):
+        logging.warning("Unknown last-frame mode: %s", mode_value)
+        return
+
+    part_nodes = _collect_part_nodes(prompt)
+    last_frame_nodes = _collect_last_frame_nodes(prompt)
+    vae_ref = _get_vae_ref(prompt)
+    if not part_nodes or not last_frame_nodes or not vae_ref:
+        logging.warning("Last-frame mode skipped (missing nodes)")
+        return
+
+    next_id = _next_numeric_node_id(prompt)
+    for part_idx in sorted(part_nodes.keys()):
+        if part_idx <= 1:
+            continue
+        prev_part = part_idx - 1
+        last_frame_node_id = last_frame_nodes.get(prev_part)
+        if not last_frame_node_id:
+            continue
+        lf_encode_id = str(next_id)
+        next_id += 1
+        prompt[lf_encode_id] = {
+            "inputs": {
+                "pixels": [last_frame_node_id, 0],
+                "vae": vae_ref,
+            },
+            "class_type": "VAEEncode",
+            "_meta": {"title": f"Last Frame Encode: Part {part_idx}"},
+        }
+        target = prompt.get(part_nodes[part_idx])
+        if not isinstance(target, dict):
+            continue
+        inputs = target.setdefault("inputs", {})
+        if mode_value == "anchor":
+            if "prev_samples" in inputs:
+                inputs["prev_samples"] = [lf_encode_id, 0]
+        else:
+            inputs["anchor_samples"] = [lf_encode_id, 0]
 
 
 def _guess_model_fields(inputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -654,6 +751,7 @@ def load_and_patch_workflow_new(
     positive_prompt_4: Optional[str],
     use_lora: Optional[bool],
     use_gguf: Optional[bool],
+    last_frame_mode: Optional[str],
     video_width: Optional[int],
     video_height: Optional[int],
     total_steps: Optional[int],
@@ -757,6 +855,8 @@ def load_and_patch_workflow_new(
             inputs = node.setdefault("inputs", {})
             if class_type in {"PrimitiveFloat", "PrimitiveInt", "FLOATConstant", "INTConstant"}:
                 inputs["value"] = int(drift_rife_multiplier)
+
+    _apply_workflow4_last_frame_mode(prompt, last_frame_mode)
 
     apply_loras = True if use_lora is None else bool(use_lora)
 
@@ -1135,6 +1235,7 @@ def run_comfy_prompt(
     use_lora: Optional[bool] = None,
     use_gguf: Optional[bool],
     use_last_frame: Optional[bool],
+    last_frame_mode: Optional[str] = None,
     video_width: Optional[int],
     video_height: Optional[int],
     total_steps: Optional[int],
@@ -1183,6 +1284,7 @@ def run_comfy_prompt(
             positive_prompt_4=positive_prompt_4,
             use_lora=use_lora,
             use_gguf=use_gguf,
+            last_frame_mode=last_frame_mode,
             video_width=video_width,
             video_height=video_height,
             total_steps=total_steps,
@@ -1215,7 +1317,7 @@ def run_comfy_prompt(
     summary = summarize_workflow(workflow)
     logging.info("WORKFLOW_SUMMARY %s %s", label_tag, json.dumps(summary, ensure_ascii=False))
     logging.info(
-        "JOB_PARAMS %s lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s model_high=%s model_low=%s use_gguf=%s use_last_frame=%s video=%sx%s steps=%s positive_prompt=%s",
+        "JOB_PARAMS %s lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s model_high=%s model_low=%s use_gguf=%s use_last_frame=%s last_frame_mode=%s video=%sx%s steps=%s positive_prompt=%s",
         label_tag,
         lora_type,
         lora_filename,
@@ -1228,6 +1330,7 @@ def run_comfy_prompt(
         model_low_filename,
         use_gguf,
         use_last_frame,
+        last_frame_mode,
         video_width,
         video_height,
         total_steps,
@@ -1925,6 +2028,7 @@ def handler(event):
     drift_denoise = _to_float(payload.get("drift_denoise"))
     drift_overlap = _to_int(payload.get("drift_overlap"))
     drift_rife_multiplier = _to_int(payload.get("drift_rife_multiplier"))
+    last_frame_mode = payload.get("anchor_mode")
 
     job_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"job_{job_id}_", dir="/tmp"))
     temp_dir = job_dir / "temp"
@@ -2062,6 +2166,7 @@ def handler(event):
                     use_lora=use_lora,
                     use_gguf=use_gguf,
                     use_last_frame=use_last_frame,
+                    last_frame_mode=last_frame_mode,
                     video_width=video_width,
                     video_height=video_height,
                     total_steps=total_steps,
