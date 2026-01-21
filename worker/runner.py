@@ -2034,6 +2034,7 @@ def handler(event):
     mode = str(payload.get("mode") or "").strip().lower()
     is_extended = mode == "extended10s"
     is_workflow4 = mode == "workflow4"
+    is_batch = mode == "batch5s"
     if is_workflow4 and not workflow_key:
         workflow_key = "new"
 
@@ -2069,6 +2070,11 @@ def handler(event):
     lora4_low_filename = payload.get("lora4_low_filename")
     lora4_low_strength = payload.get("lora4_low_strength")
     positive_prompt_4 = payload.get("positive_prompt_4")
+
+    batch_loras = payload.get("batch_loras")
+    batch_weights = payload.get("batch_weights")
+    batch_default_prompt = payload.get("batch_default_prompt")
+    batch_use_prompt = payload.get("batch_use_prompt")
 
     if is_extended:
         lora2_type_l = str(lora2_type or "single").lower()
@@ -2149,6 +2155,13 @@ def handler(event):
     elif isinstance(use_last_frame, (int, float)) and not isinstance(use_last_frame, bool):
         use_last_frame = bool(use_last_frame)
 
+    if batch_use_prompt is None:
+        batch_use_prompt = True
+    elif isinstance(batch_use_prompt, str):
+        batch_use_prompt = batch_use_prompt.strip().lower() in ("1", "true", "yes", "y", "on")
+    elif isinstance(batch_use_prompt, (int, float)) and not isinstance(batch_use_prompt, bool):
+        batch_use_prompt = bool(batch_use_prompt)
+
     def _to_int(value: Any) -> Optional[int]:
         if value is None:
             return None
@@ -2171,6 +2184,61 @@ def handler(event):
             return float(value)
         except Exception:
             return None
+
+    def _to_float_list(values: Any) -> list[float]:
+        if values is None:
+            return []
+        items = values if isinstance(values, list) else [values]
+        out: list[float] = []
+        for v in items:
+            if isinstance(v, bool):
+                continue
+            try:
+                out.append(float(v))
+            except Exception:
+                continue
+        return out
+
+    def _normalize_batch_loras(values: Any) -> list[dict[str, Any]]:
+        if not isinstance(values, list):
+            return []
+        out: list[dict[str, Any]] = []
+        for item in values:
+            if not isinstance(item, dict):
+                continue
+            key = str(item.get("key") or "").strip()
+            label = str(item.get("label") or key).strip()
+            lora_type = str(item.get("type") or "single").lower()
+            positive = item.get("positive")
+            if lora_type == "pair":
+                high_filename = item.get("high_filename")
+                low_filename = item.get("low_filename")
+                if not high_filename or not low_filename:
+                    continue
+                out.append(
+                    {
+                        "key": key,
+                        "label": label,
+                        "type": "pair",
+                        "high_filename": high_filename,
+                        "low_filename": low_filename,
+                        "positive": positive,
+                    }
+                )
+            else:
+                filename = item.get("filename")
+                if not filename:
+                    continue
+                out.append(
+                    {
+                        "key": key,
+                        "label": label,
+                        "type": "single",
+                        "filename": filename,
+                        "positive": positive,
+                    }
+                )
+        return out
 
     video_width = _to_int(payload.get("video_width"))
     video_height = _to_int(payload.get("video_height"))
@@ -2203,6 +2271,8 @@ def handler(event):
         if not state_row:
             logging.warning("Job %s not in QUEUED (or not found). Skipping.", job_id)
             return {"status": "skipped"}
+        placeholder_chat_id = int(state_row.get("chat_id") or chat_id)
+        placeholder_message_id = int(state_row.get("placeholder_message_id") or 0)
 
         input_filename = f"{job_id}.png"
         input_path = job_dir / input_filename
@@ -2221,7 +2291,84 @@ def handler(event):
 
         comfy_proc = start_comfy(output_dir=output_dir, temp_dir=temp_dir)
         try:
-            if is_extended:
+            if is_batch:
+                batch_items = _normalize_batch_loras(batch_loras)
+                weights = _to_float_list(batch_weights)
+                if not batch_items:
+                    raise ValueError("batch5s requires batch_loras")
+                if not weights:
+                    raise ValueError("batch5s requires batch_weights")
+                default_prompt_text = batch_default_prompt if isinstance(batch_default_prompt, str) else ""
+                total = len(batch_items) * len(weights)
+                if placeholder_message_id:
+                    update_placeholder_text(
+                        placeholder_chat_id,
+                        placeholder_message_id,
+                        f"Batch 5s: 0/{total}",
+                    )
+
+                completed = 0
+                for lora in batch_items:
+                    lora_type = str(lora.get("type") or "single").lower()
+                    lora_key = str(lora.get("key") or "").strip()
+                    lora_label = str(lora.get("label") or lora_key).strip()
+                    positive = lora.get("positive")
+                    if batch_use_prompt and isinstance(positive, str) and positive.strip():
+                        prompt_text = positive
+                    else:
+                        prompt_text = default_prompt_text
+
+                    for weight in weights:
+                        weight_label = f"{float(weight):.2f}".rstrip("0").rstrip(".") or "0"
+                        history, video_path = run_comfy_prompt(
+                            label=None,
+                            input_filename=input_filename,
+                            lora_type=lora_type,
+                            lora_filename=lora.get("filename"),
+                            lora_strength=float(weight),
+                            lora_high_filename=lora.get("high_filename"),
+                            lora_high_strength=float(weight),
+                            lora_low_filename=lora.get("low_filename"),
+                            lora_low_strength=float(weight),
+                            model_high_filename=model_high_filename,
+                            model_low_filename=model_low_filename,
+                            positive_prompt=prompt_text,
+                            use_lora=True,
+                            use_gguf=use_gguf,
+                            use_last_frame=use_last_frame,
+                            video_width=video_width,
+                            video_height=video_height,
+                            total_steps=total_steps,
+                            rife_multiplier=rife_multiplier,
+                            output_dir=output_dir,
+                        )
+                        completed += 1
+                        caption = build_caption(
+                            use_gguf=use_gguf,
+                            model_label=model_label,
+                            model_high_filename=model_high_filename,
+                            model_low_filename=model_low_filename,
+                            lora_type=lora_type,
+                            lora_label=lora_label,
+                            lora_key=lora_key,
+                            lora_filename=lora.get("filename") if lora_type != "pair" else None,
+                            lora_strength=float(weight) if lora_type != "pair" else None,
+                            lora_high_filename=lora.get("high_filename") if lora_type == "pair" else None,
+                            lora_high_strength=float(weight) if lora_type == "pair" else None,
+                            lora_low_filename=lora.get("low_filename") if lora_type == "pair" else None,
+                            lora_low_strength=float(weight) if lora_type == "pair" else None,
+                            video_width=video_width,
+                            video_height=video_height,
+                            total_steps=total_steps,
+                        )
+                        upload_video(placeholder_chat_id, placeholder_message_id, video_path, caption=caption)
+                        if placeholder_message_id:
+                            update_placeholder_text(
+                                placeholder_chat_id,
+                                placeholder_message_id,
+                                f"Batch 5s: {completed}/{total} ({lora_label}, w={weight_label})",
+                            )
+            elif is_extended:
                 prompt2 = positive_prompt_2 if isinstance(positive_prompt_2, str) else positive_prompt
 
                 history1, video1 = run_comfy_prompt(
@@ -2363,6 +2510,16 @@ def handler(event):
             video_path,
             video_path.stat().st_size if video_path.exists() else None,
         )
+
+        if is_batch:
+            finalize_info = finalize(job_id, "COMPLETED")
+            if finalize_info:
+                update_placeholder_text(
+                    int(finalize_info["chat_id"]),
+                    int(finalize_info["placeholder_message_id"]),
+                    "Batch 5s hotovo. Videa su v novych spravach.",
+                )
+            return {"status": "completed", "video": str(video_path)}
 
         finalize_info = finalize(job_id, "COMPLETED")
         if finalize_info:

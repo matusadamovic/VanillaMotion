@@ -29,6 +29,14 @@ MODEL_CATALOG_PATH = os.environ.get("MODEL_CATALOG_PATH", "/app/models.json")
 PAGE_SIZE = int(os.environ.get("LORA_PAGE_SIZE", "4"))  # keep 4 by default
 MODEL_PAGE_SIZE = int(os.environ.get("MODEL_PAGE_SIZE", "4"))
 WEIGHT_OPTIONS_RAW = os.environ.get("LORA_WEIGHT_OPTIONS", "0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0")
+BATCH_TEST_WEIGHTS_RAW = os.environ.get("BATCH_TEST_WEIGHTS", "0.55,0.77,0.99")
+BATCH_TEST_MODEL_KEY = os.environ.get("BATCH_TEST_MODEL_KEY", "gguf_tastysin_v8")
+BATCH_TEST_VIDEO_WIDTH = int(os.environ.get("BATCH_TEST_VIDEO_WIDTH", "480"))
+BATCH_TEST_VIDEO_HEIGHT = int(os.environ.get("BATCH_TEST_VIDEO_HEIGHT", "640"))
+BATCH_TEST_STEPS = int(os.environ.get("BATCH_TEST_STEPS", "6"))
+BATCH_TEST_RIFE = int(os.environ.get("BATCH_TEST_RIFE", "0"))
+BATCH_TEST_USE_LAST_FRAME_RAW = os.environ.get("BATCH_TEST_USE_LAST_FRAME", "0")
+BATCH_TEST_USE_PROMPT_RAW = os.environ.get("BATCH_TEST_USE_PROMPT", "1")
 
 
 def load_lora_catalog() -> Dict[str, Any]:
@@ -142,6 +150,21 @@ def _parse_float(value: Any) -> Optional[float]:
         return None
 
 
+def _parse_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    s = str(value).strip().lower()
+    if s in ("1", "true", "yes", "y", "on"):
+        return True
+    if s in ("0", "false", "no", "n", "off"):
+        return False
+    return default
+
+
 def _float_eq(a: float, b: float, tol: float = 1e-6) -> bool:
     return abs(a - b) <= tol
 
@@ -177,6 +200,9 @@ WEIGHT_OPTIONS = _parse_weight_options(WEIGHT_OPTIONS_RAW) or [
     0.9,
     1.0,
 ]
+BATCH_TEST_WEIGHTS = _parse_weight_options(BATCH_TEST_WEIGHTS_RAW) or [0.55, 0.77, 0.99]
+BATCH_TEST_USE_LAST_FRAME = _parse_bool(BATCH_TEST_USE_LAST_FRAME_RAW, True)
+BATCH_TEST_USE_PROMPT = _parse_bool(BATCH_TEST_USE_PROMPT_RAW, True)
 
 RESOLUTION_OPTIONS = [
     {"label": "720x1280", "width": 720, "height": 1280},
@@ -722,6 +748,7 @@ def build_mode_keyboard(job_id: str) -> str:
             {"text": "Extended10s", "callback_data": f"mode:ext:{job_id}"},
         ]
     ]
+    rows.append([{"text": "Batch 5s", "callback_data": f"mode:batch:{job_id}"}])
     rows.append([{"text": "Workflow4", "callback_data": f"mode:new:{job_id}"}])
     return json.dumps({"inline_keyboard": rows})
 
@@ -1560,6 +1587,101 @@ async def _submit_pair_job(
         await edit_keyboard(chat_id, message_id, json.dumps({"inline_keyboard": []}))
 
 
+async def _submit_batch_job(
+    *,
+    job_id: str,
+    chat_id: int,
+    message_id: int,
+) -> None:
+    row = set_queue(job_id, "batch5s")
+
+    batch_loras: List[Dict[str, Any]] = []
+    for lora_key in LORA_KEYS:
+        cfg = LORA_CATALOG.get(lora_key)
+        if not isinstance(cfg, dict):
+            continue
+        lora_type = str(cfg.get("type") or "single").lower()
+        label = str(cfg.get("label") or lora_key)
+        positive = cfg.get("positive")
+        if lora_type == "pair":
+            high_filename = cfg.get("high_filename")
+            low_filename = cfg.get("low_filename")
+            if not high_filename or not low_filename:
+                continue
+            batch_loras.append(
+                {
+                    "key": lora_key,
+                    "label": label,
+                    "type": "pair",
+                    "high_filename": high_filename,
+                    "low_filename": low_filename,
+                    "positive": positive,
+                }
+            )
+        else:
+            filename = cfg.get("filename")
+            if not filename:
+                continue
+            batch_loras.append(
+                {
+                    "key": lora_key,
+                    "label": label,
+                    "type": "single",
+                    "filename": filename,
+                    "positive": positive,
+                }
+            )
+
+    if not batch_loras:
+        raise RuntimeError("Batch5s: no valid LoRA entries")
+
+    model_cfg = MODEL_CATALOG.get(BATCH_TEST_MODEL_KEY)
+    if not isinstance(model_cfg, dict):
+        raise RuntimeError(f"Batch5s: model not found: {BATCH_TEST_MODEL_KEY}")
+    model_type = _normalize_model_type(model_cfg.get("type"))
+    if model_type not in ("wan", "gguf"):
+        raise RuntimeError(f"Batch5s: invalid model type: {model_cfg.get('type')}")
+    if not model_cfg.get("high_filename") or not model_cfg.get("low_filename"):
+        raise RuntimeError(f"Batch5s: model missing high/low filenames: {BATCH_TEST_MODEL_KEY}")
+
+    weights = list(BATCH_TEST_WEIGHTS)
+    if not weights:
+        raise RuntimeError("Batch5s: no weights configured")
+
+    payload: Dict[str, Any] = {
+        "mode": "batch5s",
+        "job_id": job_id,
+        "chat_id": int(row["chat_id"]),
+        "input_file_id": row["input_file_id"],
+        "batch_loras": batch_loras,
+        "batch_weights": weights,
+        "batch_default_prompt": DEFAULT_PROMPT,
+        "batch_use_prompt": bool(BATCH_TEST_USE_PROMPT),
+        "use_gguf": (model_type == "gguf"),
+        "use_last_frame": bool(BATCH_TEST_USE_LAST_FRAME),
+        "video_width": BATCH_TEST_VIDEO_WIDTH,
+        "video_height": BATCH_TEST_VIDEO_HEIGHT,
+        "total_steps": BATCH_TEST_STEPS,
+        "rife_multiplier": BATCH_TEST_RIFE,
+        "model_label": str(model_cfg.get("label") or BATCH_TEST_MODEL_KEY),
+        "model_high_filename": model_cfg.get("high_filename"),
+        "model_low_filename": model_cfg.get("low_filename"),
+    }
+
+    runpod_id = await submit_runpod(payload)
+    if runpod_id:
+        set_runpod_request_id(job_id, runpod_id)
+
+    total = len(batch_loras) * len(weights)
+    await edit_placeholder(
+        int(row["chat_id"]),
+        int(row["placeholder_message_id"]),
+        f"Batch 5s: {len(batch_loras)} LoRA × {len(weights)} váh ({total} renderov)…",
+    )
+    if chat_id and message_id:
+        await edit_message_text(chat_id, message_id, "Batch 5s: spustené", json.dumps({"inline_keyboard": []}))
+
+
 async def _submit_extended_job(
     *,
     job_id: str,
@@ -1988,7 +2110,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
     message_id = int(msg.get("message_id") or 0)
 
     # Supported:
-    # - mode:<std|ext|new>:<job_id>            (select mode)
+    # - mode:<std|ext|new|batch>:<job_id>      (select mode)
     # - el:<idx>:<job_id>                      (select LoRA, extended)
     # - ep:<page>:<job_id>                     (LoRA page, extended)
     # - ews:<w_idx>:<job_id>                   (single weight, extended)
@@ -2072,6 +2194,20 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 "Extended10s: vyber 1. LoRA",
                 build_lora_keyboard_ext(job_id, page=0),
             )
+            return
+        if choice == "batch":
+            _ext_session_clear(job_id)
+            _wf4_session_clear(job_id)
+            try:
+                await _submit_batch_job(job_id=job_id, chat_id=chat_id, message_id=message_id)
+            except Exception as exc:
+                await edit_message_text(
+                    chat_id,
+                    message_id,
+                    f"Batch 5s: chyba ({exc})",
+                    json.dumps({"inline_keyboard": []}),
+                )
+                raise
             return
         if choice == "new":
             _ext_session_clear(job_id)
