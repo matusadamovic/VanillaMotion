@@ -456,6 +456,92 @@ def _patch_interpolation_multiplier(prompt: Dict[str, Any], value: int) -> None:
             node.setdefault("inputs", {})["value"] = int(value)
 
 
+def _read_numeric_value(node: Optional[Dict[str, Any]]) -> Optional[float]:
+    if not isinstance(node, dict):
+        return None
+    class_type = node.get("class_type")
+    if class_type not in {"PrimitiveFloat", "PrimitiveInt", "FLOATConstant", "INTConstant"}:
+        return None
+    inputs = node.get("inputs") or {}
+    value = inputs.get("value")
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def _collect_rife_ids(prompt: Dict[str, Any]) -> List[str]:
+    return [str(node_id) for node_id, node in prompt.items() if node.get("class_type") == "RIFE VFI"]
+
+
+def _get_interpolation_defaults(prompt: Dict[str, Any]) -> tuple[Optional[float], Optional[float]]:
+    default_multiplier = None
+    default_fps = None
+    rife_ids = _collect_rife_ids(prompt)
+
+    for rife_id in rife_ids:
+        rife_node = prompt.get(rife_id) or {}
+        ref = (rife_node.get("inputs") or {}).get("multiplier")
+        if isinstance(ref, list) and ref:
+            default_multiplier = _read_numeric_value(prompt.get(str(ref[0])))
+            if default_multiplier is not None:
+                break
+
+    if default_multiplier is None:
+        for node in prompt.values():
+            if _get_title(node).lower() == "interpolation multiplier":
+                default_multiplier = _read_numeric_value(node)
+                if default_multiplier is not None:
+                    break
+
+    for node in prompt.values():
+        if node.get("class_type") != "VHS_VideoCombine":
+            continue
+        inputs = node.get("inputs") or {}
+        images = inputs.get("images")
+        if not (isinstance(images, list) and images):
+            continue
+        if str(images[0]) not in rife_ids:
+            continue
+        frame_rate = inputs.get("frame_rate")
+        if isinstance(frame_rate, list) and frame_rate:
+            default_fps = _read_numeric_value(prompt.get(str(frame_rate[0])))
+            if default_fps is not None:
+                break
+        if isinstance(frame_rate, (int, float, str)):
+            try:
+                default_fps = float(frame_rate)
+                break
+            except Exception:
+                pass
+
+    return default_multiplier, default_fps
+
+
+def _patch_interpolation_fps(prompt: Dict[str, Any], value: float) -> None:
+    rife_ids = _collect_rife_ids(prompt)
+    for node in prompt.values():
+        if node.get("class_type") != "VHS_VideoCombine":
+            continue
+        inputs = node.get("inputs") or {}
+        images = inputs.get("images")
+        if not (isinstance(images, list) and images):
+            continue
+        if str(images[0]) not in rife_ids:
+            continue
+        frame_rate = inputs.get("frame_rate")
+        if isinstance(frame_rate, list) and frame_rate:
+            ref_node = prompt.get(str(frame_rate[0]))
+            if _read_numeric_value(ref_node) is not None:
+                ref_node.setdefault("inputs", {})["value"] = float(value)
+            else:
+                inputs["frame_rate"] = float(value)
+        else:
+            inputs["frame_rate"] = float(value)
+
+
 def _disable_rife_interpolation(prompt: Dict[str, Any]) -> None:
     for rife_id, rife_node in prompt.items():
         if rife_node.get("class_type") != "RIFE VFI":
@@ -579,6 +665,8 @@ def load_and_patch_workflow(
     if not isinstance(prompt, dict) or "nodes" in prompt:
         raise ValueError("WORKFLOW_PATH must be ComfyUI API prompt JSON (not UI workflow export).")
 
+    default_rife_multiplier, default_rife_fps = _get_interpolation_defaults(prompt)
+
     # Patch all LoadImage nodes to use downloaded file
     for node in prompt.values():
         if node.get("class_type") == "LoadImage":
@@ -633,10 +721,17 @@ def load_and_patch_workflow(
 
     # Patch interpolation (RIFE) if provided
     if rife_multiplier is not None:
-        if int(rife_multiplier) <= 0:
+        effective_rife = int(rife_multiplier)
+        if effective_rife <= 0:
             _disable_rife_interpolation(prompt)
         else:
-            _patch_interpolation_multiplier(prompt, int(rife_multiplier))
+            _patch_interpolation_multiplier(prompt, effective_rife)
+        if default_rife_multiplier and default_rife_fps and default_rife_multiplier != 0:
+            if effective_rife <= 0:
+                target_fps = default_rife_fps / default_rife_multiplier
+            else:
+                target_fps = default_rife_fps * (effective_rife / default_rife_multiplier)
+            _patch_interpolation_fps(prompt, target_fps)
 
     # Patch UNET selection if provided
     if model_high_filename or model_low_filename:
@@ -801,6 +896,8 @@ def load_and_patch_workflow_new(
     if not isinstance(prompt, dict) or "nodes" in prompt:
         raise ValueError("WORKFLOW_PATH_NEW must be ComfyUI API prompt JSON (not UI workflow export).")
 
+    default_rife_multiplier, default_rife_fps = _get_interpolation_defaults(prompt)
+
     for node in prompt.values():
         if node.get("class_type") == "LoadImage":
             node.setdefault("inputs", {})["image"] = input_filename
@@ -891,6 +988,12 @@ def load_and_patch_workflow_new(
             _disable_rife_interpolation(prompt)
         else:
             _patch_interpolation_multiplier(prompt, effective_rife)
+        if default_rife_multiplier and default_rife_fps and default_rife_multiplier != 0:
+            if effective_rife <= 0:
+                target_fps = default_rife_fps / default_rife_multiplier
+            else:
+                target_fps = default_rife_fps * (effective_rife / default_rife_multiplier)
+            _patch_interpolation_fps(prompt, target_fps)
 
     _apply_workflow4_last_frame_mode(prompt, last_frame_mode)
 
