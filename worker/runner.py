@@ -722,16 +722,20 @@ def load_and_patch_workflow(
     # Patch interpolation (RIFE) if provided
     if rife_multiplier is not None:
         effective_rife = int(rife_multiplier)
-        if effective_rife <= 0:
-            _disable_rife_interpolation(prompt)
-        else:
-            _patch_interpolation_multiplier(prompt, effective_rife)
+        target_fps = None
         if default_rife_multiplier and default_rife_fps and default_rife_multiplier != 0:
             if effective_rife <= 0:
                 target_fps = default_rife_fps / default_rife_multiplier
             else:
                 target_fps = default_rife_fps * (effective_rife / default_rife_multiplier)
-            _patch_interpolation_fps(prompt, target_fps)
+        if effective_rife <= 0:
+            if target_fps is not None:
+                _patch_interpolation_fps(prompt, target_fps)
+            _disable_rife_interpolation(prompt)
+        else:
+            _patch_interpolation_multiplier(prompt, effective_rife)
+            if target_fps is not None:
+                _patch_interpolation_fps(prompt, target_fps)
 
     # Patch UNET selection if provided
     if model_high_filename or model_low_filename:
@@ -984,16 +988,20 @@ def load_and_patch_workflow_new(
     elif drift_rife_multiplier is not None:
         effective_rife = int(drift_rife_multiplier)
     if effective_rife is not None:
-        if effective_rife <= 0:
-            _disable_rife_interpolation(prompt)
-        else:
-            _patch_interpolation_multiplier(prompt, effective_rife)
+        target_fps = None
         if default_rife_multiplier and default_rife_fps and default_rife_multiplier != 0:
             if effective_rife <= 0:
                 target_fps = default_rife_fps / default_rife_multiplier
             else:
                 target_fps = default_rife_fps * (effective_rife / default_rife_multiplier)
-            _patch_interpolation_fps(prompt, target_fps)
+        if effective_rife <= 0:
+            if target_fps is not None:
+                _patch_interpolation_fps(prompt, target_fps)
+            _disable_rife_interpolation(prompt)
+        else:
+            _patch_interpolation_multiplier(prompt, effective_rife)
+            if target_fps is not None:
+                _patch_interpolation_fps(prompt, target_fps)
 
     _apply_workflow4_last_frame_mode(prompt, last_frame_mode)
 
