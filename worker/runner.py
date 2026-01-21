@@ -2009,6 +2009,37 @@ def update_placeholder_text(chat_id: int, message_id: int, text: str) -> None:
         logging.exception("Failed to update placeholder message text")
 
 
+def send_text_message(chat_id: int, text: str) -> None:
+    api = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+    try:
+        requests.post(
+            f"{api}/sendMessage",
+            data={"chat_id": chat_id, "text": text},
+            timeout=30,
+        )
+    except Exception:
+        logging.exception("Failed to send text message")
+
+
+def send_text_lines(chat_id: int, lines: list[str], max_len: int = 3500) -> None:
+    buf: list[str] = []
+    size = 0
+    for line in lines:
+        line = str(line)
+        extra = len(line) + (1 if buf else 0)
+        if size + extra > max_len and buf:
+            send_text_message(chat_id, "\n".join(buf))
+            buf = [line]
+            size = len(line)
+            continue
+        if buf:
+            size += 1
+        buf.append(line)
+        size += len(line)
+    if buf:
+        send_text_message(chat_id, "\n".join(buf))
+
+
 def handler(event):
     payload = (event.get("input") or {})
 
@@ -2248,6 +2279,17 @@ def handler(event):
             return True
         return False
 
+    def _format_batch_skip_reason(exc: Exception) -> str:
+        msg = str(exc)
+        if "LoRA file not found:" in msg:
+            path = msg.split("LoRA file not found:", 1)[1].strip()
+            return f"missing {os.path.basename(path)}"
+        if "requires" in msg and "LoRA" in msg:
+            return "missing lora file"
+        if len(msg) > 120:
+            return msg[:117] + "..."
+        return msg
+
     video_width = _to_int(payload.get("video_width"))
     video_height = _to_int(payload.get("video_height"))
     total_steps = _to_int(payload.get("total_steps"))
@@ -2299,6 +2341,7 @@ def handler(event):
 
         video_path: Optional[pathlib.Path] = None
         batch_skipped = 0
+        batch_skipped_items: list[str] = []
         comfy_proc = start_comfy(output_dir=output_dir, temp_dir=temp_dir)
         try:
             if is_batch:
@@ -2358,6 +2401,8 @@ def handler(event):
                             if _should_skip_batch_error(exc):
                                 processed += 1
                                 batch_skipped += 1
+                                reason = _format_batch_skip_reason(exc)
+                                batch_skipped_items.append(f"{lora_label} (w={weight_label}) - {reason}")
                                 logging.warning(
                                     "Batch5s skip lora=%s weight=%s error=%s",
                                     lora_key,
@@ -2553,6 +2598,10 @@ def handler(event):
                     int(finalize_info["placeholder_message_id"]),
                     f"Batch 5s hotovo.{suffix} Videa su v novych spravach.",
                 )
+                if batch_skipped_items:
+                    lines = ["Preskocene LoRA:"]
+                    lines.extend(f"- {item}" for item in batch_skipped_items)
+                    send_text_lines(int(finalize_info["chat_id"]), lines)
             return {"status": "completed", "video": str(video_path) if video_path else ""}
 
         finalize_info = finalize(job_id, "COMPLETED")
