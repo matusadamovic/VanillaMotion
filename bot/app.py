@@ -29,7 +29,7 @@ MODEL_CATALOG_PATH = os.environ.get("MODEL_CATALOG_PATH", "/app/models.json")
 PAGE_SIZE = int(os.environ.get("LORA_PAGE_SIZE", "4"))  # keep 4 by default
 MODEL_PAGE_SIZE = int(os.environ.get("MODEL_PAGE_SIZE", "4"))
 WEIGHT_OPTIONS_RAW = os.environ.get("LORA_WEIGHT_OPTIONS", "0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0")
-BATCH_TEST_WEIGHTS_RAW = os.environ.get("BATCH_TEST_WEIGHTS", "0.55,0.77,0.99")
+BATCH_TEST_WEIGHTS_RAW = os.environ.get("BATCH_TEST_WEIGHTS", "0.5,0.7,0.9")
 BATCH_TEST_MODEL_KEY = os.environ.get("BATCH_TEST_MODEL_KEY", "gguf_tastysin_v8")
 BATCH_TEST_VIDEO_WIDTH = int(os.environ.get("BATCH_TEST_VIDEO_WIDTH", "480"))
 BATCH_TEST_VIDEO_HEIGHT = int(os.environ.get("BATCH_TEST_VIDEO_HEIGHT", "640"))
@@ -200,7 +200,7 @@ WEIGHT_OPTIONS = _parse_weight_options(WEIGHT_OPTIONS_RAW) or [
     0.9,
     1.0,
 ]
-BATCH_TEST_WEIGHTS = _parse_weight_options(BATCH_TEST_WEIGHTS_RAW) or [0.55, 0.77, 0.99]
+BATCH_TEST_WEIGHTS = _parse_weight_options(BATCH_TEST_WEIGHTS_RAW) or [0.5, 0.7, 0.9]
 BATCH_TEST_USE_LAST_FRAME = _parse_bool(BATCH_TEST_USE_LAST_FRAME_RAW, True)
 BATCH_TEST_USE_PROMPT = _parse_bool(BATCH_TEST_USE_PROMPT_RAW, True)
 
@@ -750,6 +750,23 @@ def build_mode_keyboard(job_id: str) -> str:
     ]
     rows.append([{"text": "Batch 5s", "callback_data": f"mode:batch:{job_id}"}])
     rows.append([{"text": "Workflow4", "callback_data": f"mode:new:{job_id}"}])
+    return json.dumps({"inline_keyboard": rows})
+
+
+def build_batch_weight_keyboard(job_id: str) -> str:
+    options = list(BATCH_TEST_WEIGHTS)
+    if not options:
+        return json.dumps({"inline_keyboard": []})
+    rows = []
+    for i in range(0, len(options), 2):
+        row = []
+        for j in range(2):
+            if i + j >= len(options):
+                break
+            value = options[i + j]
+            label = _format_weight(value)
+            row.append({"text": label, "callback_data": f"bw:{i + j}:{job_id}"})
+        rows.append(row)
     return json.dumps({"inline_keyboard": rows})
 
 
@@ -1592,6 +1609,7 @@ async def _submit_batch_job(
     job_id: str,
     chat_id: int,
     message_id: int,
+    weight: float,
 ) -> None:
     row = set_queue(job_id, "batch5s")
 
@@ -1644,9 +1662,7 @@ async def _submit_batch_job(
     if not model_cfg.get("high_filename") or not model_cfg.get("low_filename"):
         raise RuntimeError(f"Batch5s: model missing high/low filenames: {BATCH_TEST_MODEL_KEY}")
 
-    weights = list(BATCH_TEST_WEIGHTS)
-    if not weights:
-        raise RuntimeError("Batch5s: no weights configured")
+    weights = [float(weight)]
 
     payload: Dict[str, Any] = {
         "mode": "batch5s",
@@ -1673,10 +1689,11 @@ async def _submit_batch_job(
         set_runpod_request_id(job_id, runpod_id)
 
     total = len(batch_loras) * len(weights)
+    weight_label = _format_weight(weights[0])
     await edit_placeholder(
         int(row["chat_id"]),
         int(row["placeholder_message_id"]),
-        f"Batch 5s: {len(batch_loras)} LoRA × {len(weights)} váh ({total} renderov)…",
+        f"Batch 5s: {len(batch_loras)} LoRA (w={weight_label}) ({total} renderov)…",
     )
     if chat_id and message_id:
         await edit_message_text(chat_id, message_id, "Batch 5s: spustené", json.dumps({"inline_keyboard": []}))
@@ -2111,6 +2128,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
 
     # Supported:
     # - mode:<std|ext|new|batch>:<job_id>      (select mode)
+    # - bw:<idx>:<job_id>                      (batch weight)
     # - el:<idx>:<job_id>                      (select LoRA, extended)
     # - ep:<page>:<job_id>                     (LoRA page, extended)
     # - ews:<w_idx>:<job_id>                   (single weight, extended)
@@ -2198,16 +2216,20 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if choice == "batch":
             _ext_session_clear(job_id)
             _wf4_session_clear(job_id)
-            try:
-                await _submit_batch_job(job_id=job_id, chat_id=chat_id, message_id=message_id)
-            except Exception as exc:
+            if not BATCH_TEST_WEIGHTS:
                 await edit_message_text(
                     chat_id,
                     message_id,
-                    f"Batch 5s: chyba ({exc})",
+                    "Batch 5s: chyba (ziadne váhy)",
                     json.dumps({"inline_keyboard": []}),
                 )
-                raise
+                return
+            await edit_message_text(
+                chat_id,
+                message_id,
+                "Batch 5s: vyber váhu",
+                build_batch_weight_keyboard(job_id),
+            )
             return
         if choice == "new":
             _ext_session_clear(job_id)
@@ -2237,6 +2259,29 @@ async def process_callback(update: Dict[str, Any]) -> None:
                     build_lora_keyboard_ext(job_id, page=0, tag_prefix="n"),
                 )
             return
+        return
+
+    if tag == "bw":
+        if len(parts) != 3:
+            return
+        try:
+            idx = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+        if idx < 0 or idx >= len(BATCH_TEST_WEIGHTS):
+            return
+        weight = BATCH_TEST_WEIGHTS[idx]
+        try:
+            await _submit_batch_job(job_id=job_id, chat_id=chat_id, message_id=message_id, weight=weight)
+        except Exception as exc:
+            await edit_message_text(
+                chat_id,
+                message_id,
+                f"Batch 5s: chyba ({exc})",
+                json.dumps({"inline_keyboard": []}),
+            )
+            raise
         return
 
     if tag == "np":

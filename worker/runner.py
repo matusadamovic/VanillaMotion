@@ -2240,6 +2240,14 @@ def handler(event):
                 )
         return out
 
+    def _should_skip_batch_error(exc: Exception) -> bool:
+        msg = str(exc)
+        if isinstance(exc, FileNotFoundError) and "LoRA file not found" in msg:
+            return True
+        if isinstance(exc, ValueError) and "LoRA" in msg and "requires" in msg:
+            return True
+        return False
+
     video_width = _to_int(payload.get("video_width"))
     video_height = _to_int(payload.get("video_height"))
     total_steps = _to_int(payload.get("total_steps"))
@@ -2289,6 +2297,8 @@ def handler(event):
         shutil.copy(input_path, target)
         targets.append(target)
 
+        video_path: Optional[pathlib.Path] = None
+        batch_skipped = 0
         comfy_proc = start_comfy(output_dir=output_dir, temp_dir=temp_dir)
         try:
             if is_batch:
@@ -2307,7 +2317,8 @@ def handler(event):
                         f"Batch 5s: 0/{total}",
                     )
 
-                completed = 0
+                processed = 0
+                last_video_path: Optional[pathlib.Path] = None
                 for lora in batch_items:
                     lora_type = str(lora.get("type") or "single").lower()
                     lora_key = str(lora.get("key") or "").strip()
@@ -2320,29 +2331,49 @@ def handler(event):
 
                     for weight in weights:
                         weight_label = f"{float(weight):.2f}".rstrip("0").rstrip(".") or "0"
-                        history, video_path = run_comfy_prompt(
-                            label=None,
-                            input_filename=input_filename,
-                            lora_type=lora_type,
-                            lora_filename=lora.get("filename"),
-                            lora_strength=float(weight),
-                            lora_high_filename=lora.get("high_filename"),
-                            lora_high_strength=float(weight),
-                            lora_low_filename=lora.get("low_filename"),
-                            lora_low_strength=float(weight),
-                            model_high_filename=model_high_filename,
-                            model_low_filename=model_low_filename,
-                            positive_prompt=prompt_text,
-                            use_lora=True,
-                            use_gguf=use_gguf,
-                            use_last_frame=use_last_frame,
-                            video_width=video_width,
-                            video_height=video_height,
-                            total_steps=total_steps,
-                            rife_multiplier=rife_multiplier,
-                            output_dir=output_dir,
-                        )
-                        completed += 1
+                        try:
+                            history, video_path = run_comfy_prompt(
+                                label=None,
+                                input_filename=input_filename,
+                                lora_type=lora_type,
+                                lora_filename=lora.get("filename"),
+                                lora_strength=float(weight),
+                                lora_high_filename=lora.get("high_filename"),
+                                lora_high_strength=float(weight),
+                                lora_low_filename=lora.get("low_filename"),
+                                lora_low_strength=float(weight),
+                                model_high_filename=model_high_filename,
+                                model_low_filename=model_low_filename,
+                                positive_prompt=prompt_text,
+                                use_lora=True,
+                                use_gguf=use_gguf,
+                                use_last_frame=use_last_frame,
+                                video_width=video_width,
+                                video_height=video_height,
+                                total_steps=total_steps,
+                                rife_multiplier=rife_multiplier,
+                                output_dir=output_dir,
+                            )
+                        except Exception as exc:
+                            if _should_skip_batch_error(exc):
+                                processed += 1
+                                batch_skipped += 1
+                                logging.warning(
+                                    "Batch5s skip lora=%s weight=%s error=%s",
+                                    lora_key,
+                                    weight_label,
+                                    exc,
+                                )
+                                if placeholder_message_id:
+                                    update_placeholder_text(
+                                        placeholder_chat_id,
+                                        placeholder_message_id,
+                                        f"Batch 5s: {processed}/{total} (skip {lora_label}, w={weight_label})",
+                                    )
+                                continue
+                            raise
+                        processed += 1
+                        last_video_path = video_path
                         caption = build_caption(
                             use_gguf=use_gguf,
                             model_label=model_label,
@@ -2366,8 +2397,9 @@ def handler(event):
                             update_placeholder_text(
                                 placeholder_chat_id,
                                 placeholder_message_id,
-                                f"Batch 5s: {completed}/{total} ({lora_label}, w={weight_label})",
+                                f"Batch 5s: {processed}/{total} ({lora_label}, w={weight_label})",
                             )
+                video_path = last_video_path
             elif is_extended:
                 prompt2 = positive_prompt_2 if isinstance(positive_prompt_2, str) else positive_prompt
 
@@ -2505,21 +2537,23 @@ def handler(event):
                 )
         finally:
             stop_comfy(comfy_proc)
-        logging.info(
-            "FINAL_VIDEO_PATH=%s size_bytes=%s",
-            video_path,
-            video_path.stat().st_size if video_path.exists() else None,
-        )
+        size_bytes = None
+        if video_path:
+            size_bytes = video_path.stat().st_size if video_path.exists() else None
+        logging.info("FINAL_VIDEO_PATH=%s size_bytes=%s", video_path, size_bytes)
 
         if is_batch:
             finalize_info = finalize(job_id, "COMPLETED")
             if finalize_info:
+                suffix = ""
+                if batch_skipped:
+                    suffix = f" Preskocene: {batch_skipped}."
                 update_placeholder_text(
                     int(finalize_info["chat_id"]),
                     int(finalize_info["placeholder_message_id"]),
-                    "Batch 5s hotovo. Videa su v novych spravach.",
+                    f"Batch 5s hotovo.{suffix} Videa su v novych spravach.",
                 )
-            return {"status": "completed", "video": str(video_path)}
+            return {"status": "completed", "video": str(video_path) if video_path else ""}
 
         finalize_info = finalize(job_id, "COMPLETED")
         if finalize_info:
