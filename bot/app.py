@@ -37,6 +37,11 @@ BATCH_TEST_STEPS = int(os.environ.get("BATCH_TEST_STEPS", "6"))
 BATCH_TEST_RIFE = int(os.environ.get("BATCH_TEST_RIFE", "0"))
 BATCH_TEST_USE_LAST_FRAME_RAW = os.environ.get("BATCH_TEST_USE_LAST_FRAME", "0")
 BATCH_TEST_USE_PROMPT_RAW = os.environ.get("BATCH_TEST_USE_PROMPT", "1")
+TEST5S_WEIGHT = 0.7
+TEST5S_VIDEO_WIDTH = 480
+TEST5S_VIDEO_HEIGHT = 720
+TEST5S_STEPS = 4
+TEST5S_RIFE_MULTIPLIER = 0
 
 
 def load_lora_catalog() -> Dict[str, Any]:
@@ -769,7 +774,12 @@ def build_mode_keyboard(job_id: str) -> str:
             {"text": "Extended10s", "callback_data": f"mode:ext:{job_id}"},
         ]
     ]
-    rows.append([{"text": "Batch 5s", "callback_data": f"mode:batch:{job_id}"}])
+    rows.append(
+        [
+            {"text": "Test5s", "callback_data": f"mode:test5s:{job_id}"},
+            {"text": "Batch 5s", "callback_data": f"mode:batch:{job_id}"},
+        ]
+    )
     rows.append([{"text": "Workflow4", "callback_data": f"mode:new:{job_id}"}])
     return json.dumps({"inline_keyboard": rows})
 
@@ -2171,7 +2181,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
     message_id = int(msg.get("message_id") or 0)
 
     # Supported:
-    # - mode:<std|ext|new|batch>:<job_id>      (select mode)
+    # - mode:<std|ext|new|batch|test5s>:<job_id> (select mode)
     # - bw:<idx>:<job_id>                      (batch weight)
     # - el:<idx>:<job_id>                      (select LoRA, extended)
     # - ep:<page>:<job_id>                     (LoRA page, extended)
@@ -2224,6 +2234,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
     # - ri:<interp>:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (interpolation, single)
     # - ri:<interp>:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (interpolation, pair)
     # - eri:<interp>:<job_id>                  (interpolation, extended)
+    # - t5l:<idx>:<job_id>                     (select LoRA, test5s)
+    # - t5p:<page>:<job_id>                    (LoRA page, test5s)
     # - noop:<job_id>                          (do nothing)
     parts = data.split(":")
     if len(parts) < 2:
@@ -2245,6 +2257,16 @@ async def process_callback(update: Dict[str, Any]) -> None:
             _ext_session_clear(job_id)
             _wf4_session_clear(job_id)
             await edit_message_text(chat_id, message_id, "Vyber štýl (LoRA):", build_lora_keyboard(job_id, page=0))
+            return
+        if choice == "test5s":
+            _ext_session_clear(job_id)
+            _wf4_session_clear(job_id)
+            await edit_message_text(
+                chat_id,
+                message_id,
+                "Test5s: vyber štýl (LoRA):",
+                build_lora_keyboard_ext(job_id, page=0, tag_prefix="t5"),
+            )
             return
         if choice == "ext":
             _wf4_session_clear(job_id)
@@ -3218,6 +3240,89 @@ async def process_callback(update: Dict[str, Any]) -> None:
             message_id=message_id,
         )
         _ext_session_clear(job_id)
+        return
+
+    if tag == "t5p":
+        if len(parts) != 3:
+            return
+        try:
+            page = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+        if chat_id and message_id:
+            await edit_keyboard(chat_id, message_id, build_lora_keyboard_ext(job_id, page=page, tag_prefix="t5"))
+        return
+
+    if tag == "t5l":
+        if len(parts) != 3:
+            return
+        try:
+            idx = int(parts[1])
+            job_id = parts[2]
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(idx)
+        if not cfg:
+            return
+
+        label = str(cfg.get("label") or lora_key)
+        lora_type = str(cfg.get("type") or "single").lower()
+        try:
+            model_type, _model_idx, model_key, model_cfg = _get_default_model_selection()
+        except Exception:
+            if chat_id and message_id:
+                await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
+            return
+
+        prompt_text = cfg.get("positive") or DEFAULT_PROMPT
+
+        model_label = str(model_cfg.get("label") or model_key)
+        model_high_filename = model_cfg.get("high_filename")
+        model_low_filename = model_cfg.get("low_filename")
+        use_gguf = model_type == "gguf"
+
+        if lora_type == "pair":
+            await _submit_pair_job(
+                job_id=job_id,
+                lora_key=lora_key,
+                cfg=cfg,
+                high_weight=TEST5S_WEIGHT,
+                low_weight=TEST5S_WEIGHT,
+                use_gguf=use_gguf,
+                use_last_frame=False,
+                video_width=TEST5S_VIDEO_WIDTH,
+                video_height=TEST5S_VIDEO_HEIGHT,
+                total_steps=TEST5S_STEPS,
+                positive_prompt=prompt_text,
+                rife_multiplier=TEST5S_RIFE_MULTIPLIER,
+                model_label=model_label,
+                model_high_filename=model_high_filename,
+                model_low_filename=model_low_filename,
+                chat_id=chat_id,
+                message_id=message_id,
+            )
+            return
+
+        await _submit_single_job(
+            job_id=job_id,
+            lora_key=lora_key,
+            cfg=cfg,
+            weight=TEST5S_WEIGHT,
+            use_gguf=use_gguf,
+            use_last_frame=False,
+            video_width=TEST5S_VIDEO_WIDTH,
+            video_height=TEST5S_VIDEO_HEIGHT,
+            total_steps=TEST5S_STEPS,
+            positive_prompt=prompt_text,
+            rife_multiplier=TEST5S_RIFE_MULTIPLIER,
+            model_label=model_label,
+            model_high_filename=model_high_filename,
+            model_low_filename=model_low_filename,
+            chat_id=chat_id,
+            message_id=message_id,
+        )
         return
 
     if tag == "p":
