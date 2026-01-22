@@ -54,7 +54,7 @@ RUN --mount=type=secret,id=github_token,required=false set -eux; \
 # Local fallback nodes to avoid missing custom types in workflows.
 COPY custom_nodes/vanillamotion_nodes /comfyui/custom_nodes/vanillamotion_nodes
 
-# Dotahovanie zavislosti custom nodes (optional; can be large)
+# Dotahovanie zavislosti custom nodes (optional; can be largee)
 ARG INSTALL_CUSTOM_NODE_DEPS=false
 RUN if [ "$INSTALL_CUSTOM_NODE_DEPS" = "true" ]; then \
       set -eux; \

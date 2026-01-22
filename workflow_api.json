@@ -1,1221 +1,1221 @@
 {
-    "1": {
-        "inputs": {
-            "text": "A beautiful girl looks at the camera. She smiles shyly while she twirls her hair around one of her fingers in a playful manner.",
-            "clip": [
-                "16",
-                0
-            ]
-        },
-        "class_type": "CLIPTextEncode",
-        "_meta": {
-            "title": "Positive Prompt"
-        }
-    },
-    "2": {
-        "inputs": {
-            "shift": [
-                "15",
-                0
-            ],
-            "model": [
-                "24",
-                0
-            ]
-        },
-        "class_type": "ModelSamplingSD3",
-        "_meta": {
-            "title": "Step 1 Shift"
-        }
-    },
-    "4": {
-        "inputs": {
-            "shift": [
-                "15",
-                0
-            ],
-            "model": [
-                "26",
-                0
-            ]
-        },
-        "class_type": "ModelSamplingSD3",
-        "_meta": {
-            "title": "Step 3 Shift"
-        }
-    },
-    "5": {
-        "inputs": {
-            "add_noise": "enable",
-            "noise_seed": [
-                "20",
-                0
-            ],
-            "steps": [
-                "101",
-                0
-            ],
-            "cfg": 1,
-            "sampler_name": "euler",
-            "scheduler": "beta",
-            "start_at_step": 0,
-            "end_at_step": [
-                "109",
-                0
-            ],
-            "return_with_leftover_noise": "enable",
-            "model": [
-                "2",
-                0
-            ],
-            "positive": [
-                "145",
-                0
-            ],
-            "negative": [
-                "148",
-                0
-            ],
-            "latent_image": [
-                "136",
-                0
-            ]
-        },
-        "class_type": "KSamplerAdvanced",
-        "_meta": {
-            "title": "KSampler 1"
-        }
-    },
-    "7": {
-        "inputs": {
-            "add_noise": "disable",
-            "noise_seed": [
-                "20",
-                0
-            ],
-            "steps": [
-                "101",
-                0
-            ],
-            "cfg": 1,
-            "sampler_name": "euler",
-            "scheduler": "beta",
-            "start_at_step": [
-                "122",
-                0
-            ],
-            "end_at_step": 1000,
-            "return_with_leftover_noise": "disable",
-            "model": [
-                "4",
-                0
-            ],
-            "positive": [
-                "145",
-                0
-            ],
-            "negative": [
-                "148",
-                0
-            ],
-            "latent_image": [
-                "5",
-                0
-            ]
-        },
-        "class_type": "KSamplerAdvanced",
-        "_meta": {
-            "title": "KSampler 3"
-        }
-    },
-    "9": {
-        "inputs": {
-            "ckpt_name": "rife49.pth",
-            "clear_cache_after_n_frames": 5,
-            "multiplier": [
-                "92",
-                0
-            ],
-            "fast_mode": false,
-            "ensemble": true,
-            "scale_factor": 1,
-            "frames": [
-                "21",
-                0
-            ]
-        },
-        "class_type": "RIFE VFI",
-        "_meta": {
-            "title": "RIFE VFI (recommend rife47 and rife49)"
-        }
-    },
-    "13": {
-        "inputs": {
-            "unet_name": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
-            "weight_dtype": "default"
-        },
-        "class_type": "UNETLoader",
-        "_meta": {
-            "title": "Load Model (High Noise)"
-        }
-    },
-    "14": {
-        "inputs": {
-            "unet_name": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
-            "weight_dtype": "default"
-        },
-        "class_type": "UNETLoader",
-        "_meta": {
-            "title": "Load Model (Low Noise)"
-        }
-    },
-    "15": {
-        "inputs": {
-            "value": 5
-        },
-        "class_type": "PrimitiveFloat",
-        "_meta": {
-            "title": "Model Shift"
-        }
-    },
-    "16": {
-        "inputs": {
-            "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
-            "type": "wan",
-            "device": "default"
-        },
-        "class_type": "CLIPLoader",
-        "_meta": {
-            "title": "Load CLIP"
-        }
-    },
-    "17": {
-        "inputs": {
-            "vae_name": "wan_2.1_vae.safetensors"
-        },
-        "class_type": "VAELoader",
-        "_meta": {
-            "title": "Load VAE"
-        }
-    },
-    "18": {
-        "inputs": {
-            "width": [
-                "89",
-                0
-            ],
-            "height": [
-                "88",
-                0
-            ],
-            "length": [
-                "93",
-                0
-            ],
-            "batch_size": 1,
-            "positive": [
-                "1",
-                0
-            ],
-            "negative": [
-                "19",
-                0
-            ],
-            "vae": [
-                "17",
-                0
-            ],
-            "start_image": [
-                "69",
-                0
-            ]
-        },
-        "class_type": "WanImageToVideo",
-        "_meta": {
-            "title": "Latent Video without Last Frame"
-        }
-    },
-    "19": {
-        "inputs": {
-            "text": "Overexposure, static, blurred details, subtitles, paintings, pictures, still, overall gray, worst quality, low quality, JPEG compression residue, ugly, mutilated, redundant fingers, poorly painted hands, poorly painted faces, deformed, disfigured, deformed limbs, fused fingers, cluttered background, three legs, a lot of people in the background, upside down, slow mo, slow movement, slow motion, slow",
-            "clip": [
-                "16",
-                0
-            ]
-        },
-        "class_type": "CLIPTextEncode",
-        "_meta": {
-            "title": "Negative Prompt"
-        }
-    },
-    "20": {
-        "inputs": {
-            "value": 552757690549469
-        },
-        "class_type": "PrimitiveInt",
-        "_meta": {
-            "title": "Seed"
-        }
-    },
-    "21": {
-        "inputs": {
-            "samples": [
-                "7",
-                0
-            ],
-            "vae": [
-                "17",
-                0
-            ]
-        },
-        "class_type": "VAEDecode",
-        "_meta": {
-            "title": "VAE Decode"
-        }
-    },
-    "22": {
-        "inputs": {
-            "image": "Closeup_00020.png"
-        },
-        "class_type": "LoadImage",
-        "_meta": {
-            "title": "Load Image"
-        }
-    },
-    "24": {
-        "inputs": {
-            "PowerLoraLoaderHeaderWidget": {
-                "type": "PowerLoraLoaderHeaderWidget"
-            },
-            "lora_1": {
-                "on": false,
-                "lora": "NSFW-22-H-e8.safetensors",
-                "strength": 1
-            },
-            "➕ Add Lora": "",
-            "model": [
-                "76",
-                0
-            ],
-            "clip": [
-                "16",
-                0
-            ]
-        },
-        "class_type": "Power Lora Loader (rgthree)",
-        "_meta": {
-            "title": "Step 1 Lora"
-        }
-    },
-    "26": {
-        "inputs": {
-            "PowerLoraLoaderHeaderWidget": {
-                "type": "PowerLoraLoaderHeaderWidget"
-            },
-            "lora_1": {
-                "on": false,
-                "lora": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
-                "strength": 1
-            },
-            "lora_2": {
-                "on": false,
-                "lora": "NSFW-22-L-e8.safetensors",
-                "strength": 1
-            },
-            "➕ Add Lora": "",
-            "model": [
-                "77",
-                0
-            ],
-            "clip": [
-                "16",
-                0
-            ]
-        },
-        "class_type": "Power Lora Loader (rgthree)",
-        "_meta": {
-            "title": "Step 3 Lora"
-        }
-    },
-    "28": {
-        "inputs": {
-            "frame_rate": [
-                "99",
-                0
-            ],
-            "loop_count": 0,
-            "filename_prefix": "2026-01-10/i2v/Closeup/Closeup",
-            "format": "video/h264-mp4",
-            "pix_fmt": "yuv420p",
-            "crf": 19,
-            "save_metadata": true,
-            "trim_to_audio": false,
-            "pingpong": false,
-            "save_output": 19,
-            "images": [
-                "9",
-                0
-            ]
-        },
-        "class_type": "VHS_VideoCombine",
-        "_meta": {
-            "title": "Final Video"
-        }
-    },
-    "29": {
-        "inputs": {
-            "anything11": [
-                "76",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "30": {
-        "inputs": {
-            "anything": [
-                "77",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "31": {
-        "inputs": {
-            "anything": [
-                "16",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "33": {
-        "inputs": {
-            "anything": [
-                "15",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "35": {
-        "inputs": {
-            "anything": [
-                "17",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "37": {
-        "inputs": {
-            "anything11": [
-                "20",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "40": {
-        "inputs": {
-            "anything": [
-                "1",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "41": {
-        "inputs": {
-            "anything11": [
-                "19",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "43": {
-        "inputs": {
-            "anything": [
-                "2",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "45": {
-        "inputs": {
-            "anything12": [
-                "4",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "47": {
-        "inputs": {
-            "anything": [
-                "9",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "58": {
-        "inputs": {},
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "69": {
-        "inputs": {
-            "width": [
-                "89",
-                0
-            ],
-            "height": [
-                "88",
-                0
-            ],
-            "upscale_method": "lanczos",
-            "keep_proportion": "resize",
-            "pad_color": "0, 0, 0",
-            "crop_position": "center",
-            "divisible_by": 2,
-            "device": "cpu",
-            "image": [
-                "22",
-                0
-            ]
-        },
-        "class_type": "ImageResizeKJv2",
-        "_meta": {
-            "title": "Resize Image v2 (First Frame)"
-        }
-    },
-    "70": {
-        "inputs": {
-            "anything11": [
-                "21",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "71": {
-        "inputs": {
-            "anything11": [
-                "69",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "73": {
-        "inputs": {
-            "unet_name": "wan22EnhancedNSFWCameraPrompt_nsfwV2Q8High.gguf"
-        },
-        "class_type": "UnetLoaderGGUF",
-        "_meta": {
-            "title": "Unet Loader (GGUF, High Noise)"
-        }
-    },
-    "74": {
-        "inputs": {
-            "unet_name": "wan22EnhancedNSFWCameraPrompt_nsfwV2Q8Low.gguf"
-        },
-        "class_type": "UnetLoaderGGUF",
-        "_meta": {
-            "title": "Unet Loader (GGUF, Low Noise)"
-        }
-    },
-    "76": {
-        "inputs": {
-            "switch": [
-                "79",
-                0
-            ],
-            "on_false": [
-                "13",
-                0
-            ],
-            "on_true": [
-                "73",
-                0
-            ]
-        },
-        "class_type": "LazySwitchKJ",
-        "_meta": {
-            "title": "Lazy Switch KJ"
-        }
-    },
-    "77": {
-        "inputs": {
-            "switch": [
-                "79",
-                0
-            ],
-            "on_false": [
-                "14",
-                0
-            ],
-            "on_true": [
-                "74",
-                0
-            ]
-        },
-        "class_type": "LazySwitchKJ",
-        "_meta": {
-            "title": "Lazy Switch KJ"
-        }
-    },
-    "79": {
-        "inputs": {
-            "value": true
-        },
-        "class_type": "BOOLConstant",
-        "_meta": {
-            "title": "Use GGUF Models?"
-        }
-    },
-    "80": {
-        "inputs": {
-            "anything11": [
-                "79",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "84": {
-        "inputs": {
-            "anything": [
-                "5",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "86": {
-        "inputs": {
-            "anything12": [
-                "7",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "88": {
-        "inputs": {
-            "int": 1280
-        },
-        "class_type": "Width/Height Literal (Image Saver)",
-        "_meta": {
-            "title": "Video Height"
-        }
-    },
-    "89": {
-        "inputs": {
-            "int": 720
-        },
-        "class_type": "Width/Height Literal (Image Saver)",
-        "_meta": {
-            "title": "Video Width"
-        }
-    },
-    "90": {
-        "inputs": {
-            "anything": [
-                "89",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "91": {
-        "inputs": {
-            "anything": [
-                "88",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "92": {
-        "inputs": {
-            "value": 3
-        },
-        "class_type": "INTConstant",
-        "_meta": {
-            "title": "Interpolation Multiplier"
-        }
-    },
-    "93": {
-        "inputs": {
-            "value": 81
-        },
-        "class_type": "INTConstant",
-        "_meta": {
-            "title": "Latent Video Length"
-        }
-    },
-    "94": {
-        "inputs": {
-            "anything": [
-                "93",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "95": {
-        "inputs": {
-            "anything": [
-                "92",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "97": {
-        "inputs": {
-            "anything11": [
-                "99",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "99": {
-        "inputs": {
-            "value": 60
-        },
-        "class_type": "PrimitiveFloat",
-        "_meta": {
-            "title": "Final Video Frame Rate"
-        }
-    },
-    "101": {
-        "inputs": {
-            "value": 12
-        },
-        "class_type": "INTConstant",
-        "_meta": {
-            "title": "Total Steps"
-        }
-    },
-    "102": {
-        "inputs": {
-            "value": "a / 2",
-            "a": [
-                "101",
-                0
-            ]
-        },
-        "class_type": "SimpleMath+",
-        "_meta": {
-            "title": "Math 2 Steps"
-        }
-    },
-    "103": {
-        "inputs": {
-            "value": true
-        },
-        "class_type": "BOOLConstant",
-        "_meta": {
-            "title": "Use 2 Samplers?"
-        }
-    },
-    "104": {
-        "inputs": {
-            "switch": [
-                "103",
-                0
-            ],
-            "on_false": [
-                "105",
-                0
-            ],
-            "on_true": [
-                "102",
-                0
-            ]
-        },
-        "class_type": "LazySwitchKJ",
-        "_meta": {
-            "title": "Lazy Switch KJ"
-        }
-    },
-    "105": {
-        "inputs": {
-            "value": "a / 3",
-            "a": [
-                "101",
-                0
-            ]
-        },
-        "class_type": "SimpleMath+",
-        "_meta": {
-            "title": "Math 3 Steps"
-        }
-    },
-    "107": {
-        "inputs": {
-            "anything": [
-                "101",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "108": {
-        "inputs": {
-            "anything11": [
-                "109",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Step 1 end"
-        }
-    },
-    "109": {
-        "inputs": {
-            "value": [
-                "104",
-                0
-            ]
-        },
-        "class_type": "INTConstant",
-        "_meta": {
-            "title": "Step 1 end"
-        }
-    },
-    "110": {
-        "inputs": {
-            "value": [
-                "104",
-                0
-            ]
-        },
-        "class_type": "INTConstant",
-        "_meta": {
-            "title": "Step 2 start"
-        }
-    },
-    "111": {
-        "inputs": {
-            "anything": [
-                "110",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Step 2 start"
-        }
-    },
-    "112": {
-        "inputs": {
-            "value": "a * 2",
-            "a": [
-                "104",
-                0
-            ]
-        },
-        "class_type": "SimpleMath+",
-        "_meta": {
-            "title": "Math 2 Steps"
-        }
-    },
-    "113": {
-        "inputs": {
-            "value": [
-                "112",
-                0
-            ]
-        },
-        "class_type": "INTConstant",
-        "_meta": {
-            "title": "Step 2 end"
-        }
-    },
-    "114": {
-        "inputs": {
-            "anything": [
-                "113",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Step 2 end"
-        }
-    },
-    "116": {
-        "inputs": {
-            "value": [
-                "120",
-                0
-            ]
-        },
-        "class_type": "INTConstant",
-        "_meta": {
-            "title": "Step 3 start (3 steps)"
-        }
-    },
-    "117": {
-        "inputs": {
-            "value": [
-                "104",
-                0
-            ]
-        },
-        "class_type": "INTConstant",
-        "_meta": {
-            "title": "Step 3 start (2 steps)"
-        }
-    },
-    "118": {
-        "inputs": {
-            "anything": [
-                "122",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Step 3 start"
-        }
-    },
-    "120": {
-        "inputs": {
-            "value": "a * 2",
-            "a": [
-                "104",
-                0
-            ]
-        },
-        "class_type": "SimpleMath+",
-        "_meta": {
-            "title": "Math 2 Steps"
-        }
-    },
-    "121": {
-        "inputs": {
-            "switch": [
-                "103",
-                0
-            ],
-            "on_false": [
-                "116",
-                0
-            ],
-            "on_true": [
-                "117",
-                0
-            ]
-        },
-        "class_type": "LazySwitchKJ",
-        "_meta": {
-            "title": "Lazy Switch KJ"
-        }
-    },
-    "122": {
-        "inputs": {
-            "value": [
-                "121",
-                0
-            ]
-        },
-        "class_type": "INTConstant",
-        "_meta": {
-            "title": "Step 3 start"
-        }
-    },
-    "131": {
-        "inputs": {
-            "width": [
-                "89",
-                0
-            ],
-            "height": [
-                "88",
-                0
-            ],
-            "length": [
-                "93",
-                0
-            ],
-            "batch_size": 1,
-            "positive": [
-                "1",
-                0
-            ],
-            "negative": [
-                "19",
-                0
-            ],
-            "vae": [
-                "17",
-                0
-            ],
-            "start_image": [
-                "69",
-                0
-            ],
-            "end_image": [
-                "142",
-                0
-            ]
-        },
-        "class_type": "WanFirstLastFrameToVideo",
-        "_meta": {
-            "title": "Latent Video with Last Frame"
-        }
-    },
-    "132": {
-        "inputs": {
-            "image": "Closeup_00020.png"
-        },
-        "class_type": "LoadImage",
-        "_meta": {
-            "title": "Load Image (Last)"
-        }
-    },
-    "134": {
-        "inputs": {
-            "switch": [
-                "140",
-                0
-            ],
-            "on_false": [
-                "18",
-                0
-            ],
-            "on_true": [
-                "131",
-                0
-            ]
-        },
-        "class_type": "LazySwitchKJ",
-        "_meta": {
-            "title": "pos"
-        }
-    },
-    "135": {
-        "inputs": {
-            "switch": [
-                "140",
-                0
-            ],
-            "on_false": [
-                "18",
-                1
-            ],
-            "on_true": [
-                "131",
-                1
-            ]
-        },
-        "class_type": "LazySwitchKJ",
-        "_meta": {
-            "title": "neg"
-        }
-    },
-    "136": {
-        "inputs": {
-            "switch": [
-                "140",
-                0
-            ],
-            "on_false": [
-                "18",
-                2
-            ],
-            "on_true": [
-                "131",
-                2
-            ]
-        },
-        "class_type": "LazySwitchKJ",
-        "_meta": {
-            "title": "latent"
-        }
-    },
-    "140": {
-        "inputs": {
-            "value": false
-        },
-        "class_type": "BOOLConstant",
-        "_meta": {
-            "title": "Use Last Frame?"
-        }
-    },
-    "141": {
-        "inputs": {
-            "anything": [
-                "140",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "142": {
-        "inputs": {
-            "width": [
-                "89",
-                0
-            ],
-            "height": [
-                "88",
-                0
-            ],
-            "upscale_method": "lanczos",
-            "keep_proportion": "resize",
-            "pad_color": "0, 0, 0",
-            "crop_position": "center",
-            "divisible_by": 2,
-            "device": "cpu",
-            "image": [
-                "132",
-                0
-            ]
-        },
-        "class_type": "ImageResizeKJv2",
-        "_meta": {
-            "title": "Resize Image v2 (Last Frame)"
-        }
-    },
-    "143": {
-        "inputs": {
-            "anything": [
-                "142",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "144": {
-        "inputs": {
-            "anything": [
-                "145",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
-    },
-    "145": {
-        "inputs": {
-            "conditioning1": [
-                "134",
-                0
-            ]
-        },
-        "class_type": "ImpactCombineConditionings",
-        "_meta": {
-            "title": "Combine Conditionings"
-        }
-    },
-    "148": {
-        "inputs": {
-            "conditioning1": [
-                "135",
-                0
-            ]
-        },
-        "class_type": "ImpactCombineConditionings",
-        "_meta": {
-            "title": "Combine Conditionings"
-        }
-    },
-    "149": {
-        "inputs": {
-            "anything11": [
-                "148",
-                0
-            ]
-        },
-        "class_type": "Anything Everywhere",
-        "_meta": {
-            "title": "Anything Everywhere"
-        }
+  "1": {
+    "inputs": {
+      "text": "A beautiful girl looks at the camera. She smiles shyly while she twirls her hair around one of her fingers in a playful manner.",
+      "clip": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Positive Prompt"
     }
+  },
+  "2": {
+    "inputs": {
+      "shift": [
+        "15",
+        0
+      ],
+      "model": [
+        "24",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "Step 1 Shift"
+    }
+  },
+  "4": {
+    "inputs": {
+      "shift": [
+        "15",
+        0
+      ],
+      "model": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "Step 3 Shift"
+    }
+  },
+  "5": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": [
+        "20",
+        0
+      ],
+      "steps": [
+        "101",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "beta",
+      "start_at_step": 0,
+      "end_at_step": [
+        "109",
+        0
+      ],
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "2",
+        0
+      ],
+      "positive": [
+        "145",
+        0
+      ],
+      "negative": [
+        "148",
+        0
+      ],
+      "latent_image": [
+        "136",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler 1"
+    }
+  },
+  "7": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": [
+        "20",
+        0
+      ],
+      "steps": [
+        "101",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "beta",
+      "start_at_step": [
+        "122",
+        0
+      ],
+      "end_at_step": 1000,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "4",
+        0
+      ],
+      "positive": [
+        "145",
+        0
+      ],
+      "negative": [
+        "148",
+        0
+      ],
+      "latent_image": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler 3"
+    }
+  },
+  "9": {
+    "inputs": {
+      "ckpt_name": "rife49.pth",
+      "clear_cache_after_n_frames": 5,
+      "multiplier": [
+        "92",
+        0
+      ],
+      "fast_mode": false,
+      "ensemble": true,
+      "scale_factor": 1,
+      "frames": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "RIFE VFI",
+    "_meta": {
+      "title": "RIFE VFI (recommend rife47 and rife49)"
+    }
+  },
+  "13": {
+    "inputs": {
+      "unet_name": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Model (High Noise)"
+    }
+  },
+  "14": {
+    "inputs": {
+      "unet_name": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Model (Low Noise)"
+    }
+  },
+  "15": {
+    "inputs": {
+      "value": 5
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Model Shift"
+    }
+  },
+  "16": {
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "17": {
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "18": {
+    "inputs": {
+      "width": [
+        "89",
+        0
+      ],
+      "height": [
+        "88",
+        0
+      ],
+      "length": [
+        "93",
+        0
+      ],
+      "batch_size": 1,
+      "positive": [
+        "1",
+        0
+      ],
+      "negative": [
+        "19",
+        0
+      ],
+      "vae": [
+        "17",
+        0
+      ],
+      "start_image": [
+        "69",
+        0
+      ]
+    },
+    "class_type": "WanImageToVideo",
+    "_meta": {
+      "title": "Latent Video without Last Frame"
+    }
+  },
+  "19": {
+    "inputs": {
+      "text": "Overexposure, static, blurred details, subtitles, paintings, pictures, still, overall gray, worst quality, low quality, JPEG compression residue, ugly, mutilated, redundant fingers, poorly painted hands, poorly painted faces, deformed, disfigured, deformed limbs, fused fingers, cluttered background, three legs, a lot of people in the background, upside down, slow mo, slow movement, slow motion, slow",
+      "clip": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Negative Prompt"
+    }
+  },
+  "20": {
+    "inputs": {
+      "value": 552757690549469
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Seed"
+    }
+  },
+  "21": {
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "22": {
+    "inputs": {
+      "image": "Closeup_00020.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "24": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "lora_1": {
+        "on": false,
+        "lora": "NSFW-22-H-e8.safetensors",
+        "strength": 1
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "76",
+        0
+      ],
+      "clip": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "Step 1 Lora"
+    }
+  },
+  "26": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "lora_1": {
+        "on": false,
+        "lora": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+        "strength": 1
+      },
+      "lora_2": {
+        "on": false,
+        "lora": "NSFW-22-L-e8.safetensors",
+        "strength": 1
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "77",
+        0
+      ],
+      "clip": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "Step 3 Lora"
+    }
+  },
+  "28": {
+    "inputs": {
+      "frame_rate": [
+        "99",
+        0
+      ],
+      "loop_count": 0,
+      "filename_prefix": "2026-01-10/i2v/Closeup/Closeup",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": 19,
+      "images": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Final Video"
+    }
+  },
+  "29": {
+    "inputs": {
+      "anything11": [
+        "76",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "30": {
+    "inputs": {
+      "anything": [
+        "77",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "31": {
+    "inputs": {
+      "anything": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "33": {
+    "inputs": {
+      "anything": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "35": {
+    "inputs": {
+      "anything": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "37": {
+    "inputs": {
+      "anything11": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "40": {
+    "inputs": {
+      "anything": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "41": {
+    "inputs": {
+      "anything11": [
+        "19",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "43": {
+    "inputs": {
+      "anything": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "45": {
+    "inputs": {
+      "anything12": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "47": {
+    "inputs": {
+      "anything": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "58": {
+    "inputs": {},
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "69": {
+    "inputs": {
+      "width": [
+        "89",
+        0
+      ],
+      "height": [
+        "88",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "resize",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu",
+      "image": [
+        "22",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2 (First Frame)"
+    }
+  },
+  "70": {
+    "inputs": {
+      "anything11": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "71": {
+    "inputs": {
+      "anything11": [
+        "69",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "73": {
+    "inputs": {
+      "unet_name": "wan22EnhancedNSFWCameraPrompt_nsfwV2Q8High.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF, High Noise)"
+    }
+  },
+  "74": {
+    "inputs": {
+      "unet_name": "wan22EnhancedNSFWCameraPrompt_nsfwV2Q8Low.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF, Low Noise)"
+    }
+  },
+  "76": {
+    "inputs": {
+      "switch": [
+        "79",
+        0
+      ],
+      "on_false": [
+        "13",
+        0
+      ],
+      "on_true": [
+        "73",
+        0
+      ]
+    },
+    "class_type": "LazySwitchKJ",
+    "_meta": {
+      "title": "Lazy Switch KJ"
+    }
+  },
+  "77": {
+    "inputs": {
+      "switch": [
+        "79",
+        0
+      ],
+      "on_false": [
+        "14",
+        0
+      ],
+      "on_true": [
+        "74",
+        0
+      ]
+    },
+    "class_type": "LazySwitchKJ",
+    "_meta": {
+      "title": "Lazy Switch KJ"
+    }
+  },
+  "79": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "BOOLConstant",
+    "_meta": {
+      "title": "Use GGUF Models?"
+    }
+  },
+  "80": {
+    "inputs": {
+      "anything11": [
+        "79",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "84": {
+    "inputs": {
+      "anything": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "86": {
+    "inputs": {
+      "anything12": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "88": {
+    "inputs": {
+      "int": 1280
+    },
+    "class_type": "Width/Height Literal (Image Saver)",
+    "_meta": {
+      "title": "Video Height"
+    }
+  },
+  "89": {
+    "inputs": {
+      "int": 720
+    },
+    "class_type": "Width/Height Literal (Image Saver)",
+    "_meta": {
+      "title": "Video Width"
+    }
+  },
+  "90": {
+    "inputs": {
+      "anything": [
+        "89",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "91": {
+    "inputs": {
+      "anything": [
+        "88",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "92": {
+    "inputs": {
+      "value": 3
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Interpolation Multiplier"
+    }
+  },
+  "93": {
+    "inputs": {
+      "value": 100
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Latent Video Length"
+    }
+  },
+  "94": {
+    "inputs": {
+      "anything": [
+        "93",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "95": {
+    "inputs": {
+      "anything": [
+        "92",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "97": {
+    "inputs": {
+      "anything11": [
+        "99",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "99": {
+    "inputs": {
+      "value": 60
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Final Video Frame Rate"
+    }
+  },
+  "101": {
+    "inputs": {
+      "value": 12
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Total Steps"
+    }
+  },
+  "102": {
+    "inputs": {
+      "value": "a / 2",
+      "a": [
+        "101",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "Math 2 Steps"
+    }
+  },
+  "103": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "BOOLConstant",
+    "_meta": {
+      "title": "Use 2 Samplers?"
+    }
+  },
+  "104": {
+    "inputs": {
+      "switch": [
+        "103",
+        0
+      ],
+      "on_false": [
+        "105",
+        0
+      ],
+      "on_true": [
+        "102",
+        0
+      ]
+    },
+    "class_type": "LazySwitchKJ",
+    "_meta": {
+      "title": "Lazy Switch KJ"
+    }
+  },
+  "105": {
+    "inputs": {
+      "value": "a / 3",
+      "a": [
+        "101",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "Math 3 Steps"
+    }
+  },
+  "107": {
+    "inputs": {
+      "anything": [
+        "101",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "108": {
+    "inputs": {
+      "anything11": [
+        "109",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Step 1 end"
+    }
+  },
+  "109": {
+    "inputs": {
+      "value": [
+        "104",
+        0
+      ]
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Step 1 end"
+    }
+  },
+  "110": {
+    "inputs": {
+      "value": [
+        "104",
+        0
+      ]
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Step 2 start"
+    }
+  },
+  "111": {
+    "inputs": {
+      "anything": [
+        "110",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Step 2 start"
+    }
+  },
+  "112": {
+    "inputs": {
+      "value": "a * 2",
+      "a": [
+        "104",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "Math 2 Steps"
+    }
+  },
+  "113": {
+    "inputs": {
+      "value": [
+        "112",
+        0
+      ]
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Step 2 end"
+    }
+  },
+  "114": {
+    "inputs": {
+      "anything": [
+        "113",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Step 2 end"
+    }
+  },
+  "116": {
+    "inputs": {
+      "value": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Step 3 start (3 steps)"
+    }
+  },
+  "117": {
+    "inputs": {
+      "value": [
+        "104",
+        0
+      ]
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Step 3 start (2 steps)"
+    }
+  },
+  "118": {
+    "inputs": {
+      "anything": [
+        "122",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Step 3 start"
+    }
+  },
+  "120": {
+    "inputs": {
+      "value": "a * 2",
+      "a": [
+        "104",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "Math 2 Steps"
+    }
+  },
+  "121": {
+    "inputs": {
+      "switch": [
+        "103",
+        0
+      ],
+      "on_false": [
+        "116",
+        0
+      ],
+      "on_true": [
+        "117",
+        0
+      ]
+    },
+    "class_type": "LazySwitchKJ",
+    "_meta": {
+      "title": "Lazy Switch KJ"
+    }
+  },
+  "122": {
+    "inputs": {
+      "value": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Step 3 start"
+    }
+  },
+  "131": {
+    "inputs": {
+      "width": [
+        "89",
+        0
+      ],
+      "height": [
+        "88",
+        0
+      ],
+      "length": [
+        "93",
+        0
+      ],
+      "batch_size": 1,
+      "positive": [
+        "1",
+        0
+      ],
+      "negative": [
+        "19",
+        0
+      ],
+      "vae": [
+        "17",
+        0
+      ],
+      "start_image": [
+        "69",
+        0
+      ],
+      "end_image": [
+        "142",
+        0
+      ]
+    },
+    "class_type": "WanFirstLastFrameToVideo",
+    "_meta": {
+      "title": "Latent Video with Last Frame"
+    }
+  },
+  "132": {
+    "inputs": {
+      "image": "Closeup_00020.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image (Last)"
+    }
+  },
+  "134": {
+    "inputs": {
+      "switch": [
+        "140",
+        0
+      ],
+      "on_false": [
+        "18",
+        0
+      ],
+      "on_true": [
+        "131",
+        0
+      ]
+    },
+    "class_type": "LazySwitchKJ",
+    "_meta": {
+      "title": "pos"
+    }
+  },
+  "135": {
+    "inputs": {
+      "switch": [
+        "140",
+        0
+      ],
+      "on_false": [
+        "18",
+        1
+      ],
+      "on_true": [
+        "131",
+        1
+      ]
+    },
+    "class_type": "LazySwitchKJ",
+    "_meta": {
+      "title": "neg"
+    }
+  },
+  "136": {
+    "inputs": {
+      "switch": [
+        "140",
+        0
+      ],
+      "on_false": [
+        "18",
+        2
+      ],
+      "on_true": [
+        "131",
+        2
+      ]
+    },
+    "class_type": "LazySwitchKJ",
+    "_meta": {
+      "title": "latent"
+    }
+  },
+  "140": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "BOOLConstant",
+    "_meta": {
+      "title": "Use Last Frame?"
+    }
+  },
+  "141": {
+    "inputs": {
+      "anything": [
+        "140",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "142": {
+    "inputs": {
+      "width": [
+        "89",
+        0
+      ],
+      "height": [
+        "88",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "resize",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu",
+      "image": [
+        "132",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2 (Last Frame)"
+    }
+  },
+  "143": {
+    "inputs": {
+      "anything": [
+        "142",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "144": {
+    "inputs": {
+      "anything": [
+        "145",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  },
+  "145": {
+    "inputs": {
+      "conditioning1": [
+        "134",
+        0
+      ]
+    },
+    "class_type": "ImpactCombineConditionings",
+    "_meta": {
+      "title": "Combine Conditionings"
+    }
+  },
+  "148": {
+    "inputs": {
+      "conditioning1": [
+        "135",
+        0
+      ]
+    },
+    "class_type": "ImpactCombineConditionings",
+    "_meta": {
+      "title": "Combine Conditionings"
+    }
+  },
+  "149": {
+    "inputs": {
+      "anything11": [
+        "148",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "Anything Everywhere"
+    }
+  }
 }
