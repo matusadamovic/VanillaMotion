@@ -37,6 +37,41 @@ PLACEHOLDER_DONE = {"COMPLETED", "FAILED", "CANCELLED"}
 SAME_WOMAN_PROMPT = "The exact same woman"
 
 
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+COMFY_OUTPUT_GRACE = _env_int("COMFY_OUTPUT_GRACE", 45)
+BATCH_MAX_RETRIES = _env_int("BATCH_MAX_RETRIES", 2)
+BATCH_RETRY_DELAY = _env_float("BATCH_RETRY_DELAY", 5.0)
+BATCH_RESTART_ON_FAILURE = _env_bool("BATCH_RESTART_ON_FAILURE", True)
+UPLOAD_MAX_RETRIES = _env_int("UPLOAD_MAX_RETRIES", 3)
+UPLOAD_RETRY_DELAY = _env_float("UPLOAD_RETRY_DELAY", 3.0)
+
+
 def db_conn():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
@@ -1494,6 +1529,7 @@ def run_comfy_prompt(
     with open(output_dir / workflow_name, "w", encoding="utf-8") as f:
         json.dump(workflow, f, ensure_ascii=False, indent=2)
 
+    started_at = time.time()
     prompt_id = send_prompt(workflow)
     logging.info("COMFY_SUBMITTED %s prompt_id=%s", label_tag, prompt_id)
 
@@ -1503,7 +1539,7 @@ def run_comfy_prompt(
         json.dump(history, f, ensure_ascii=False, indent=2)
 
     logging.info("COMFY_DONE %s prompt_id=%s", label_tag, prompt_id)
-    video_path = resolve_output_video(history, output_dir=output_dir)
+    video_path = resolve_output_video(history, output_dir=output_dir, since_ts=started_at)
     logging.info(
         "VIDEO_PATH %s path=%s size_bytes=%s",
         label_tag,
@@ -1513,37 +1549,85 @@ def run_comfy_prompt(
     return history, video_path
 
 
-def resolve_output_video(history: Dict[str, Any], output_dir: pathlib.Path) -> pathlib.Path:
+def resolve_output_video(
+    history: Dict[str, Any],
+    output_dir: pathlib.Path,
+    since_ts: Optional[float] = None,
+    wait_seconds: Optional[int] = None,
+) -> pathlib.Path:
     outputs = history.get("outputs") or {}
 
-    # 1) from history metadata
+    def _is_recent(path: pathlib.Path) -> bool:
+        if since_ts is None:
+            return True
+        try:
+            return path.stat().st_mtime >= (since_ts - 1.0)
+        except Exception:
+            return False
+
+    def _expected_output_paths() -> list[pathlib.Path]:
+        paths: list[pathlib.Path] = []
+        if not isinstance(outputs, dict):
+            return paths
+        for v in outputs.values():
+            items = v if isinstance(v, list) else [v]
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                fn = item.get("filename") or ""
+                if not fn.endswith(".mp4"):
+                    continue
+                sub = item.get("subfolder") or ""
+                paths.append(output_dir / sub / fn)
+        return paths
+
+    def _pick_latest_mp4(root: pathlib.Path) -> Optional[pathlib.Path]:
+        candidates: list[tuple[float, pathlib.Path]] = []
+        try:
+            for p in root.glob("**/*.mp4"):
+                try:
+                    mtime = p.stat().st_mtime
+                except Exception:
+                    continue
+                if since_ts is not None and mtime < (since_ts - 1.0):
+                    continue
+                candidates.append((mtime, p))
+        except Exception:
+            return None
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        return candidates[0][1]
+
+    # 1) from history metadata (if the file exists and is recent)
     try:
-        if isinstance(outputs, dict):
-            for v in outputs.values():
-                items = v if isinstance(v, list) else [v]
-                for item in items:
-                    if not isinstance(item, dict):
-                        continue
-                    fn = item.get("filename") or ""
-                    if not fn.endswith(".mp4"):
-                        continue
-                    sub = item.get("subfolder") or ""
-                    p = output_dir / sub / fn
-                    if p.exists():
-                        return p
+        for p in _expected_output_paths():
+            if p.exists() and _is_recent(p):
+                return p
     except Exception:
         pass
 
-    # 2) scan persisted output dir
-    candidates = sorted(output_dir.glob("**/*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if candidates:
-        return candidates[0]
+    # 2) wait a bit for the file to materialize, then scan output dirs
+    wait_for = COMFY_OUTPUT_GRACE if wait_seconds is None else int(wait_seconds)
+    deadline = time.time() + max(0, wait_for)
+    while time.time() <= deadline:
+        try:
+            for p in _expected_output_paths():
+                if p.exists() and _is_recent(p):
+                    return p
+        except Exception:
+            pass
 
-    # 3) fallback comfy output
-    comfy_out = pathlib.Path(COMFY_ROOT) / "output"
-    candidates = sorted(comfy_out.glob("**/*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if candidates:
-        return candidates[0]
+        picked = _pick_latest_mp4(output_dir)
+        if picked:
+            return picked
+
+        comfy_out = pathlib.Path(COMFY_ROOT) / "output"
+        picked = _pick_latest_mp4(comfy_out)
+        if picked:
+            return picked
+
+        time.sleep(1)
 
     raise RuntimeError(f"No output video produced. output_dir={output_dir}")
 
@@ -1979,22 +2063,45 @@ def build_caption_workflow4(
 
 def upload_video(chat_id: int, message_id: int, video_path: pathlib.Path, caption: str = "Hotovo") -> bool:
     api = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-    sent_new = False
-    with open(video_path, "rb") as f:
-        files = {"video": ("video.mp4", f, "video/mp4")}
-        data = {"chat_id": chat_id, "caption": caption}
-        r = requests.post(f"{api}/sendVideo", data=data, files=files, timeout=120)
-        sent_new = r.ok
-        if not r.ok and message_id:
-            f.seek(0)
-            files2 = {"media": ("video.mp4", f, "video/mp4")}
-            data2 = {
-                "chat_id": chat_id,
-                "message_id": message_id,
-                "media": json.dumps({"type": "video", "media": "attach://media", "caption": caption}),
-            }
-            requests.post(f"{api}/editMessageMedia", data=data2, files=files2, timeout=120)
-    return sent_new
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, max(1, UPLOAD_MAX_RETRIES) + 1):
+        try:
+            with open(video_path, "rb") as f:
+                files = {"video": ("video.mp4", f, "video/mp4")}
+                data = {"chat_id": chat_id, "caption": caption}
+                r = requests.post(f"{api}/sendVideo", data=data, files=files, timeout=120)
+                if r.ok:
+                    return True
+                if message_id:
+                    f.seek(0)
+                    files2 = {"media": ("video.mp4", f, "video/mp4")}
+                    data2 = {
+                        "chat_id": chat_id,
+                        "message_id": message_id,
+                        "media": json.dumps({"type": "video", "media": "attach://media", "caption": caption}),
+                    }
+                    r2 = requests.post(f"{api}/editMessageMedia", data=data2, files=files2, timeout=120)
+                    if r2.ok:
+                        return True
+                logging.warning(
+                    "Upload failed (attempt %s/%s): sendVideo=%s",
+                    attempt,
+                    UPLOAD_MAX_RETRIES,
+                    r.status_code,
+                )
+        except Exception as exc:
+            last_exc = exc
+            logging.warning(
+                "Upload exception (attempt %s/%s): %s",
+                attempt,
+                UPLOAD_MAX_RETRIES,
+                exc,
+            )
+        if attempt < UPLOAD_MAX_RETRIES:
+            time.sleep(UPLOAD_RETRY_DELAY)
+    if last_exc is not None:
+        logging.error("Upload video failed after retries: %s", last_exc)
+    return False
 
 
 def update_placeholder_text(chat_id: int, message_id: int, text: str) -> None:
@@ -2316,6 +2423,11 @@ def handler(event):
     comfy_input_dir = pathlib.Path(COMFY_ROOT) / "input"
     targets: list[pathlib.Path] = []
 
+    batch_skipped_items: list[str] = []
+    upload_failed_items: list[str] = []
+    placeholder_chat_id = chat_id
+    placeholder_message_id = 0
+
     try:
         state_row = mark_running(job_id)
         if not state_row:
@@ -2341,7 +2453,19 @@ def handler(event):
 
         video_path: Optional[pathlib.Path] = None
         batch_skipped = 0
-        batch_skipped_items: list[str] = []
+
+        comfy_proc: Optional[subprocess.Popen] = None
+
+        def _restart_comfy(reason: str) -> None:
+            nonlocal comfy_proc
+            logging.warning("Restarting ComfyUI (%s)", reason)
+            try:
+                if comfy_proc is not None:
+                    stop_comfy(comfy_proc)
+            except Exception:
+                logging.exception("Failed to stop ComfyUI cleanly")
+            comfy_proc = start_comfy(output_dir=output_dir, temp_dir=temp_dir)
+
         comfy_proc = start_comfy(output_dir=output_dir, temp_dir=temp_dir)
         try:
             if is_batch:
@@ -2374,49 +2498,89 @@ def handler(event):
 
                     for weight in weights:
                         weight_label = f"{float(weight):.2f}".rstrip("0").rstrip(".") or "0"
-                        try:
-                            history, video_path = run_comfy_prompt(
-                                label=None,
-                                input_filename=input_filename,
-                                lora_type=lora_type,
-                                lora_filename=lora.get("filename"),
-                                lora_strength=float(weight),
-                                lora_high_filename=lora.get("high_filename"),
-                                lora_high_strength=float(weight),
-                                lora_low_filename=lora.get("low_filename"),
-                                lora_low_strength=float(weight),
-                                model_high_filename=model_high_filename,
-                                model_low_filename=model_low_filename,
-                                positive_prompt=prompt_text,
-                                use_lora=True,
-                                use_gguf=use_gguf,
-                                use_last_frame=use_last_frame,
-                                video_width=video_width,
-                                video_height=video_height,
-                                total_steps=total_steps,
-                                rife_multiplier=rife_multiplier,
-                                output_dir=output_dir,
-                            )
-                        except Exception as exc:
-                            if _should_skip_batch_error(exc):
-                                processed += 1
-                                batch_skipped += 1
-                                reason = _format_batch_skip_reason(exc)
-                                batch_skipped_items.append(f"{lora_label} (w={weight_label}) - {reason}")
+                        skipped = False
+                        attempts = 0
+                        while True:
+                            try:
+                                history, video_path = run_comfy_prompt(
+                                    label=None,
+                                    input_filename=input_filename,
+                                    lora_type=lora_type,
+                                    lora_filename=lora.get("filename"),
+                                    lora_strength=float(weight),
+                                    lora_high_filename=lora.get("high_filename"),
+                                    lora_high_strength=float(weight),
+                                    lora_low_filename=lora.get("low_filename"),
+                                    lora_low_strength=float(weight),
+                                    model_high_filename=model_high_filename,
+                                    model_low_filename=model_low_filename,
+                                    positive_prompt=prompt_text,
+                                    use_lora=True,
+                                    use_gguf=use_gguf,
+                                    use_last_frame=use_last_frame,
+                                    video_width=video_width,
+                                    video_height=video_height,
+                                    total_steps=total_steps,
+                                    rife_multiplier=rife_multiplier,
+                                    output_dir=output_dir,
+                                )
+                                break
+                            except Exception as exc:
+                                if _should_skip_batch_error(exc):
+                                    processed += 1
+                                    batch_skipped += 1
+                                    reason = _format_batch_skip_reason(exc)
+                                    batch_skipped_items.append(f"{lora_label} (w={weight_label}) - {reason}")
+                                    logging.warning(
+                                        "Batch5s skip lora=%s weight=%s error=%s",
+                                        lora_key,
+                                        weight_label,
+                                        exc,
+                                    )
+                                    if placeholder_message_id:
+                                        update_placeholder_text(
+                                            placeholder_chat_id,
+                                            placeholder_message_id,
+                                            f"Batch 5s: {processed}/{total} (skip {lora_label}, w={weight_label})",
+                                        )
+                                    skipped = True
+                                    break
+
+                                attempts += 1
+                                if attempts > max(0, BATCH_MAX_RETRIES):
+                                    processed += 1
+                                    batch_skipped += 1
+                                    reason = _format_batch_skip_reason(exc)
+                                    batch_skipped_items.append(
+                                        f"{lora_label} (w={weight_label}) - {reason} (retries {attempts - 1})"
+                                    )
+                                    logging.warning(
+                                        "Batch5s give-up lora=%s weight=%s error=%s",
+                                        lora_key,
+                                        weight_label,
+                                        exc,
+                                    )
+                                    if placeholder_message_id:
+                                        update_placeholder_text(
+                                            placeholder_chat_id,
+                                            placeholder_message_id,
+                                            f"Batch 5s: {processed}/{total} (skip {lora_label}, w={weight_label})",
+                                        )
+                                    skipped = True
+                                    break
                                 logging.warning(
-                                    "Batch5s skip lora=%s weight=%s error=%s",
+                                    "Batch5s retry lora=%s weight=%s attempt=%s/%s error=%s",
                                     lora_key,
                                     weight_label,
+                                    attempts,
+                                    BATCH_MAX_RETRIES,
                                     exc,
                                 )
-                                if placeholder_message_id:
-                                    update_placeholder_text(
-                                        placeholder_chat_id,
-                                        placeholder_message_id,
-                                        f"Batch 5s: {processed}/{total} (skip {lora_label}, w={weight_label})",
-                                    )
-                                continue
-                            raise
+                                if BATCH_RESTART_ON_FAILURE:
+                                    _restart_comfy(f"batch retry {attempts}/{BATCH_MAX_RETRIES}")
+                                time.sleep(BATCH_RETRY_DELAY)
+                        if skipped:
+                            continue
                         processed += 1
                         last_video_path = video_path
                         caption = build_caption(
@@ -2437,7 +2601,9 @@ def handler(event):
                             video_height=video_height,
                             total_steps=total_steps,
                         )
-                        upload_video(placeholder_chat_id, placeholder_message_id, video_path, caption=caption)
+                        sent_ok = upload_video(placeholder_chat_id, placeholder_message_id, video_path, caption=caption)
+                        if not sent_ok:
+                            upload_failed_items.append(f"{lora_label} (w={weight_label})")
                         if placeholder_message_id:
                             update_placeholder_text(
                                 placeholder_chat_id,
@@ -2581,7 +2747,8 @@ def handler(event):
                     output_dir=output_dir,
                 )
         finally:
-            stop_comfy(comfy_proc)
+            if comfy_proc is not None:
+                stop_comfy(comfy_proc)
         size_bytes = None
         if video_path:
             size_bytes = video_path.stat().st_size if video_path.exists() else None
@@ -2601,6 +2768,10 @@ def handler(event):
                 if batch_skipped_items:
                     lines = ["Preskocene LoRA:"]
                     lines.extend(f"- {item}" for item in batch_skipped_items)
+                    send_text_lines(int(finalize_info["chat_id"]), lines)
+                if upload_failed_items:
+                    lines = ["Upload failed (retry later):"]
+                    lines.extend(f"- {item}" for item in upload_failed_items)
                     send_text_lines(int(finalize_info["chat_id"]), lines)
             return {"status": "completed", "video": str(video_path) if video_path else ""}
 
@@ -2715,7 +2886,22 @@ def handler(event):
         return {"status": "completed", "video": str(video_path)}
     except Exception as exc:
         logging.exception("Job %s failed", job_id)
-        finalize(job_id, "FAILED", error=str(exc))
+        finalize_info = finalize(job_id, "FAILED", error=str(exc))
+        if is_batch and (batch_skipped_items or upload_failed_items):
+            target_chat_id = None
+            if finalize_info:
+                target_chat_id = int(finalize_info.get("chat_id") or 0) or None
+            if target_chat_id is None:
+                target_chat_id = int(placeholder_chat_id) if placeholder_chat_id else None
+            if target_chat_id:
+                if batch_skipped_items:
+                    lines = ["Preskocene LoRA:"]
+                    lines.extend(f"- {item}" for item in batch_skipped_items)
+                    send_text_lines(target_chat_id, lines)
+                if upload_failed_items:
+                    lines = ["Upload failed (retry later):"]
+                    lines.extend(f"- {item}" for item in upload_failed_items)
+                    send_text_lines(target_chat_id, lines)
         return {"status": "failed", "error": str(exc)}
     finally:
         for target in targets:
