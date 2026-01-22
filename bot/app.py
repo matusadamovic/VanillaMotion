@@ -92,6 +92,8 @@ for key, cfg in MODEL_CATALOG.items():
         continue
     MODEL_KEYS_BY_TYPE[model_type].append(key)
 MODEL_CHOICES = [("WAN", "wan"), ("GGUF", "gguf")]
+DEFAULT_MODEL_KEY = "gguf_tastysin_v8"
+DEFAULT_MODEL_TYPE = "gguf"
 
 rate_limit_cache: Dict[int, float] = {}
 dedup_cache: Dict[int, float] = {}  # update_id -> timestamp
@@ -328,6 +330,25 @@ def _get_model_cfg_by_index(model_type: str, idx: int) -> Tuple[Optional[str], O
     if not cfg.get("high_filename") or not cfg.get("low_filename"):
         return None, None
     return model_key, cfg
+
+
+def _get_default_model_selection() -> Tuple[str, int, str, Dict[str, Any]]:
+    gguf_keys = MODEL_KEYS_BY_TYPE.get(DEFAULT_MODEL_TYPE) or []
+    if DEFAULT_MODEL_KEY in gguf_keys:
+        cfg = MODEL_CATALOG.get(DEFAULT_MODEL_KEY)
+        if isinstance(cfg, dict):
+            return DEFAULT_MODEL_TYPE, gguf_keys.index(DEFAULT_MODEL_KEY), DEFAULT_MODEL_KEY, cfg
+
+    for model_type in ("gguf", "wan"):
+        keys = MODEL_KEYS_BY_TYPE.get(model_type) or []
+        if not keys:
+            continue
+        model_key = keys[0]
+        cfg = MODEL_CATALOG.get(model_key)
+        if isinstance(cfg, dict):
+            return model_type, 0, model_key, cfg
+
+    raise RuntimeError("default_model_not_found")
 
 
 # ---------------- Telegram helpers ----------------
@@ -1204,8 +1225,35 @@ async def prompt_extended_model(
 ) -> None:
     if not (chat_id and message_id):
         return
-    reply_markup = build_model_keyboard_ext(job_id, tag_prefix=tag_prefix)
-    await edit_message_text(chat_id, message_id, f"{label}: vyber model (WAN/GGUF)", reply_markup)
+    try:
+        model_type, model_idx, _model_key, _model_cfg = _get_default_model_selection()
+    except Exception:
+        await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
+        return
+
+    if tag_prefix == "n":
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        sess["model_type"] = model_type
+        sess["model_idx"] = model_idx
+        _wf4_session_touch(sess)
+        await prompt_extended_resolution(
+            chat_id=chat_id,
+            message_id=message_id,
+            label=label,
+            job_id=job_id,
+            tag_prefix="n",
+        )
+        return
+
+    sess = _ext_session_get(job_id)
+    if not sess:
+        return
+    sess["model_type"] = model_type
+    sess["model_idx"] = model_idx
+    _ext_session_touch(sess)
+    await prompt_extended_last_frame(chat_id=chat_id, message_id=message_id, label=label, job_id=job_id)
 
 
 async def prompt_extended_last_frame(
@@ -2074,11 +2122,7 @@ async def _workflow4_submit_from_session(
 # ---------------- Update processing ----------------
 
 def rate_limit(chat_id: int):
-    now = time.time()
-    last = rate_limit_cache.get(chat_id, 0.0)
-    if now - last < RATE_LIMIT_SECONDS:
-        raise RuntimeError("rate_limited")
-    rate_limit_cache[chat_id] = now
+    return
 
 
 def _dedup(update: Dict[str, Any]) -> None:
@@ -2526,26 +2570,20 @@ async def process_callback(update: Dict[str, Any]) -> None:
     if tag == "nmt":
         if len(parts) != 3:
             return
-        model_type = parts[1]
         job_id = parts[2]
-        if model_type not in ("wan", "gguf"):
-            return
         sess = _wf4_session_get(job_id)
         if not sess:
             return
-        sess["model_type"] = model_type
-        _wf4_session_touch(sess)
-
-        model_keys = MODEL_KEYS_BY_TYPE.get(model_type) or []
-        if len(model_keys) > 1:
+        try:
+            model_type, model_idx, _model_key, _model_cfg = _get_default_model_selection()
+        except Exception:
             if chat_id and message_id:
                 label = _workflow4_combo_label(sess)
-                model_type_label = _model_type_label(model_type == "gguf")
-                reply_markup = build_unet_keyboard_ext(job_id, model_type, page=0, tag_prefix="n")
-                await edit_message_text(chat_id, message_id, f"{label}: vyber {model_type_label} model", reply_markup)
+                await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
             return
 
-        sess["model_idx"] = 0 if model_keys else -1
+        sess["model_type"] = model_type
+        sess["model_idx"] = model_idx
         _wf4_session_touch(sess)
         if chat_id and message_id:
             label = _workflow4_combo_label(sess)
@@ -2583,15 +2621,18 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if len(parts) != 4:
             return
         try:
-            model_type = parts[1]
-            model_idx = int(parts[2])
             job_id = parts[3]
         except Exception:
             return
-        if model_type not in ("wan", "gguf"):
-            return
         sess = _wf4_session_get(job_id)
         if not sess:
+            return
+        try:
+            model_type, model_idx, _model_key, _model_cfg = _get_default_model_selection()
+        except Exception:
+            if chat_id and message_id:
+                label = _workflow4_combo_label(sess)
+                await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
             return
         sess["model_type"] = model_type
         sess["model_idx"] = model_idx
@@ -2945,26 +2986,20 @@ async def process_callback(update: Dict[str, Any]) -> None:
     if tag == "emt":
         if len(parts) != 3:
             return
-        model_type = parts[1]
         job_id = parts[2]
-        if model_type not in ("wan", "gguf"):
-            return
         sess = _ext_session_get(job_id)
         if not sess:
             return
-        sess["model_type"] = model_type
-        _ext_session_touch(sess)
-
-        model_keys = MODEL_KEYS_BY_TYPE.get(model_type) or []
-        if len(model_keys) > 1:
+        try:
+            model_type, model_idx, _model_key, _model_cfg = _get_default_model_selection()
+        except Exception:
             if chat_id and message_id:
                 label = _extended_combo_label(sess)
-                model_type_label = _model_type_label(model_type == "gguf")
-                reply_markup = build_unet_keyboard_ext(job_id, model_type, page=0)
-                await edit_message_text(chat_id, message_id, f"{label}: vyber {model_type_label} model", reply_markup)
+                await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
             return
 
-        sess["model_idx"] = 0 if model_keys else -1
+        sess["model_type"] = model_type
+        sess["model_idx"] = model_idx
         _ext_session_touch(sess)
         if chat_id and message_id:
             label = _extended_combo_label(sess)
@@ -2992,15 +3027,18 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if len(parts) != 4:
             return
         try:
-            model_type = parts[1]
-            model_idx = int(parts[2])
             job_id = parts[3]
         except Exception:
             return
-        if model_type not in ("wan", "gguf"):
-            return
         sess = _ext_session_get(job_id)
         if not sess:
+            return
+        try:
+            model_type, model_idx, _model_key, _model_cfg = _get_default_model_selection()
+        except Exception:
+            if chat_id and message_id:
+                label = _extended_combo_label(sess)
+                await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
             return
         sess["model_type"] = model_type
         sess["model_idx"] = model_idx
@@ -3322,8 +3360,23 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
 
         label = str(cfg.get("label") or lora_key)
-        reply_markup = build_model_keyboard(job_id, lora_idx, is_pair=False, weight_idx=weight_idx)
-        await edit_message_text(chat_id, message_id, f"{label}: vyber model (WAN/GGUF)", reply_markup)
+        try:
+            model_type, model_idx, _model_key, _model_cfg = _get_default_model_selection()
+        except Exception:
+            await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
+            return
+
+        await prompt_last_frame(
+            chat_id=chat_id,
+            message_id=message_id,
+            label=label,
+            job_id=job_id,
+            is_pair=False,
+            lora_idx=lora_idx,
+            weight_idx=weight_idx,
+            model_type=model_type,
+            model_idx=model_idx,
+        )
         return
 
     if tag == "wh":
@@ -3382,8 +3435,24 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
 
         label = str(cfg.get("label") or lora_key)
-        reply_markup = build_model_keyboard(job_id, lora_idx, is_pair=True, high_idx=high_idx, low_idx=low_idx)
-        await edit_message_text(chat_id, message_id, f"{label}: vyber model (WAN/GGUF)", reply_markup)
+        try:
+            model_type, model_idx, _model_key, _model_cfg = _get_default_model_selection()
+        except Exception:
+            await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
+            return
+
+        await prompt_last_frame(
+            chat_id=chat_id,
+            message_id=message_id,
+            label=label,
+            job_id=job_id,
+            is_pair=True,
+            lora_idx=lora_idx,
+            high_idx=high_idx,
+            low_idx=low_idx,
+            model_type=model_type,
+            model_idx=model_idx,
+        )
         return
 
     if tag == "mm":
@@ -3397,13 +3466,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if len(parts) == 6:
             try:
                 weight_idx = int(parts[2])
-                model_type = parts[3]
-                model_idx = int(parts[4])
                 job_id = parts[5]
             except Exception:
-                return
-
-            if model_type not in ("wan", "gguf"):
                 return
 
             lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
@@ -3415,9 +3479,12 @@ async def process_callback(update: Dict[str, Any]) -> None:
             options, _ = _weight_options_for(cfg, "single")
             if weight_idx < 0 or weight_idx >= len(options):
                 return
-
-            model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
-            if not model_cfg:
+            try:
+                model_type, model_idx, model_key, model_cfg = _get_default_model_selection()
+            except Exception:
+                if chat_id and message_id:
+                    label = str(cfg.get("label") or lora_key)
+                    await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
                 return
 
             label = str(cfg.get("label") or lora_key)
@@ -3443,12 +3510,12 @@ async def process_callback(update: Dict[str, Any]) -> None:
                     use_last_frame=False,
                     video_width=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["width"],
                     video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
-                total_steps=DEFAULT_STEPS,
-                positive_prompt=cfg.get("positive"),
-                rife_multiplier=DEFAULT_INTERPOLATION_CLASSIC,
-                model_label=str(model_cfg.get("label") or model_key),
-                model_high_filename=model_cfg.get("high_filename"),
-                model_low_filename=model_cfg.get("low_filename"),
+                    total_steps=DEFAULT_STEPS,
+                    positive_prompt=cfg.get("positive"),
+                    rife_multiplier=DEFAULT_INTERPOLATION_CLASSIC,
+                    model_label=str(model_cfg.get("label") or model_key),
+                    model_high_filename=model_cfg.get("high_filename"),
+                    model_low_filename=model_cfg.get("low_filename"),
                     chat_id=chat_id,
                     message_id=message_id,
                 )
@@ -3457,13 +3524,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
         try:
             high_idx = int(parts[2])
             low_idx = int(parts[3])
-            model_type = parts[4]
-            model_idx = int(parts[5])
             job_id = parts[6]
         except Exception:
-            return
-
-        if model_type not in ("wan", "gguf"):
             return
 
         lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
@@ -3478,9 +3540,12 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         if low_idx < 0 or low_idx >= len(options_low):
             return
-
-        model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
-        if not model_cfg:
+        try:
+            model_type, model_idx, model_key, model_cfg = _get_default_model_selection()
+        except Exception:
+            if chat_id and message_id:
+                label = str(cfg.get("label") or lora_key)
+                await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
             return
 
         label = str(cfg.get("label") or lora_key)
@@ -4054,12 +4119,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
         try:
             lora_idx = int(parts[1])
             weight_idx = int(parts[2])
-            model_type = parts[3]
             job_id = parts[4]
         except Exception:
-            return
-
-        if model_type not in ("wan", "gguf"):
             return
 
         lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
@@ -4071,24 +4132,14 @@ async def process_callback(update: Dict[str, Any]) -> None:
         options, _ = _weight_options_for(cfg, "single")
         if weight_idx < 0 or weight_idx >= len(options):
             return
-
-        use_gguf = model_type == "gguf"
-        model_keys = MODEL_KEYS_BY_TYPE.get(model_type) or []
-        if len(model_keys) > 1 and chat_id and message_id:
-            label = str(cfg.get("label") or lora_key)
-            model_type_label = _model_type_label(use_gguf)
-            reply_markup = build_unet_keyboard(
-                job_id,
-                model_type,
-                is_pair=False,
-                lora_idx=lora_idx,
-                weight_idx=weight_idx,
-                page=0,
-            )
-            await edit_message_text(chat_id, message_id, f"{label}: vyber {model_type_label} model", reply_markup)
+        try:
+            model_type, model_idx, model_key, model_cfg = _get_default_model_selection()
+        except Exception:
+            if chat_id and message_id:
+                label = str(cfg.get("label") or lora_key)
+                await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
             return
 
-        model_idx = 0 if model_keys else -1
         label = str(cfg.get("label") or lora_key)
         if chat_id and message_id:
             await prompt_last_frame(
@@ -4104,22 +4155,13 @@ async def process_callback(update: Dict[str, Any]) -> None:
             )
             return
 
-        model_label = None
-        model_high_filename = None
-        model_low_filename = None
-        if model_idx >= 0:
-            model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
-            if model_cfg:
-                model_label = str(model_cfg.get("label") or model_key)
-                model_high_filename = model_cfg.get("high_filename")
-                model_low_filename = model_cfg.get("low_filename")
-
+        model_label = str(model_cfg.get("label") or model_key)
         await _submit_single_job(
             job_id=job_id,
             lora_key=lora_key,
             cfg=cfg,
             weight=options[weight_idx],
-            use_gguf=use_gguf,
+            use_gguf=(model_type == "gguf"),
             use_last_frame=False,
             video_width=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["width"],
             video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
@@ -4127,8 +4169,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
             positive_prompt=cfg.get("positive"),
             rife_multiplier=DEFAULT_INTERPOLATION_CLASSIC,
             model_label=model_label,
-            model_high_filename=model_high_filename,
-            model_low_filename=model_low_filename,
+            model_high_filename=model_cfg.get("high_filename"),
+            model_low_filename=model_cfg.get("low_filename"),
             chat_id=chat_id,
             message_id=message_id,
         )
@@ -4141,12 +4183,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
             lora_idx = int(parts[1])
             high_idx = int(parts[2])
             low_idx = int(parts[3])
-            model_type = parts[4]
             job_id = parts[5]
         except Exception:
-            return
-
-        if model_type not in ("wan", "gguf"):
             return
 
         lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
@@ -4161,25 +4199,14 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         if low_idx < 0 or low_idx >= len(options_low):
             return
-
-        use_gguf = model_type == "gguf"
-        model_keys = MODEL_KEYS_BY_TYPE.get(model_type) or []
-        if len(model_keys) > 1 and chat_id and message_id:
-            label = str(cfg.get("label") or lora_key)
-            model_type_label = _model_type_label(use_gguf)
-            reply_markup = build_unet_keyboard(
-                job_id,
-                model_type,
-                is_pair=True,
-                lora_idx=lora_idx,
-                high_idx=high_idx,
-                low_idx=low_idx,
-                page=0,
-            )
-            await edit_message_text(chat_id, message_id, f"{label}: vyber {model_type_label} model", reply_markup)
+        try:
+            model_type, model_idx, model_key, model_cfg = _get_default_model_selection()
+        except Exception:
+            if chat_id and message_id:
+                label = str(cfg.get("label") or lora_key)
+                await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
             return
 
-        model_idx = 0 if model_keys else -1
         label = str(cfg.get("label") or lora_key)
         if chat_id and message_id:
             await prompt_last_frame(
@@ -4196,23 +4223,14 @@ async def process_callback(update: Dict[str, Any]) -> None:
             )
             return
 
-        model_label = None
-        model_high_filename = None
-        model_low_filename = None
-        if model_idx >= 0:
-            model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
-            if model_cfg:
-                model_label = str(model_cfg.get("label") or model_key)
-                model_high_filename = model_cfg.get("high_filename")
-                model_low_filename = model_cfg.get("low_filename")
-
+        model_label = str(model_cfg.get("label") or model_key)
         await _submit_pair_job(
             job_id=job_id,
             lora_key=lora_key,
             cfg=cfg,
             high_weight=options_high[high_idx],
             low_weight=options_low[low_idx],
-            use_gguf=use_gguf,
+            use_gguf=(model_type == "gguf"),
             use_last_frame=False,
             video_width=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["width"],
             video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
@@ -4220,8 +4238,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
             positive_prompt=cfg.get("positive"),
             rife_multiplier=DEFAULT_INTERPOLATION_CLASSIC,
             model_label=model_label,
-            model_high_filename=model_high_filename,
-            model_low_filename=model_low_filename,
+            model_high_filename=model_cfg.get("high_filename"),
+            model_low_filename=model_cfg.get("low_filename"),
             chat_id=chat_id,
             message_id=message_id,
         )
