@@ -42,6 +42,9 @@ TEST5S_VIDEO_WIDTH = 480
 TEST5S_VIDEO_HEIGHT = 720
 TEST5S_STEPS = 4
 TEST5S_RIFE_MULTIPLIER = 0
+TEST5S_MEDIA_GROUP_SIZE = int(os.environ.get("TEST5S_MEDIA_GROUP_SIZE", "3"))
+TEST5S_MEDIA_GROUP_TTL_SECONDS = int(os.environ.get("TEST5S_MEDIA_GROUP_TTL_SECONDS", "5"))
+TEST5S_GROUP_TTL_SECONDS = int(os.environ.get("TEST5S_GROUP_TTL_SECONDS", "3600"))
 
 
 def load_lora_catalog() -> Dict[str, Any]:
@@ -106,6 +109,8 @@ EXTENDED_SESSION_TTL_SECONDS = int(os.environ.get("EXTENDED_SESSION_TTL_SECONDS"
 extended_sessions: Dict[str, Dict[str, Any]] = {}
 WORKFLOW4_PARTS = 4
 workflow4_sessions: Dict[str, Dict[str, Any]] = {}
+test5s_album_sessions: Dict[str, Dict[str, Any]] = {}
+test5s_group_jobs: Dict[str, Dict[str, Any]] = {}
 
 
 def _ext_session_get(job_id: str) -> Optional[Dict[str, Any]]:
@@ -144,6 +149,25 @@ def _wf4_session_touch(sess: Dict[str, Any]) -> None:
 
 def _wf4_session_clear(job_id: str) -> None:
     workflow4_sessions.pop(job_id, None)
+
+
+def _test5s_group_get(job_id: str) -> Optional[List[str]]:
+    entry = test5s_group_jobs.get(job_id)
+    if not entry:
+        return None
+    created_at = float(entry.get("created_at") or 0.0)
+    if time.time() - created_at > TEST5S_GROUP_TTL_SECONDS:
+        test5s_group_jobs.pop(job_id, None)
+        return None
+    job_ids = entry.get("job_ids") or []
+    if not job_ids:
+        test5s_group_jobs.pop(job_id, None)
+        return None
+    return job_ids
+
+
+def _test5s_group_set(leader_job_id: str, job_ids: List[str]) -> None:
+    test5s_group_jobs[leader_job_id] = {"job_ids": list(job_ids), "created_at": time.time()}
 
 
 def db_conn():
@@ -784,6 +808,11 @@ def build_mode_keyboard(job_id: str) -> str:
     return json.dumps({"inline_keyboard": rows})
 
 
+def build_mode_keyboard_test5s(job_id: str) -> str:
+    rows = [[{"text": "Test5s", "callback_data": f"mode:test5s:{job_id}"}]]
+    return json.dumps({"inline_keyboard": rows})
+
+
 def build_batch_weight_keyboard(job_id: str) -> str:
     options = list(BATCH_TEST_WEIGHTS)
     if not options:
@@ -1055,6 +1084,17 @@ async def send_mode_picker(chat_id: int, job_id: str) -> None:
             "chat_id": chat_id,
             "text": "Vyber mod:",
             "reply_markup": build_mode_keyboard(job_id),
+        },
+    )
+
+
+async def send_mode_picker_test5s(chat_id: int, job_id: str) -> None:
+    await tg_post(
+        "sendMessage",
+        {
+            "chat_id": chat_id,
+            "text": "Album: vyber mod:",
+            "reply_markup": build_mode_keyboard_test5s(job_id),
         },
     )
 
@@ -2151,12 +2191,91 @@ def _dedup(update: Dict[str, Any]) -> None:
     dedup_cache[update_id] = now
 
 
-def extract_photo(update: Dict[str, Any]) -> Tuple[int, str]:
+def _test5s_album_key(chat_id: int, media_group_id: str) -> str:
+    return f"{chat_id}:{media_group_id}"
+
+
+async def _finalize_test5s_album(group_key: str, sess: Dict[str, Any]) -> None:
+    test5s_album_sessions.pop(group_key, None)
+    job_ids = sess.get("job_ids") or []
+    if not job_ids:
+        return
+    chat_id = int(sess.get("chat_id") or 0)
+    placeholder_ids = sess.get("placeholder_ids") or []
+    for placeholder_id in placeholder_ids:
+        await edit_placeholder(chat_id, int(placeholder_id), "Album: vyber mod…")
+    leader_job_id = job_ids[0]
+    _test5s_group_set(leader_job_id, job_ids)
+    if chat_id:
+        try:
+            await send_mode_picker_test5s(chat_id, leader_job_id)
+        except Exception as exc:
+            for placeholder_id in placeholder_ids:
+                await edit_placeholder(
+                    chat_id,
+                    int(placeholder_id),
+                    f"Chyba: neviem zobraziť výber módu ({exc})",
+                )
+            raise
+
+
+def _flush_test5s_group_jobs() -> None:
+    now = time.time()
+    for job_id, entry in list(test5s_group_jobs.items()):
+        created_at = float(entry.get("created_at") or 0.0)
+        if now - created_at >= TEST5S_GROUP_TTL_SECONDS:
+            test5s_group_jobs.pop(job_id, None)
+
+
+async def _flush_test5s_album_sessions() -> None:
+    now = time.time()
+    for group_key, sess in list(test5s_album_sessions.items()):
+        updated_at = float(sess.get("updated_at") or 0.0)
+        if now - updated_at >= TEST5S_MEDIA_GROUP_TTL_SECONDS:
+            await _finalize_test5s_album(group_key, sess)
+
+
+async def _handle_test5s_album_photo(chat_id: int, file_id: str, media_group_id: str) -> str:
+    group_key = _test5s_album_key(chat_id, media_group_id)
+    sess = test5s_album_sessions.get(group_key)
+    if not sess:
+        sess = {
+            "chat_id": chat_id,
+            "media_group_id": media_group_id,
+            "job_ids": [],
+            "placeholder_ids": [],
+            "updated_at": time.time(),
+        }
+        test5s_album_sessions[group_key] = sess
+
+    placeholder_id = await send_placeholder(chat_id)
+    job_id = uuid.uuid4().hex  # shorter than str(uuid.uuid4())
+
+    try:
+        save_job_awaiting_lora(job_id, chat_id, placeholder_id, file_id)
+    except Exception as exc:
+        await edit_placeholder(chat_id, placeholder_id, f"Chyba DB: {exc}")
+        raise
+
+    await edit_placeholder(chat_id, placeholder_id, "Album: čakám na ďalšie fotky…")
+
+    sess["job_ids"].append(job_id)
+    sess["placeholder_ids"].append(placeholder_id)
+    sess["updated_at"] = time.time()
+
+    if len(sess["job_ids"]) >= max(1, TEST5S_MEDIA_GROUP_SIZE):
+        await _finalize_test5s_album(group_key, sess)
+
+    return job_id
+
+
+def extract_photo(update: Dict[str, Any]) -> Tuple[int, str, Optional[str]]:
     msg = update.get("message") or update.get("edited_message")
     if not msg:
         raise RuntimeError("no_message")
 
     chat_id = int(msg["chat"]["id"])
+    media_group_id = msg.get("media_group_id")
     photos = msg.get("photo") or []
     if not photos:
         raise RuntimeError("no_photo")
@@ -2167,7 +2286,7 @@ def extract_photo(update: Dict[str, Any]) -> Tuple[int, str]:
     if file_size and file_size > MAX_IMAGE_BYTES:
         raise RuntimeError("image_too_large")
 
-    return chat_id, file_id
+    return chat_id, file_id, media_group_id
 
 
 async def process_callback(update: Dict[str, Any]) -> None:
@@ -3283,13 +3402,40 @@ async def process_callback(update: Dict[str, Any]) -> None:
         model_low_filename = model_cfg.get("low_filename")
         use_gguf = model_type == "gguf"
 
+        group_job_ids = _test5s_group_get(job_id)
+        target_job_ids = group_job_ids or [job_id]
+
         if lora_type == "pair":
-            await _submit_pair_job(
-                job_id=job_id,
+            for i, target_job_id in enumerate(target_job_ids):
+                await _submit_pair_job(
+                    job_id=target_job_id,
+                    lora_key=lora_key,
+                    cfg=cfg,
+                    high_weight=TEST5S_WEIGHT,
+                    low_weight=TEST5S_WEIGHT,
+                    use_gguf=use_gguf,
+                    use_last_frame=False,
+                    video_width=TEST5S_VIDEO_WIDTH,
+                    video_height=TEST5S_VIDEO_HEIGHT,
+                    total_steps=TEST5S_STEPS,
+                    positive_prompt=prompt_text,
+                    rife_multiplier=TEST5S_RIFE_MULTIPLIER,
+                    model_label=model_label,
+                    model_high_filename=model_high_filename,
+                    model_low_filename=model_low_filename,
+                    chat_id=chat_id if i == 0 else 0,
+                    message_id=message_id if i == 0 else 0,
+                )
+            if group_job_ids:
+                test5s_group_jobs.pop(job_id, None)
+            return
+
+        for i, target_job_id in enumerate(target_job_ids):
+            await _submit_single_job(
+                job_id=target_job_id,
                 lora_key=lora_key,
                 cfg=cfg,
-                high_weight=TEST5S_WEIGHT,
-                low_weight=TEST5S_WEIGHT,
+                weight=TEST5S_WEIGHT,
                 use_gguf=use_gguf,
                 use_last_frame=False,
                 video_width=TEST5S_VIDEO_WIDTH,
@@ -3300,29 +3446,11 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 model_label=model_label,
                 model_high_filename=model_high_filename,
                 model_low_filename=model_low_filename,
-                chat_id=chat_id,
-                message_id=message_id,
+                chat_id=chat_id if i == 0 else 0,
+                message_id=message_id if i == 0 else 0,
             )
-            return
-
-        await _submit_single_job(
-            job_id=job_id,
-            lora_key=lora_key,
-            cfg=cfg,
-            weight=TEST5S_WEIGHT,
-            use_gguf=use_gguf,
-            use_last_frame=False,
-            video_width=TEST5S_VIDEO_WIDTH,
-            video_height=TEST5S_VIDEO_HEIGHT,
-            total_steps=TEST5S_STEPS,
-            positive_prompt=prompt_text,
-            rife_multiplier=TEST5S_RIFE_MULTIPLIER,
-            model_label=model_label,
-            model_high_filename=model_high_filename,
-            model_low_filename=model_low_filename,
-            chat_id=chat_id,
-            message_id=message_id,
-        )
+        if group_job_ids:
+            test5s_group_jobs.pop(job_id, None)
         return
 
     if tag == "p":
@@ -4355,13 +4483,19 @@ async def process_callback(update: Dict[str, Any]) -> None:
 
 async def process_update(update: Dict[str, Any]) -> Dict[str, Any]:
     _dedup(update)
+    _flush_test5s_group_jobs()
+    await _flush_test5s_album_sessions()
 
     if "callback_query" in update:
         await process_callback(update)
         return {"type": "callback"}
 
-    chat_id, file_id = extract_photo(update)
+    chat_id, file_id, media_group_id = extract_photo(update)
     rate_limit(chat_id)
+
+    if media_group_id:
+        await _handle_test5s_album_photo(chat_id, file_id, str(media_group_id))
+        return {"type": "photo_album", "media_group_id": str(media_group_id)}
 
     placeholder_id = await send_placeholder(chat_id)
     job_id = uuid.uuid4().hex  # shorter than str(uuid.uuid4())
