@@ -4523,6 +4523,12 @@ async def poll_loop():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates"
     async with httpx.AsyncClient(timeout=35) as client:
         while True:
+            _flush_test5s_group_jobs()
+            try:
+                await _flush_test5s_album_sessions()
+            except Exception as exc:
+                print(f"test5s album flush error: {exc}")
+
             params: Dict[str, Any] = {"timeout": 30}
             if offset is not None:
                 params["offset"] = offset
