@@ -5,6 +5,12 @@
     "high_filename": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
     "low_filename": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors"
   },
+  "wan_lightspeed_synthseduction_v9": {
+    "label": "Lightspeed SynthSeduction V9",
+    "type": "wan",
+    "high_filename": "DasiwaWAN22I2V14BLightspeed_synthseductionHighV9.safetensors",
+    "low_filename": "DasiwaWAN22I2V14BLightspeed_synthseductionLowV9.safetensors"
+  },
   "gguf_default": {
     "label": "GGUF default",
     "type": "gguf",

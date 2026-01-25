@@ -129,7 +129,15 @@ done
 # Symlink all GGUF UNETs into unet/
 for f in "$MODEL_BUNDLE/checkpoints_gguf"/*.gguf; do
   [ -e "$f" ] || continue
-  ln -s "$f" "$COMFY_ROOT/models/unet/$(basename "$f")"
+  dst="$COMFY_ROOT/models/unet/$(basename "$f")"
+  [ -e "$dst" ] || ln -s "$f" "$dst"
+done
+
+# Some WAN .safetensors ended up in checkpoints_gguf; link them too.
+for f in "$MODEL_BUNDLE/checkpoints_gguf"/*.safetensors; do
+  [ -e "$f" ] || continue
+  dst="$COMFY_ROOT/models/unet/$(basename "$f")"
+  [ -e "$dst" ] || ln -s "$f" "$dst"
 done
 
 

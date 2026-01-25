@@ -30,7 +30,7 @@ PAGE_SIZE = int(os.environ.get("LORA_PAGE_SIZE", "4"))  # keep 4 by default
 MODEL_PAGE_SIZE = int(os.environ.get("MODEL_PAGE_SIZE", "4"))
 WEIGHT_OPTIONS_RAW = os.environ.get("LORA_WEIGHT_OPTIONS", "0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0")
 BATCH_TEST_WEIGHTS_RAW = os.environ.get("BATCH_TEST_WEIGHTS", "0.5,0.7,0.9")
-BATCH_TEST_MODEL_KEY = os.environ.get("BATCH_TEST_MODEL_KEY", "gguf_tastysin_v8")
+BATCH_TEST_MODEL_KEY = os.environ.get("BATCH_TEST_MODEL_KEY", "wan_lightspeed_synthseduction_v9")
 BATCH_TEST_VIDEO_WIDTH = int(os.environ.get("BATCH_TEST_VIDEO_WIDTH", "480"))
 BATCH_TEST_VIDEO_HEIGHT = int(os.environ.get("BATCH_TEST_VIDEO_HEIGHT", "640"))
 BATCH_TEST_STEPS = int(os.environ.get("BATCH_TEST_STEPS", "6"))
@@ -100,8 +100,8 @@ for key, cfg in MODEL_CATALOG.items():
         continue
     MODEL_KEYS_BY_TYPE[model_type].append(key)
 MODEL_CHOICES = [("WAN", "wan"), ("GGUF", "gguf")]
-DEFAULT_MODEL_KEY = "gguf_tastysin_v8"
-DEFAULT_MODEL_TYPE = "gguf"
+DEFAULT_MODEL_KEY = "wan_lightspeed_synthseduction_v9"
+DEFAULT_MODEL_TYPE = "wan"
 
 rate_limit_cache: Dict[int, float] = {}
 dedup_cache: Dict[int, float] = {}  # update_id -> timestamp
