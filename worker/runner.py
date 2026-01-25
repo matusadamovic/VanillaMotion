@@ -72,11 +72,13 @@ UPLOAD_MAX_RETRIES = _env_int("UPLOAD_MAX_RETRIES", 3)
 UPLOAD_RETRY_DELAY = _env_float("UPLOAD_RETRY_DELAY", 3.0)
 
 
-def _force_unet_fp16(filename: Optional[str]) -> bool:
+def _force_unet_weight_dtype(filename: Optional[str]) -> Optional[str]:
     if not filename:
-        return False
+        return None
     name = str(filename).lower()
-    return "lightspeed_synthseduction" in name and name.endswith(".safetensors")
+    if "lightspeed_synthseduction" in name and name.endswith(".safetensors"):
+        return "fp8_e4m3fn_fast"
+    return None
 
 
 def db_conn():
@@ -808,13 +810,15 @@ def load_and_patch_workflow(
                 if "high noise" in title and model_high_filename:
                     inputs = node.setdefault("inputs", {})
                     inputs["unet_name"] = model_high_filename
-                    if _force_unet_fp16(model_high_filename):
-                        inputs["weight_dtype"] = "fp16"
+                    forced_dtype = _force_unet_weight_dtype(model_high_filename)
+                    if forced_dtype:
+                        inputs["weight_dtype"] = forced_dtype
                 if "low noise" in title and model_low_filename:
                     inputs = node.setdefault("inputs", {})
                     inputs["unet_name"] = model_low_filename
-                    if _force_unet_fp16(model_low_filename):
-                        inputs["weight_dtype"] = "fp16"
+                    forced_dtype = _force_unet_weight_dtype(model_low_filename)
+                    if forced_dtype:
+                        inputs["weight_dtype"] = forced_dtype
 
     # ---- LoRA patching (TAILORED to your workflow: Step 1 + Step 3 only) ----
     def _assert_lora_exists(filename: str) -> None:
@@ -1260,13 +1264,15 @@ def load_and_patch_workflow_new(
             if info["noise"] == "high" and model_high_filename:
                 inputs = info["unet_node"].setdefault("inputs", {})
                 inputs["unet_name"] = model_high_filename
-                if _force_unet_fp16(model_high_filename):
-                    inputs["weight_dtype"] = "fp16"
+                forced_dtype = _force_unet_weight_dtype(model_high_filename)
+                if forced_dtype:
+                    inputs["weight_dtype"] = forced_dtype
             if info["noise"] == "low" and model_low_filename:
                 inputs = info["unet_node"].setdefault("inputs", {})
                 inputs["unet_name"] = model_low_filename
-                if _force_unet_fp16(model_low_filename):
-                    inputs["weight_dtype"] = "fp16"
+                forced_dtype = _force_unet_weight_dtype(model_low_filename)
+                if forced_dtype:
+                    inputs["weight_dtype"] = forced_dtype
     else:
         if model_high_filename or model_low_filename:
             logging.warning("model_* provided but use_gguf is None; skipping model selection patch")
