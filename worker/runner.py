@@ -79,8 +79,8 @@ def _force_unet_weight_dtype(filename: Optional[str]) -> Optional[str]:
         return None
     name = str(filename).lower()
     if "lightspeed_synthseduction" in name and name.endswith(".safetensors"):
-        # This model fails under FP8; force a safe dtype so weights are not kept in float8.
-        return "fp16"
+        # Ensure we don't force an fp8 dtype for this model.
+        return "default"
     return None
 
 
@@ -127,39 +127,50 @@ def _is_fp8_quantized_safetensors(path: pathlib.Path) -> bool:
 
 
 def _dequantize_fp8_safetensors(src_path: pathlib.Path, out_path: pathlib.Path) -> None:
-    import torch
-    from safetensors.torch import safe_open, save_file
+    # Run conversion inside ComfyUI's python env (it has torch + safetensors).
+    comfy_python = os.environ.get("COMFY_PYTHON", "/opt/venv/bin/python3")
+    script = r"""
+import json, struct, sys, torch
+from safetensors.torch import safe_open, save_file
 
-    header = _read_safetensors_header(src_path) or {}
-    meta = header.get("__metadata__") or {}
-    if "_quantization_metadata" in meta:
-        meta = {k: v for k, v in meta.items() if k != "_quantization_metadata"}
+src_path = sys.argv[1]
+out_path = sys.argv[2]
 
-    float8_dtypes = set()
-    if hasattr(torch, "float8_e4m3fn"):
-        float8_dtypes.add(torch.float8_e4m3fn)
-    if hasattr(torch, "float8_e5m2"):
-        float8_dtypes.add(torch.float8_e5m2)
+with open(src_path, "rb") as f:
+    header_len = struct.unpack("<Q", f.read(8))[0]
+    header = json.loads(f.read(header_len))
 
-    tensors: Dict[str, Any] = {}
-    with safe_open(str(src_path), framework="pt", device="cpu") as sf:
-        keys = list(sf.keys())
-        key_set = set(keys)
-        for k in keys:
-            if k.endswith(".comfy_quant") or k.endswith(".weight_scale"):
-                continue
-            t = sf.get_tensor(k)
-            if float8_dtypes and t.dtype in float8_dtypes:
-                scale_key = k.replace(".weight", ".weight_scale")
-                if scale_key in key_set:
-                    scale = sf.get_tensor(scale_key)
-                    t = (t.float() * scale).to(torch.float16)
-                else:
-                    t = t.float().to(torch.float16)
-            tensors[k] = t
+meta = header.get("__metadata__") or {}
+if "_quantization_metadata" in meta:
+    meta = {k: v for k, v in meta.items() if k != "_quantization_metadata"}
 
+float8_dtypes = set()
+if hasattr(torch, "float8_e4m3fn"):
+    float8_dtypes.add(torch.float8_e4m3fn)
+if hasattr(torch, "float8_e5m2"):
+    float8_dtypes.add(torch.float8_e5m2)
+
+tensors = {}
+with safe_open(src_path, framework="pt", device="cpu") as sf:
+    keys = list(sf.keys())
+    key_set = set(keys)
+    for k in keys:
+        if k.endswith(".comfy_quant") or k.endswith(".weight_scale"):
+            continue
+        t = sf.get_tensor(k)
+        if float8_dtypes and t.dtype in float8_dtypes:
+            scale_key = k.replace(".weight", ".weight_scale")
+            if scale_key in key_set:
+                scale = sf.get_tensor(scale_key)
+                t = (t.float() * scale).to(torch.float16)
+            else:
+                t = t.float().to(torch.float16)
+        tensors[k] = t
+
+save_file(tensors, out_path, metadata=meta)
+"""
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    save_file(tensors, str(out_path), metadata=meta)
+    subprocess.run([comfy_python, "-c", script, str(src_path), str(out_path)], check=True)
 
 
 def _maybe_dequantize_unet(filename: Optional[str]) -> Optional[str]:
