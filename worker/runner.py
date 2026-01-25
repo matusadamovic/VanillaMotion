@@ -77,7 +77,8 @@ def _force_unet_weight_dtype(filename: Optional[str]) -> Optional[str]:
         return None
     name = str(filename).lower()
     if "lightspeed_synthseduction" in name and name.endswith(".safetensors"):
-        return "fp8_e4m3fn_fast"
+        # This model fails under FP8; let ComfyUI pick a safe default (fp16/bf16).
+        return "default"
     return None
 
 
