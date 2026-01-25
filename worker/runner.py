@@ -5,6 +5,7 @@ import pathlib
 import re
 import shutil
 import signal
+import struct
 import subprocess
 import tempfile
 import threading
@@ -70,6 +71,7 @@ BATCH_RETRY_DELAY = _env_float("BATCH_RETRY_DELAY", 5.0)
 BATCH_RESTART_ON_FAILURE = _env_bool("BATCH_RESTART_ON_FAILURE", True)
 UPLOAD_MAX_RETRIES = _env_int("UPLOAD_MAX_RETRIES", 3)
 UPLOAD_RETRY_DELAY = _env_float("UPLOAD_RETRY_DELAY", 3.0)
+DEQUANT_FP8_MODELS = _env_bool("DEQUANT_FP8_MODELS", True)
 
 
 def _force_unet_weight_dtype(filename: Optional[str]) -> Optional[str]:
@@ -77,9 +79,112 @@ def _force_unet_weight_dtype(filename: Optional[str]) -> Optional[str]:
         return None
     name = str(filename).lower()
     if "lightspeed_synthseduction" in name and name.endswith(".safetensors"):
-        # This model fails under FP8; let ComfyUI pick a safe default (fp16/bf16).
-        return "default"
+        # This model fails under FP8; force a safe dtype so weights are not kept in float8.
+        return "fp16"
     return None
+
+
+def _get_unet_root() -> pathlib.Path:
+    p = pathlib.Path("/runpod-volume/models/unet")
+    if p.exists():
+        return p
+    return pathlib.Path(COMFY_ROOT) / "models" / "unet"
+
+
+def _assert_unet_exists(filename: str) -> None:
+    p = _get_unet_root() / filename
+    if not p.exists():
+        raise FileNotFoundError(f"UNET file not found: {p}")
+
+
+def _read_safetensors_header(path: pathlib.Path) -> Optional[Dict[str, Any]]:
+    try:
+        with open(path, "rb") as f:
+            header_len_bytes = f.read(8)
+            if len(header_len_bytes) != 8:
+                return None
+            header_len = struct.unpack("<Q", header_len_bytes)[0]
+            header = json.loads(f.read(header_len))
+        return header
+    except Exception:
+        logging.warning("Failed to read safetensors header: %s", path, exc_info=True)
+        return None
+
+
+def _is_fp8_quantized_safetensors(path: pathlib.Path) -> bool:
+    if path.suffix.lower() != ".safetensors":
+        return False
+    header = _read_safetensors_header(path)
+    if not header:
+        return False
+    meta = header.get("__metadata__") or {}
+    if "_quantization_metadata" in meta:
+        return True
+    for v in header.values():
+        if isinstance(v, dict) and v.get("dtype") in ("F8_E4M3", "F8_E5M2"):
+            return True
+    return False
+
+
+def _dequantize_fp8_safetensors(src_path: pathlib.Path, out_path: pathlib.Path) -> None:
+    import torch
+    from safetensors.torch import safe_open, save_file
+
+    header = _read_safetensors_header(src_path) or {}
+    meta = header.get("__metadata__") or {}
+    if "_quantization_metadata" in meta:
+        meta = {k: v for k, v in meta.items() if k != "_quantization_metadata"}
+
+    float8_dtypes = set()
+    if hasattr(torch, "float8_e4m3fn"):
+        float8_dtypes.add(torch.float8_e4m3fn)
+    if hasattr(torch, "float8_e5m2"):
+        float8_dtypes.add(torch.float8_e5m2)
+
+    tensors: Dict[str, Any] = {}
+    with safe_open(str(src_path), framework="pt", device="cpu") as sf:
+        keys = list(sf.keys())
+        key_set = set(keys)
+        for k in keys:
+            if k.endswith(".comfy_quant") or k.endswith(".weight_scale"):
+                continue
+            t = sf.get_tensor(k)
+            if float8_dtypes and t.dtype in float8_dtypes:
+                scale_key = k.replace(".weight", ".weight_scale")
+                if scale_key in key_set:
+                    scale = sf.get_tensor(scale_key)
+                    t = (t.float() * scale).to(torch.float16)
+                else:
+                    t = t.float().to(torch.float16)
+            tensors[k] = t
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    save_file(tensors, str(out_path), metadata=meta)
+
+
+def _maybe_dequantize_unet(filename: Optional[str]) -> Optional[str]:
+    if not filename or not DEQUANT_FP8_MODELS:
+        return filename
+    if not str(filename).lower().endswith(".safetensors"):
+        return filename
+    src_path = _get_unet_root() / filename
+    if not src_path.exists():
+        return filename
+    if not _is_fp8_quantized_safetensors(src_path):
+        return filename
+
+    out_name = f"{src_path.stem}_fp16.safetensors"
+    out_path = src_path.with_name(out_name)
+    if out_path.exists():
+        return out_name
+
+    logging.info("FP8 quantized UNET detected; dequantizing to fp16: %s -> %s", src_path.name, out_name)
+    try:
+        _dequantize_fp8_safetensors(src_path, out_path)
+    except Exception:
+        logging.exception("FP8 dequantization failed for %s; using original file", src_path)
+        return filename
+    return out_name
 
 
 def db_conn():
@@ -787,20 +892,11 @@ def load_and_patch_workflow(
         if use_gguf is None:
             logging.warning("model_* provided but use_gguf is None; skipping UNET patch")
         else:
-            def _unet_root() -> pathlib.Path:
-                p = pathlib.Path("/runpod-volume/models/unet")
-                if p.exists():
-                    return p
-                return pathlib.Path(COMFY_ROOT) / "models" / "unet"
-
-            def _assert_unet_exists(filename: str) -> None:
-                p = _unet_root() / filename
-                if not p.exists():
-                    raise FileNotFoundError(f"UNET file not found: {p}")
-
             if model_high_filename:
+                model_high_filename = _maybe_dequantize_unet(model_high_filename)
                 _assert_unet_exists(model_high_filename)
             if model_low_filename:
+                model_low_filename = _maybe_dequantize_unet(model_low_filename)
                 _assert_unet_exists(model_low_filename)
 
             target_class = "UnetLoaderGGUF" if use_gguf else "UNETLoader"
@@ -1189,17 +1285,6 @@ def load_and_patch_workflow_new(
         else:
             _set_lora_slot(node, "lora_2", cfg["low_filename"], cfg["low_strength"])
 
-    def _unet_root() -> pathlib.Path:
-        p = pathlib.Path("/runpod-volume/models/unet")
-        if p.exists():
-            return p
-        return pathlib.Path(COMFY_ROOT) / "models" / "unet"
-
-    def _assert_unet_exists(filename: str) -> None:
-        p = _unet_root() / filename
-        if not p.exists():
-            raise FileNotFoundError(f"UNET file not found: {p}")
-
     def _resolve_node(ref: Any) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
         if not isinstance(ref, list) or not ref:
             return None, None
@@ -1250,8 +1335,10 @@ def load_and_patch_workflow_new(
         )
 
     if model_high_filename:
+        model_high_filename = _maybe_dequantize_unet(model_high_filename)
         _assert_unet_exists(model_high_filename)
     if model_low_filename:
+        model_low_filename = _maybe_dequantize_unet(model_low_filename)
         _assert_unet_exists(model_low_filename)
 
     if use_gguf is True:
