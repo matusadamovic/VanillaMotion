@@ -30,7 +30,7 @@ PAGE_SIZE = int(os.environ.get("LORA_PAGE_SIZE", "4"))  # keep 4 by default
 MODEL_PAGE_SIZE = int(os.environ.get("MODEL_PAGE_SIZE", "4"))
 WEIGHT_OPTIONS_RAW = os.environ.get("LORA_WEIGHT_OPTIONS", "0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0")
 BATCH_TEST_WEIGHTS_RAW = os.environ.get("BATCH_TEST_WEIGHTS", "0.5,0.7,0.9")
-BATCH_TEST_MODEL_KEY = os.environ.get("BATCH_TEST_MODEL_KEY", "wan_lightspeed_synthseduction_v9")
+BATCH_TEST_MODEL_KEY = os.environ.get("BATCH_TEST_MODEL_KEY", "gguf_tastysin_v8")
 BATCH_TEST_VIDEO_WIDTH = int(os.environ.get("BATCH_TEST_VIDEO_WIDTH", "480"))
 BATCH_TEST_VIDEO_HEIGHT = int(os.environ.get("BATCH_TEST_VIDEO_HEIGHT", "640"))
 BATCH_TEST_STEPS = int(os.environ.get("BATCH_TEST_STEPS", "6"))
@@ -100,8 +100,8 @@ for key, cfg in MODEL_CATALOG.items():
         continue
     MODEL_KEYS_BY_TYPE[model_type].append(key)
 MODEL_CHOICES = [("WAN", "wan"), ("GGUF", "gguf")]
-DEFAULT_MODEL_KEY = "wan_lightspeed_synthseduction_v9"
-DEFAULT_MODEL_TYPE = "wan"
+DEFAULT_MODEL_KEY = "gguf_tastysin_v8"
+DEFAULT_MODEL_TYPE = "gguf"
 
 rate_limit_cache: Dict[int, float] = {}
 dedup_cache: Dict[int, float] = {}  # update_id -> timestamp
@@ -3593,23 +3593,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
 
         label = str(cfg.get("label") or lora_key)
-        try:
-            model_type, model_idx, _model_key, _model_cfg = _get_default_model_selection()
-        except Exception:
-            await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
-            return
-
-        await prompt_last_frame(
-            chat_id=chat_id,
-            message_id=message_id,
-            label=label,
-            job_id=job_id,
-            is_pair=False,
-            lora_idx=lora_idx,
-            weight_idx=weight_idx,
-            model_type=model_type,
-            model_idx=model_idx,
-        )
+        reply_markup = build_model_keyboard(job_id, lora_idx, is_pair=False, weight_idx=weight_idx)
+        await edit_message_text(chat_id, message_id, f"{label}: vyber model", reply_markup)
         return
 
     if tag == "wh":
@@ -3668,24 +3653,14 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
 
         label = str(cfg.get("label") or lora_key)
-        try:
-            model_type, model_idx, _model_key, _model_cfg = _get_default_model_selection()
-        except Exception:
-            await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
-            return
-
-        await prompt_last_frame(
-            chat_id=chat_id,
-            message_id=message_id,
-            label=label,
-            job_id=job_id,
+        reply_markup = build_model_keyboard(
+            job_id,
+            lora_idx,
             is_pair=True,
-            lora_idx=lora_idx,
             high_idx=high_idx,
             low_idx=low_idx,
-            model_type=model_type,
-            model_idx=model_idx,
         )
+        await edit_message_text(chat_id, message_id, f"{label}: vyber model", reply_markup)
         return
 
     if tag == "mm":
@@ -3699,6 +3674,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if len(parts) == 6:
             try:
                 weight_idx = int(parts[2])
+                model_type = parts[3]
+                model_idx = int(parts[4])
                 job_id = parts[5]
             except Exception:
                 return
@@ -3712,9 +3689,10 @@ async def process_callback(update: Dict[str, Any]) -> None:
             options, _ = _weight_options_for(cfg, "single")
             if weight_idx < 0 or weight_idx >= len(options):
                 return
-            try:
-                model_type, model_idx, model_key, model_cfg = _get_default_model_selection()
-            except Exception:
+            if model_type not in ("wan", "gguf"):
+                return
+            model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
+            if not model_cfg:
                 if chat_id and message_id:
                     label = str(cfg.get("label") or lora_key)
                     await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
@@ -3734,6 +3712,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
                     model_idx=model_idx,
                 )
             else:
+                model_label = str(model_cfg.get("label") or model_key)
                 await _submit_single_job(
                     job_id=job_id,
                     lora_key=lora_key,
@@ -3746,7 +3725,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
                     total_steps=DEFAULT_STEPS,
                     positive_prompt=cfg.get("positive"),
                     rife_multiplier=DEFAULT_INTERPOLATION_CLASSIC,
-                    model_label=str(model_cfg.get("label") or model_key),
+                    model_label=model_label,
                     model_high_filename=model_cfg.get("high_filename"),
                     model_low_filename=model_cfg.get("low_filename"),
                     chat_id=chat_id,
@@ -3757,6 +3736,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
         try:
             high_idx = int(parts[2])
             low_idx = int(parts[3])
+            model_type = parts[4]
+            model_idx = int(parts[5])
             job_id = parts[6]
         except Exception:
             return
@@ -3773,9 +3754,10 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         if low_idx < 0 or low_idx >= len(options_low):
             return
-        try:
-            model_type, model_idx, model_key, model_cfg = _get_default_model_selection()
-        except Exception:
+        if model_type not in ("wan", "gguf"):
+            return
+        model_key, model_cfg = _get_model_cfg_by_index(model_type, model_idx)
+        if not model_cfg:
             if chat_id and message_id:
                 label = str(cfg.get("label") or lora_key)
                 await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
@@ -3796,6 +3778,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 model_idx=model_idx,
             )
         else:
+            model_label = str(model_cfg.get("label") or model_key)
             await _submit_pair_job(
                 job_id=job_id,
                 lora_key=lora_key,
@@ -3809,7 +3792,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 total_steps=DEFAULT_STEPS,
                 positive_prompt=cfg.get("positive"),
                 rife_multiplier=DEFAULT_INTERPOLATION_CLASSIC,
-                model_label=str(model_cfg.get("label") or model_key),
+                model_label=model_label,
                 model_high_filename=model_cfg.get("high_filename"),
                 model_low_filename=model_cfg.get("low_filename"),
                 chat_id=chat_id,
@@ -4352,6 +4335,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
         try:
             lora_idx = int(parts[1])
             weight_idx = int(parts[2])
+            model_type = parts[3]
             job_id = parts[4]
         except Exception:
             return
@@ -4365,48 +4349,21 @@ async def process_callback(update: Dict[str, Any]) -> None:
         options, _ = _weight_options_for(cfg, "single")
         if weight_idx < 0 or weight_idx >= len(options):
             return
-        try:
-            model_type, model_idx, model_key, model_cfg = _get_default_model_selection()
-        except Exception:
-            if chat_id and message_id:
-                label = str(cfg.get("label") or lora_key)
-                await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
+        if model_type not in ("wan", "gguf"):
             return
 
         label = str(cfg.get("label") or lora_key)
-        if chat_id and message_id:
-            await prompt_last_frame(
-                chat_id=chat_id,
-                message_id=message_id,
-                label=label,
-                job_id=job_id,
-                is_pair=False,
-                lora_idx=lora_idx,
-                weight_idx=weight_idx,
-                model_type=model_type,
-                model_idx=model_idx,
-            )
+        if not (chat_id and message_id):
             return
-
-        model_label = str(model_cfg.get("label") or model_key)
-        await _submit_single_job(
-            job_id=job_id,
-            lora_key=lora_key,
-            cfg=cfg,
-            weight=options[weight_idx],
-            use_gguf=(model_type == "gguf"),
-            use_last_frame=False,
-            video_width=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["width"],
-            video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
-            total_steps=DEFAULT_STEPS,
-            positive_prompt=cfg.get("positive"),
-            rife_multiplier=DEFAULT_INTERPOLATION_CLASSIC,
-            model_label=model_label,
-            model_high_filename=model_cfg.get("high_filename"),
-            model_low_filename=model_cfg.get("low_filename"),
-            chat_id=chat_id,
-            message_id=message_id,
+        reply_markup = build_unet_keyboard(
+            job_id,
+            model_type,
+            is_pair=False,
+            lora_idx=lora_idx,
+            weight_idx=weight_idx,
+            page=0,
         )
+        await edit_message_text(chat_id, message_id, f"{label}: vyber model", reply_markup)
         return
 
     if tag == "mp":
@@ -4416,6 +4373,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             lora_idx = int(parts[1])
             high_idx = int(parts[2])
             low_idx = int(parts[3])
+            model_type = parts[4]
             job_id = parts[5]
         except Exception:
             return
@@ -4432,50 +4390,22 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         if low_idx < 0 or low_idx >= len(options_low):
             return
-        try:
-            model_type, model_idx, model_key, model_cfg = _get_default_model_selection()
-        except Exception:
-            if chat_id and message_id:
-                label = str(cfg.get("label") or lora_key)
-                await edit_message_text(chat_id, message_id, f"{label}: chyba modelu", json.dumps({"inline_keyboard": []}))
+        if model_type not in ("wan", "gguf"):
             return
 
         label = str(cfg.get("label") or lora_key)
-        if chat_id and message_id:
-            await prompt_last_frame(
-                chat_id=chat_id,
-                message_id=message_id,
-                label=label,
-                job_id=job_id,
-                is_pair=True,
-                lora_idx=lora_idx,
-                high_idx=high_idx,
-                low_idx=low_idx,
-                model_type=model_type,
-                model_idx=model_idx,
-            )
+        if not (chat_id and message_id):
             return
-
-        model_label = str(model_cfg.get("label") or model_key)
-        await _submit_pair_job(
-            job_id=job_id,
-            lora_key=lora_key,
-            cfg=cfg,
-            high_weight=options_high[high_idx],
-            low_weight=options_low[low_idx],
-            use_gguf=(model_type == "gguf"),
-            use_last_frame=False,
-            video_width=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["width"],
-            video_height=RESOLUTION_OPTIONS[DEFAULT_RESOLUTION_IDX]["height"],
-            total_steps=DEFAULT_STEPS,
-            positive_prompt=cfg.get("positive"),
-            rife_multiplier=DEFAULT_INTERPOLATION_CLASSIC,
-            model_label=model_label,
-            model_high_filename=model_cfg.get("high_filename"),
-            model_low_filename=model_cfg.get("low_filename"),
-            chat_id=chat_id,
-            message_id=message_id,
+        reply_markup = build_unet_keyboard(
+            job_id,
+            model_type,
+            is_pair=True,
+            lora_idx=lora_idx,
+            high_idx=high_idx,
+            low_idx=low_idx,
+            page=0,
         )
+        await edit_message_text(chat_id, message_id, f"{label}: vyber model", reply_markup)
         return
 
     return
