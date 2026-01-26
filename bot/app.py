@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
@@ -23,6 +24,10 @@ LORA_CATALOG_PATH = os.environ.get("LORA_CATALOG_PATH", "/app/loras.json")
 LORA_GROUPS_PATH = os.environ.get("LORA_GROUPS_PATH")
 if not LORA_GROUPS_PATH:
     LORA_GROUPS_PATH = os.path.join(os.path.dirname(LORA_CATALOG_PATH), "lora_groups.json")
+LORA_RATINGS_PATH = os.environ.get(
+    "LORA_RATINGS_PATH",
+    os.path.join(os.path.dirname(LORA_CATALOG_PATH), "lora_test_summary_readable.txt"),
+)
 MODEL_CATALOG_PATH = os.environ.get("MODEL_CATALOG_PATH", "/app/models.json")
 
 # 4 buttons max (2x2 grid) + paging arrows
@@ -55,6 +60,53 @@ def load_lora_catalog() -> Dict[str, Any]:
     return data
 
 
+def load_lora_ratings() -> Dict[str, float]:
+    if not os.path.exists(LORA_RATINGS_PATH):
+        return {}
+    try:
+        with open(LORA_RATINGS_PATH, "r", encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except Exception:
+        return {}
+
+    ratings: Dict[str, float] = {}
+    current_avg: Optional[float] = None
+    current_key: Optional[str] = None
+    prompt_key: Optional[str] = None
+
+    header_re = re.compile(r"^\s*\d+\)\s*\[.*?\]\s*avg\s*([0-9]+(?:\.[0-9]+)?)", re.IGNORECASE)
+    lora_key_re = re.compile(r"^\s*lora_key:\s*(\S+)")
+    prompt_key_re = re.compile(r"^\s*prompt_key:\s*(\S+)")
+
+    def _commit() -> None:
+        if current_avg is None:
+            return
+        key = prompt_key or current_key
+        if not key:
+            return
+        ratings[key] = current_avg
+
+    for line in lines:
+        m = header_re.match(line)
+        if m:
+            _commit()
+            current_avg = float(m.group(1))
+            current_key = None
+            prompt_key = None
+            continue
+        m = lora_key_re.match(line)
+        if m:
+            current_key = m.group(1)
+            continue
+        m = prompt_key_re.match(line)
+        if m:
+            prompt_key = m.group(1)
+            continue
+
+    _commit()
+    return ratings
+
+
 def load_lora_group_catalog() -> Dict[str, Any]:
     if not os.path.exists(LORA_GROUPS_PATH):
         return {}
@@ -85,7 +137,15 @@ def _normalize_model_type(value: Any) -> Optional[str]:
 
 
 LORA_CATALOG = load_lora_catalog()
-LORA_KEYS = sorted(LORA_CATALOG.keys())
+LORA_RATINGS = load_lora_ratings()
+
+
+def _lora_sort_key(key: str) -> Tuple[float, str]:
+    rating = LORA_RATINGS.get(key, -1.0)
+    return (-rating, key)
+
+
+LORA_KEYS = sorted(LORA_CATALOG.keys(), key=_lora_sort_key)
 LORA_GROUP_CATALOG = load_lora_group_catalog()
 LORA_GROUP_KEYS = sorted(LORA_GROUP_CATALOG.keys())
 MODEL_CATALOG = load_model_catalog()
@@ -336,6 +396,14 @@ def _get_lora_cfg_by_index(idx: int) -> Tuple[Optional[str], Optional[Dict[str, 
     return lora_key, cfg
 
 
+def _format_lora_label(lora_key: str, cfg: Dict[str, Any]) -> str:
+    label = str(cfg.get("label") or lora_key)
+    rating = LORA_RATINGS.get(lora_key)
+    if rating is None:
+        return label
+    return f"({rating:.2f}) {label}"
+
+
 def _get_lora_group_by_index(idx: int) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
     if idx < 0 or idx >= len(LORA_GROUP_KEYS):
         return None, None
@@ -453,7 +521,7 @@ def build_lora_keyboard(job_id: str, page: int = 0) -> str:
                 break
             key = chunk[i + j]
             cfg = LORA_CATALOG[key]
-            label = str(cfg.get("label") or key)
+            label = _format_lora_label(key, cfg)
 
             # IMPORTANT: keep callback_data short; use index instead of key
             idx = start + (i + j)
@@ -888,7 +956,7 @@ def build_lora_keyboard_ext(job_id: str, page: int = 0, *, tag_prefix: str = "e"
                 break
             key = chunk[i + j]
             cfg = LORA_CATALOG[key]
-            label = str(cfg.get("label") or key)
+            label = _format_lora_label(key, cfg)
             idx = start + (i + j)
             row.append({"text": label, "callback_data": f"{tag_prefix}l:{idx}:{job_id}"})
         rows.append(row)
