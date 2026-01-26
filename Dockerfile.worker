@@ -26,7 +26,8 @@ RUN /opt/venv/bin/pip install --no-cache-dir gguf piexif opencv-python-headless 
     "accelerate==0.28.0" \
     "sentencepiece==0.1.99" \
     "timm==0.9.16" \
-    "Pillow==10.2.0"
+    "Pillow==10.2.0" \
+ && /opt/venv/bin/pip install --no-cache-dir --no-build-isolation "flash-attn"
 # base image already provides /venv for ComfyUI; do not recreate or mutate it
 # Separate venv for worker runtime (do not pollute ComfyUI /venv)
 ENV WORKER_VENV=/worker-venv
