@@ -12,6 +12,7 @@ RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
       git wget curl ffmpeg libgl1 ca-certificates \
+      build-essential cmake pkg-config \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
