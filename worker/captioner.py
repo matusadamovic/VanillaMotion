@@ -76,7 +76,17 @@ def florence2_caption(
     model.eval()
 
     inputs = processor(text=task, images=image, return_tensors="pt")
-    inputs = {k: v.to(device) for k, v in inputs.items()}
+    model_dtype = next(model.parameters()).dtype
+    prepared = {}
+    for key, value in inputs.items():
+        if torch.is_tensor(value):
+            if torch.is_floating_point(value):
+                prepared[key] = value.to(device=device, dtype=model_dtype)
+            else:
+                prepared[key] = value.to(device=device)
+        else:
+            prepared[key] = value
+    inputs = prepared
 
     with torch.no_grad():
         generated_ids = model.generate(
