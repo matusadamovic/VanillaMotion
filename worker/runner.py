@@ -74,7 +74,7 @@ UPLOAD_RETRY_DELAY = _env_float("UPLOAD_RETRY_DELAY", 3.0)
 DEQUANT_FP8_MODELS = _env_bool("DEQUANT_FP8_MODELS", True)
 
 CAPTION_BACKEND = os.environ.get("CAPTION_BACKEND", "florence2").strip().lower()
-CAPTION_MODES_RAW = os.environ.get("CAPTION_MODES", "std")
+CAPTION_MODES_RAW = os.environ.get("CAPTION_MODES", "all")
 CAPTION_MODES = {m.strip().lower() for m in CAPTION_MODES_RAW.split(",") if m.strip()}
 if not CAPTION_MODES:
     CAPTION_MODES = {"std"}
