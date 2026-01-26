@@ -19,7 +19,13 @@ RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
 RUN if [ ! -d "${COMFYUI_ROOT}" ]; then echo "ComfyUI not found at ${COMFYUI_ROOT}" >&2; exit 1; fi
 WORKDIR ${COMFYUI_ROOT}
 RUN /opt/venv/bin/pip install --no-cache-dir gguf piexif opencv-python-headless imageio-ffmpeg scikit-image \
- && /opt/venv/bin/pip install --no-cache-dir "git+https://github.com/facebookresearch/segment-anything.git"
+ && /opt/venv/bin/pip install --no-cache-dir "git+https://github.com/facebookresearch/segment-anything.git" \
+ && /opt/venv/bin/pip install --no-cache-dir \
+    "transformers==4.39.3" \
+    "accelerate==0.28.0" \
+    "sentencepiece==0.1.99" \
+    "timm==0.9.16" \
+    "Pillow==10.2.0"
 # base image already provides /venv for ComfyUI; do not recreate or mutate it
 # Separate venv for worker runtime (do not pollute ComfyUI /venv)
 ENV WORKER_VENV=/worker-venv
@@ -74,6 +80,7 @@ WORKDIR /app
 COPY workflow_api.json /app/workflow.json
 COPY new_workflow_api.json /app/workflow_new.json
 COPY worker/bootstrap.sh /app/bootstrap.sh
+COPY worker/captioner.py /app/captioner.py
 COPY worker/runner.py /app/runner.py
 RUN chmod +x /app/bootstrap.sh
 

@@ -145,8 +145,8 @@ done
 rm -rf /runpod-volume/models || true
 ln -s /comfyui/models /runpod-volume/models
 
-# Enable ComfyUI-Manager by default so it can fetch missing nodes.
-DISABLE_COMFYUI_MANAGER="${DISABLE_COMFYUI_MANAGER:-0}"
+# Disable ComfyUI-Manager by default to avoid startup fetches.
+DISABLE_COMFYUI_MANAGER="${DISABLE_COMFYUI_MANAGER:-1}"
 mgr_src="$COMFY_ROOT/custom_nodes/ComfyUI-Manager"
 mgr_dst="$COMFY_ROOT/custom_nodes.disabled/ComfyUI-Manager"
 if [ "$DISABLE_COMFYUI_MANAGER" = "1" ]; then
@@ -175,5 +175,11 @@ fi
 echo "BOOT: symlinks ready"
 ls -lah "$COMFY_ROOT/models" | head -n 200 || true
 
-export COMFY_PYTHON="$(command -v python3 || command -v python)"
+if [ -x "/opt/venv/bin/python3" ]; then
+  export COMFY_PYTHON="/opt/venv/bin/python3"
+elif [ -x "/opt/venv/bin/python" ]; then
+  export COMFY_PYTHON="/opt/venv/bin/python"
+else
+  export COMFY_PYTHON="$(command -v python3 || command -v python)"
+fi
 exec /worker-venv/bin/python /app/runner.py

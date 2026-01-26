@@ -73,6 +73,185 @@ UPLOAD_MAX_RETRIES = _env_int("UPLOAD_MAX_RETRIES", 3)
 UPLOAD_RETRY_DELAY = _env_float("UPLOAD_RETRY_DELAY", 3.0)
 DEQUANT_FP8_MODELS = _env_bool("DEQUANT_FP8_MODELS", True)
 
+CAPTION_BACKEND = os.environ.get("CAPTION_BACKEND", "florence2").strip().lower()
+CAPTION_MODES_RAW = os.environ.get("CAPTION_MODES", "std")
+CAPTION_MODES = {m.strip().lower() for m in CAPTION_MODES_RAW.split(",") if m.strip()}
+if not CAPTION_MODES:
+    CAPTION_MODES = {"std"}
+CAPTION_PROMPT_TEMPLATE = os.environ.get("CAPTION_PROMPT_TEMPLATE", "").strip()
+CAPTION_CAMERA_TAIL = os.environ.get(
+    "CAPTION_CAMERA_TAIL",
+    "Camera is locked-off with fixed focal length; no pan, tilt, roll, dolly, truck, or pedestal; no shake or drift.",
+).strip()
+CAPTION_TIMEOUT = _env_int("CAPTION_TIMEOUT", 120)
+CAPTION_MAX_NEW_TOKENS = _env_int("CAPTION_MAX_NEW_TOKENS", 256)
+CAPTION_DEVICE = os.environ.get("CAPTION_DEVICE", "").strip()
+CAPTION_DTYPE = os.environ.get("CAPTION_DTYPE", "float16").strip()
+CAPTION_CACHE_DIR = os.environ.get("CAPTION_CACHE_DIR", "/runpod-volume/huggingface-cache")
+CAPTIONER_PATH = os.environ.get("CAPTIONER_PATH", "/app/captioner.py")
+FLORENCE2_MODEL = os.environ.get("FLORENCE2_MODEL", "MiaoshouAI/Florence-2-base-PromptGen-v2.0")
+FLORENCE2_TASK = os.environ.get("FLORENCE2_TASK", "<MORE_DETAILED_CAPTION>")
+PROMPTGEN_MODEL = os.environ.get("PROMPTGEN_MODEL", "")
+
+
+def _captioning_enabled() -> bool:
+    if not CAPTION_BACKEND:
+        return False
+    return CAPTION_BACKEND not in {"off", "false", "0", "no", "none"}
+
+
+def _mode_key(*, is_batch: bool, is_extended: bool, is_workflow4: bool) -> str:
+    if is_workflow4:
+        return "workflow4"
+    if is_extended:
+        return "extended"
+    if is_batch:
+        return "batch"
+    return "std"
+
+
+def _should_caption(mode_key: str) -> bool:
+    if not _captioning_enabled():
+        return False
+    if "all" in CAPTION_MODES or "*" in CAPTION_MODES:
+        return True
+    return mode_key in CAPTION_MODES
+
+
+def _normalize_prompt_segment(text: Optional[str]) -> str:
+    if not isinstance(text, str):
+        return ""
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    return cleaned
+
+
+def _join_prompt_parts(parts: List[str]) -> str:
+    out = ""
+    for part in parts:
+        part = _normalize_prompt_segment(part)
+        if not part:
+            continue
+        if not out:
+            out = part
+            continue
+        if out.endswith((".", "!", "?")):
+            out = f"{out} {part}"
+        else:
+            out = f"{out}. {part}"
+    return out
+
+
+def _should_append_camera_tail(prompt: str) -> bool:
+    if not prompt:
+        return True
+    return re.search(r"\bcamera\b", prompt, re.IGNORECASE) is None
+
+
+def _compose_prompt(base_prompt: Optional[str], caption: Optional[str]) -> Optional[str]:
+    base_text = _normalize_prompt_segment(base_prompt)
+    caption_text = _normalize_prompt_segment(caption)
+    camera_tail = _normalize_prompt_segment(CAPTION_CAMERA_TAIL)
+
+    if not caption_text:
+        if camera_tail and base_text and _should_append_camera_tail(base_text):
+            return _join_prompt_parts([base_text, camera_tail])
+        return base_text or None
+
+    if CAPTION_PROMPT_TEMPLATE:
+        try:
+            rendered = CAPTION_PROMPT_TEMPLATE.format(
+                caption=caption_text,
+                prompt=base_text,
+                camera=camera_tail,
+            )
+        except Exception:
+            rendered = ""
+        rendered = _normalize_prompt_segment(rendered)
+        return rendered or base_text or caption_text
+
+    parts = [caption_text]
+    if base_text:
+        parts.append(base_text)
+    if camera_tail and _should_append_camera_tail(base_text):
+        parts.append(camera_tail)
+    return _join_prompt_parts(parts) or base_text or caption_text
+
+
+def _run_captioner(image_path: pathlib.Path) -> Optional[str]:
+    if not _captioning_enabled():
+        return None
+    if not CAPTIONER_PATH or not pathlib.Path(CAPTIONER_PATH).exists():
+        logging.warning("Captioner script not found: %s", CAPTIONER_PATH)
+        return None
+
+    comfy_python = os.environ.get("COMFY_PYTHON") or shutil.which("python3") or shutil.which("python") or "python3"
+    cmd = [
+        comfy_python,
+        CAPTIONER_PATH,
+        "--backend",
+        CAPTION_BACKEND,
+        "--image",
+        str(image_path),
+        "--max-new-tokens",
+        str(CAPTION_MAX_NEW_TOKENS),
+    ]
+    if CAPTION_DEVICE:
+        cmd.extend(["--device", CAPTION_DEVICE])
+    if CAPTION_DTYPE:
+        cmd.extend(["--dtype", CAPTION_DTYPE])
+
+    if CAPTION_BACKEND == "florence2":
+        cmd.extend(["--model", FLORENCE2_MODEL, "--task", FLORENCE2_TASK])
+    elif CAPTION_BACKEND == "promptgen":
+        if PROMPTGEN_MODEL:
+            cmd.extend(["--model", PROMPTGEN_MODEL])
+
+    env = os.environ.copy()
+    if CAPTION_CACHE_DIR:
+        cache_root = pathlib.Path(CAPTION_CACHE_DIR)
+        cache_root.mkdir(parents=True, exist_ok=True)
+        env.setdefault("HF_HOME", str(cache_root))
+        env.setdefault("HF_HUB_CACHE", str(cache_root / "hub"))
+        env.setdefault("TRANSFORMERS_CACHE", str(cache_root / "hub"))
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=CAPTION_TIMEOUT,
+            env=env,
+        )
+    except subprocess.TimeoutExpired:
+        logging.warning("Captioning timeout after %ss", CAPTION_TIMEOUT)
+        return None
+    except Exception as exc:
+        logging.warning("Captioning failed: %s", exc)
+        return None
+
+    if proc.returncode != 0:
+        logging.warning(
+            "Captioning error (code=%s): %s",
+            proc.returncode,
+            (proc.stderr or proc.stdout).strip(),
+        )
+        return None
+
+    lines = [line.strip() for line in (proc.stdout or "").splitlines() if line.strip()]
+    for line in reversed(lines):
+        try:
+            payload = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            caption = payload.get("caption") or payload.get("text")
+            if isinstance(caption, str) and caption.strip():
+                return caption.strip()
+
+    logging.warning("Captioner returned no caption")
+    return None
+
 
 def _force_unet_weight_dtype(filename: Optional[str]) -> Optional[str]:
     if not filename:
@@ -2297,6 +2476,7 @@ def handler(event):
     is_extended = mode == "extended10s"
     is_workflow4 = mode == "workflow4"
     is_batch = mode == "batch5s"
+    mode_key = _mode_key(is_batch=is_batch, is_extended=is_extended, is_workflow4=is_workflow4)
     if is_workflow4 and not workflow_key:
         workflow_key = "new"
 
@@ -2575,6 +2755,12 @@ def handler(event):
         shutil.copy(input_path, target)
         targets.append(target)
 
+        image_caption: Optional[str] = None
+        if _should_caption(mode_key):
+            image_caption = _run_captioner(input_path)
+            if image_caption:
+                logging.info("CAPTION(%s)=%s", mode_key, image_caption)
+
         video_path: Optional[pathlib.Path] = None
         batch_skipped = 0
 
@@ -2619,6 +2805,7 @@ def handler(event):
                         prompt_text = positive
                     else:
                         prompt_text = default_prompt_text
+                    prompt_text = _compose_prompt(prompt_text, image_caption) or prompt_text
 
                     for weight in weights:
                         weight_label = f"{float(weight):.2f}".rstrip("0").rstrip(".") or "0"
@@ -2736,7 +2923,9 @@ def handler(event):
                             )
                 video_path = last_video_path
             elif is_extended:
-                prompt2 = positive_prompt_2 if isinstance(positive_prompt_2, str) else positive_prompt
+                prompt1 = _compose_prompt(positive_prompt, image_caption) or positive_prompt
+                prompt2_raw = positive_prompt_2 if isinstance(positive_prompt_2, str) else positive_prompt
+                prompt2 = _compose_prompt(prompt2_raw, image_caption) or prompt2_raw
 
                 history1, video1 = run_comfy_prompt(
                     label="seg1",
@@ -2750,7 +2939,7 @@ def handler(event):
                     lora_low_strength=lora_low_strength,
                     model_high_filename=model_high_filename,
                     model_low_filename=model_low_filename,
-                    positive_prompt=positive_prompt,
+                    positive_prompt=prompt1,
                     use_lora=use_lora,
                     use_gguf=use_gguf,
                     use_last_frame=use_last_frame,
@@ -2795,6 +2984,10 @@ def handler(event):
                 concat_videos([video1, video2], final_video_path)
                 video_path = final_video_path
             elif is_workflow4:
+                prompt1 = _compose_prompt(positive_prompt, image_caption) or positive_prompt
+                prompt2 = _compose_prompt(positive_prompt_2, image_caption) or positive_prompt_2
+                prompt3 = _compose_prompt(positive_prompt_3, image_caption) or positive_prompt_3
+                prompt4 = _compose_prompt(positive_prompt_4, image_caption) or positive_prompt_4
                 history, video_path = run_comfy_prompt(
                     label=None,
                     workflow_key=workflow_key,
@@ -2829,10 +3022,10 @@ def handler(event):
                     lora4_low_strength=lora4_low_strength,
                     model_high_filename=model_high_filename,
                     model_low_filename=model_low_filename,
-                    positive_prompt=positive_prompt,
-                    positive_prompt_2=positive_prompt_2,
-                    positive_prompt_3=positive_prompt_3,
-                    positive_prompt_4=positive_prompt_4,
+                    positive_prompt=prompt1,
+                    positive_prompt_2=prompt2,
+                    positive_prompt_3=prompt3,
+                    positive_prompt_4=prompt4,
                     use_lora=use_lora,
                     use_gguf=use_gguf,
                     use_last_frame=use_last_frame,
@@ -2848,6 +3041,7 @@ def handler(event):
                     output_dir=output_dir,
                 )
             else:
+                prompt_text = _compose_prompt(positive_prompt, image_caption) or positive_prompt
                 history, video_path = run_comfy_prompt(
                     label=None,
                     input_filename=input_filename,
@@ -2860,7 +3054,7 @@ def handler(event):
                     lora_low_strength=lora_low_strength,
                     model_high_filename=model_high_filename,
                     model_low_filename=model_low_filename,
-                    positive_prompt=positive_prompt,
+                    positive_prompt=prompt_text,
                     use_lora=use_lora,
                     use_gguf=use_gguf,
                     use_last_frame=use_last_frame,
