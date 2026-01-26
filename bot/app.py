@@ -30,8 +30,9 @@ LORA_RATINGS_PATH = os.environ.get(
 )
 MODEL_CATALOG_PATH = os.environ.get("MODEL_CATALOG_PATH", "/app/models.json")
 
-# 4 buttons max (2x2 grid) + paging arrows
-PAGE_SIZE = int(os.environ.get("LORA_PAGE_SIZE", "4"))  # keep 4 by default
+# LoRA list paging; rows are controlled via LORA_COLUMNS
+PAGE_SIZE = int(os.environ.get("LORA_PAGE_SIZE", "6"))
+LORA_COLUMNS = int(os.environ.get("LORA_COLUMNS", "1"))
 MODEL_PAGE_SIZE = int(os.environ.get("MODEL_PAGE_SIZE", "4"))
 WEIGHT_OPTIONS_RAW = os.environ.get("LORA_WEIGHT_OPTIONS", "0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0")
 BATCH_TEST_WEIGHTS_RAW = os.environ.get("BATCH_TEST_WEIGHTS", "0.5,0.7,0.9")
@@ -513,10 +514,10 @@ def build_lora_keyboard(job_id: str, page: int = 0) -> str:
     chunk = LORA_KEYS[start:end]
 
     rows = []
-    # 2x2 grid for up to 4 options
-    for i in range(0, len(chunk), 2):
+    cols = max(1, int(LORA_COLUMNS))
+    for i in range(0, len(chunk), cols):
         row = []
-        for j in range(2):
+        for j in range(cols):
             if i + j >= len(chunk):
                 break
             key = chunk[i + j]
@@ -949,9 +950,10 @@ def build_lora_keyboard_ext(job_id: str, page: int = 0, *, tag_prefix: str = "e"
     chunk = LORA_KEYS[start:end]
 
     rows = []
-    for i in range(0, len(chunk), 2):
+    cols = max(1, int(LORA_COLUMNS))
+    for i in range(0, len(chunk), cols):
         row = []
-        for j in range(2):
+        for j in range(cols):
             if i + j >= len(chunk):
                 break
             key = chunk[i + j]
