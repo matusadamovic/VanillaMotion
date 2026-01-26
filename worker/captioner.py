@@ -3,6 +3,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 from typing import Any, Optional
 
@@ -36,6 +37,71 @@ def _resolve_dtype(name: str, device: str):
     if key in ("fp32", "float32"):
         return torch.float32
     return torch.float16
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except Exception:
+        return default
+
+
+def _sanitize_enabled() -> bool:
+    value = os.environ.get("CAPTION_SANITIZE", "1").strip().lower()
+    return value not in {"0", "false", "no", "off"}
+
+
+def _drop_patterns() -> list[re.Pattern]:
+    defaults = [
+        r"\b\d{1,2}\s*[- ]?year[- ]?old\b",
+        r"\b(appears to be|seems to be)\b",
+        r"\b(tattoo|tattoos|piercing|piercings)\b",
+        r"\b(blue|green|brown|hazel|gray|grey)\s+eyes\b",
+        r"\b(fair|pale|light|dark|tan)\s+skin\b",
+        r"\b(overall mood|mood is|atmosphere)\b",
+        r"\bslender\b",
+        r"\bbreasts?\b",
+    ]
+    extra = os.environ.get("CAPTION_DROP_PATTERNS", "").strip()
+    if extra:
+        defaults.extend(p.strip() for p in extra.split(";") if p.strip())
+    compiled: list[re.Pattern] = []
+    for pattern in defaults:
+        try:
+            compiled.append(re.compile(pattern, re.IGNORECASE))
+        except re.error:
+            continue
+    return compiled
+
+
+def _sanitize_caption(text: str) -> str:
+    if not text:
+        return text
+    text = re.sub(r"<[^>]+>", "", text)
+    text = " ".join(text.split())
+    if not _sanitize_enabled():
+        return text
+
+    max_sentences = _env_int("CAPTION_MAX_SENTENCES", 2)
+    patterns = _drop_patterns()
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+
+    seen = set()
+    kept = []
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        if any(p.search(sentence) for p in patterns):
+            continue
+        key = re.sub(r"[^a-z0-9]+", "", sentence.lower())
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        kept.append(sentence)
+        if max_sentences and len(kept) >= max_sentences:
+            break
+    return " ".join(kept) or text
 
 
 def _extract_caption(parsed: Any, task: str) -> Optional[str]:
@@ -97,7 +163,8 @@ def florence2_caption(
     generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
     parsed = processor.post_process_generation(generated_text, task=task, image_size=image.size)
     caption = _extract_caption(parsed, task)
-    return caption or generated_text
+    output = caption or generated_text
+    return _sanitize_caption(output) or output
 
 
 def promptgen_caption(
@@ -118,9 +185,9 @@ def promptgen_caption(
             for key in ("generated_text", "caption", "text"):
                 value = item.get(key)
                 if isinstance(value, str) and value.strip():
-                    return value.strip()
+                    return _sanitize_caption(value.strip())
         if isinstance(item, str) and item.strip():
-            return item.strip()
+            return _sanitize_caption(item.strip())
     raise RuntimeError("promptgen returned no caption")
 
 
