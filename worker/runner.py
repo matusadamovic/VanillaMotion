@@ -2924,8 +2924,6 @@ def handler(event):
                 video_path = last_video_path
             elif is_extended:
                 prompt1 = _compose_prompt(positive_prompt, image_caption) or positive_prompt
-                prompt2_raw = positive_prompt_2 if isinstance(positive_prompt_2, str) else positive_prompt
-                prompt2 = _compose_prompt(prompt2_raw, image_caption) or prompt2_raw
 
                 history1, video1 = run_comfy_prompt(
                     label="seg1",
@@ -2956,6 +2954,15 @@ def handler(event):
                 target2 = comfy_input_dir / input2_filename
                 shutil.copy(last_frame_path, target2)
                 targets.append(target2)
+
+                image_caption2: Optional[str] = None
+                if _should_caption(mode_key):
+                    image_caption2 = _run_captioner(last_frame_path)
+                    if image_caption2:
+                        logging.info("CAPTION(%s, seg2)=%s", mode_key, image_caption2)
+
+                prompt2_raw = positive_prompt_2 if isinstance(positive_prompt_2, str) else positive_prompt
+                prompt2 = _compose_prompt(prompt2_raw, image_caption2) or prompt2_raw
 
                 history2, video2 = run_comfy_prompt(
                     label="seg2",
