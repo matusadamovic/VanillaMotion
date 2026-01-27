@@ -69,6 +69,7 @@ COMFY_OUTPUT_GRACE = _env_int("COMFY_OUTPUT_GRACE", 45)
 BATCH_MAX_RETRIES = _env_int("BATCH_MAX_RETRIES", 2)
 BATCH_RETRY_DELAY = _env_float("BATCH_RETRY_DELAY", 5.0)
 BATCH_RESTART_ON_FAILURE = _env_bool("BATCH_RESTART_ON_FAILURE", True)
+MIX_RESTART_EVERY = _env_int("MIX_RESTART_EVERY", 4)
 UPLOAD_MAX_RETRIES = _env_int("UPLOAD_MAX_RETRIES", 3)
 UPLOAD_RETRY_DELAY = _env_float("UPLOAD_RETRY_DELAY", 3.0)
 DEQUANT_FP8_MODELS = _env_bool("DEQUANT_FP8_MODELS", True)
@@ -3092,6 +3093,9 @@ def handler(event):
                 video_paths: list[pathlib.Path] = []
                 current_input_filename = input_filename
                 last_frame_path: Optional[pathlib.Path] = None
+                mix_restart_every = max(0, MIX_RESTART_EVERY)
+                if mix_restart_every:
+                    logging.info("MIX restart every %s segments", mix_restart_every)
 
                 for idx, seg in enumerate(mix_segments, start=1):
                     seg_caption: Optional[str] = None
@@ -3138,6 +3142,8 @@ def handler(event):
                         shutil.copy(last_frame_path, target_next)
                         targets.append(target_next)
                         current_input_filename = next_input_filename
+                        if mix_restart_every and idx % mix_restart_every == 0:
+                            _restart_comfy(f"mix segment {idx}/{len(mix_segments)}")
 
                 if len(video_paths) == 1:
                     video_path = video_paths[0]
