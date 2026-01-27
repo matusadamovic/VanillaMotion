@@ -21,6 +21,10 @@ RATE_LIMIT_SECONDS = int(os.environ.get("RATE_LIMIT_SECONDS", "5"))
 DEDUP_TTL_SECONDS = int(os.environ.get("DEDUP_TTL_SECONDS", "600"))
 
 LORA_CATALOG_PATH = os.environ.get("LORA_CATALOG_PATH", "/app/loras.json")
+LORA_UNSTACKED_PATH = os.environ.get(
+    "LORA_UNSTACKED_PATH",
+    os.path.join(os.path.dirname(LORA_CATALOG_PATH), "lorasUnstacked.json"),
+)
 LORA_GROUPS_PATH = os.environ.get("LORA_GROUPS_PATH")
 if not LORA_GROUPS_PATH:
     LORA_GROUPS_PATH = os.path.join(os.path.dirname(LORA_CATALOG_PATH), "lora_groups.json")
@@ -58,6 +62,19 @@ def load_lora_catalog() -> Dict[str, Any]:
         data = json.load(f)
     if not isinstance(data, dict) or not data:
         raise RuntimeError("loras.json must be a non-empty JSON object")
+    return data
+
+
+def load_lora_unstacked_catalog() -> Dict[str, Any]:
+    if not LORA_UNSTACKED_PATH or not os.path.exists(LORA_UNSTACKED_PATH):
+        return {}
+    try:
+        with open(LORA_UNSTACKED_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return {}
+    if not isinstance(data, dict) or not data:
+        return {}
     return data
 
 
@@ -138,6 +155,7 @@ def _normalize_model_type(value: Any) -> Optional[str]:
 
 
 LORA_CATALOG = load_lora_catalog()
+LORA_UNSTACKED_CATALOG = load_lora_unstacked_catalog()
 LORA_RATINGS = load_lora_ratings()
 
 
@@ -148,6 +166,13 @@ def _lora_sort_key(key: str) -> Tuple[float, str]:
 
 LORA_KEYS = sorted(LORA_CATALOG.keys(), key=_lora_sort_key)
 LORA_GROUP_CATALOG = load_lora_group_catalog()
+
+
+def _mix_lora_cfg(lora_key: str, fallback: Dict[str, Any]) -> Dict[str, Any]:
+    cfg = LORA_UNSTACKED_CATALOG.get(lora_key)
+    if isinstance(cfg, dict) and cfg:
+        return cfg
+    return fallback
 LORA_GROUP_KEYS = sorted(LORA_GROUP_CATALOG.keys())
 MODEL_CATALOG = load_model_catalog()
 MODEL_KEYS_BY_TYPE: Dict[str, List[str]] = {"wan": [], "gguf": []}
@@ -2648,6 +2673,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
         lora_key, cfg = _get_lora_cfg_by_index(idx)
         if not cfg:
             return
+        if str(sess.get("mode") or "").lower() == "mix":
+            cfg = _mix_lora_cfg(lora_key, cfg)
         lora_type = str(cfg.get("type") or "single").lower()
         label = str(cfg.get("label") or lora_key)
         current = int(sess.get("current_lora") or 1)

@@ -1,0 +1,485 @@
+{
+  "cumv2": {
+    "label": "CumV2",
+    "type": "pair",
+    "high_filename": "Wan22_CumV2_High.safetensors",
+    "low_filename": "Wan22_CumV2_High.safetensors",
+    "high_strength": 0.6,
+    "low_strength": 0.6,
+    "positive": "Hard cut to a clean shot of the same subject and setting. Side view. A man on the left strokes his penis; the tip taps her tongue and semen lands on her face and mouth. Thick ropes of semen across her face; a viscous strand from the nose to the upper lip; semen pools at the corner of her mouth and drips down her face. She keeps a neutral expression with only a slow, subtle change. Same subject and face. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Either lock wide/full-body framing or explicitly limit to close/mid only. Penis enters from the left edge of frame and makes clear contact with the described target. Ensure penis is fully visible before the action starts. Ejaculation only after penis is visible and in position. Her face stays almost still while the ejaculation happens. The camera stays steady on her face, without reframing."
+  },
+  "ahegao": {
+    "label": "Ahegao",
+    "type": "single",
+    "filename": "ahegao_v1_e35_wan.safetensors",
+    "strength": 0.7,
+    "positive": "Same woman, kneeling, facing the viewer. She holds an ahegao expression with tongue out and eyes crossed; drool drips slowly. Keep face visible. Head mostly still; only required parts move. Locked- off camera, fixed lens; no pan/tilt/zoom/reframe. Make the ahegao stronger: eyes deeply crossed, tongue fully out, gaze locked to camera. Use the simplest trigger-only prompt, close-up, neutral pose, no props. Her face and head stay almost still while she holds the expression. The camera stays steady and centered on her face."
+  },
+  "fj": {
+    "label": "fj",
+    "type": "pair",
+    "high_filename": "fj_high-000012_converted.safetensors",
+    "low_filename": "fj_low.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Hard cut to a clean shot of the same subject and setting. Low-angle view that includes her face while emphasizing legs and feet. She gives a footjob using only her feet and ankles; legs and torso stay still. Same subject and face. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Either lock wide/full- body framing or explicitly limit to close/mid only. Lock ankle and foot positions; only small toe motion. Clarify anatomy (penis, not finger); avoid hand confusion. Her head stays mostly still while her feet do the work. The camera stays fixed on her legs and face."
+  },
+  "ff_v3": {
+    "label": "ff_v3",
+    "type": "pair",
+    "high_filename": "FF-v3-high-120.safetensors",
+    "low_filename": "FF-v3-low-120.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Hard cut to a clean shot of the same subject and setting. A penis enters from the left/right/out of frame and goes into her mouth. The man moves in and out while holding her head steady; her cheeks deform with the motion. A brief deeper push bulges one cheek. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked- off camera, fixed lens; no pan/tilt/zoom/reframe. Penis enters from the left edge of frame and makes clear contact with the described target. Lock head position; only jaw and lips move; no head turns. Ensure penis is fully visible before the action starts. Her head stays steady with only mouth motion. The camera stays fixed and stable, with no reframing."
+  },
+  "flipoffahegao_noise": {
+    "label": "flipoffahegao_noise",
+    "type": "pair",
+    "high_filename": "flipOffAhegao_high_noise.safetensors",
+    "low_filename": "flipOffAhegao_low_noise.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "She flips off the viewer while holding an ahegao expression. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Make the ahegao stronger: eyes deeply crossed, tongue fully out, gaze locked to camera. Keep face centered and fully visible; minimal head movement. Exaggerate ahegao: crossed eyes, tongue out, drool. Her head stays mostly still as she flips off the viewer. The camera stays steady and centered."
+  },
+  "fludz_noise": {
+    "label": "fludz_noise",
+    "type": "pair",
+    "high_filename": "FLUDZ_000006250_high_noise.safetensors",
+    "low_filename": "FLUDZ_000006250_low_noise.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Hard cut to a clean shot of the same subject and setting. A penis pokes into frame from the left. The man strokes it with his hand and semen splashes onto her hair, face, cheeks, and nose. Her hands are already raised near her face in a protective pose; she looks at the camera with an annoyed expression. Same subject and face. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Penis enters from the left edge of frame and makes clear contact with the described target. Ejaculation happens after the pose stabilizes; keep the source fixed. Ensure penis is fully visible before the action starts. Her head stays mostly still as the splash lands. The camera stays steady on her face."
+  },
+  "i2v_dildo_hj": {
+    "label": "i2v_dildo_hj",
+    "type": "pair",
+    "high_filename": "I2V_dildo_hj_high.safetensors",
+    "low_filename": "I2V_dildo_hj_low.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Same framing and distance, seated at a desk with a penis-shaped dildo in front of her. She gives the dildo a steady up-and-down handjob motion while looking directly at the camera with a subtle flirty look. Single continuous shot. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Either lock wide/full- body framing or explicitly limit to close/mid only. Explicitly say \"dildo\" and keep it centered in frame. Hands must be empty; no objects or hair blocking the action. Ensure penis is fully visible before the action starts. Her head stays mostly still while the hand moves. The camera stays fixed on her and the dildo."
+  },
+  "i2v_joi_trend": {
+    "label": "i2v_joi_trend",
+    "type": "pair",
+    "high_filename": "I2V_joi_trend_high.safetensors",
+    "low_filename": "I2V_joi_trend_low.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "She sticks her tongue out slightly. One hand performs a small rhythmic up-and-down JOI motion in front of her; only the hand moves. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Either lock wide/full- body framing or explicitly limit to close/mid only. Lock head position; only jaw and lips move; no head turns. Hands must be empty; no objects or hair blocking the action. Her head stays mostly still while the hand moves. The camera stays fixed and steady."
+  },
+  "i2v_sexymove": {
+    "label": "i2v_sexymove",
+    "type": "pair",
+    "high_filename": "2.2-I2V-Hi-SexyMove.safetensors",
+    "low_filename": "2.2-I2V-Lo-SexyMove.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "She holds a sexy pose; motion limited to tiny breathing and very slow micro-expressions. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Rewrite as one clear core-action sentence; drop extras. Use wide full- body framing; keep face in frame. Her head stays almost still with only tiny expressions. The camera stays steady on the pose."
+  },
+  "pornmaster_wan_14b_i2v_double_penetration_v1_noise": {
+    "label": "pornmaster_wan_14b_i2v_double_penetration_v1_noise",
+    "type": "pair",
+    "high_filename": "Pornmaster_wan2.2_14b_I2V_double_penetration_v1_high_noise.safetensors",
+    "low_filename": "Pornmaster_wan2.2_14b_I2V_double_penetration_v1_low_noise.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Hard cut to a clean shot of the same subject and setting. A woman is seated and leaning back against a man. The man beneath her thrusts in and out of her anus; another man on the left thrusts into her vagina; their testicles sway. Her body stays mostly still with only minimal motion. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Rewrite as one clear core-action sentence; drop extras. Keep face centered and fully visible; minimal head movement. Use a neutral upright pose; avoid prone/lying positions. Avoid extreme poses; add negatives for extra limbs. Her head stays mostly still while the action happens. The camera stays steady on her body, without reframing."
+  },
+  "readyforbj_wan22_noise": {
+    "label": "readyforbj_wan22_noise",
+    "type": "pair",
+    "high_filename": "readyforbj_WAN22_000001250_high_noise.safetensors",
+    "low_filename": "readyforbj_WAN22_000001250_low_noise.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Same framing and distance. She is already kneeling with her hair pulled back and held up by both hands; mouth open, tongue out. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Either lock wide/full- body framing or explicitly limit to close/mid only. Lock head position; only jaw and lips move; no head turns. Keep face centered and fully visible; minimal head movement. Hands must be empty; no objects or hair blocking the action. Her head stays mostly still in the kneeling pose. The camera stays steady and centered."
+  },
+  "wan_cumshot_i2v": {
+    "label": "wan_cumshot_i2v",
+    "type": "single",
+    "filename": "wan_cumshot_i2v.safetensors",
+    "strength": 0.7,
+    "positive": "Hard cut to a clean shot of the same subject and setting. Semen shoots from off screen and lands on her face, eye, and hair. She stays facing forward with only a slow, subtle expression change. A man's penis and hand partially enter the frame from the side as he strokes. Same subject and face. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Penis enters from the left edge of frame and makes clear contact with the described target. Ejaculation happens after the pose stabilizes; keep the source fixed. Ensure penis is fully visible before the action starts. Ejaculation only after penis is visible and in position. Her head stays mostly still as the cumshot lands. The camera stays steady and close."
+  },
+  "wan_cumshot_i2v_22epo_k3nk": {
+    "label": "wan_cumshot_i2v_22epo_k3nk",
+    "type": "single",
+    "filename": "wan-cumshot-I2V-22epo-k3nk.safetensors",
+    "strength": 0.7,
+    "positive": "f4c3spl4sh. Hard cut to a clean shot of the same subject and setting. Side-angle close-up of her face and upper body. She is lying down with eyes open, hair spread out. A strong stream of semen is directed toward her open mouth, covering much of her face and neck. She remains still. Same subject and face. Head mostly still; only required parts move. Locked- off camera, fixed lens; no pan/tilt/zoom/reframe. Lock head position; only jaw and lips move; no head turns. Ejaculation happens after the pose stabilizes; keep the source fixed. Her head stays still in the side close-up. The camera stays steady with no reframing."
+  },
+  "wan_finger_licking_i2v_v10": {
+    "label": "wan_finger_licking_i2v_v10",
+    "type": "single",
+    "filename": "wan_finger_licking_i2v-480_v10.safetensors",
+    "strength": 0.7,
+    "positive": "She licks and sucks her fingers; only the hand and mouth move. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Either lock wide/full-body framing or explicitly limit to close/mid only. Lock head position; only jaw and lips move; no head turns. Hands must be empty; no objects or hair blocking the action. Clarify anatomy (penis, not finger); avoid hand confusion. Her head stays mostly still while she licks. The camera stays fixed and steady."
+  },
+  "wan_i2v_orgasm_v1": {
+    "label": "wan_i2v_orgasm_v1",
+    "type": "pair",
+    "high_filename": "WAN-2.2-I2V-Orgasm-HIGH-v1.safetensors",
+    "low_filename": "WAN-2.2-I2V-Orgasm-LOW-v1.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "She shows a mild orgasm reaction; her mouth opens slightly as she breathes and moans softly, but her head stays steady. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Specify orgasm face: open mouth, tense brow and cheeks. Lock head position; only jaw and lips move; no head turns. Her head stays mostly still while the expression changes. The camera stays steady and fixed."
+  },
+  "wan2_14b_i2v_ahegao_irl_noise": {
+    "label": "wan2_14b_i2v_ahegao_irl_noise",
+    "type": "pair",
+    "high_filename": "wan2.2_14B_i2v_ahegao_irl_high_noise.safetensors",
+    "low_filename": "wan2.2_14B_i2v_ahegao_irl_low_noise.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "She holds an ahegao face with tongue out and eyes crossed. Same subject and face. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Make the ahegao stronger: eyes deeply crossed, tongue fully out, gaze locked to camera. Exaggerate ahegao: crossed eyes, tongue out, drool. Her face and head stay almost still while she holds the ahegao. The camera stays steady on her face."
+  },
+  "wan2_i2v_oral_insertion_v1": {
+    "label": "wan2_i2v_oral_insertion_v1",
+    "type": "pair",
+    "high_filename": "wan2.2-i2v-high-oral-insertion-v1.0.safetensors",
+    "low_filename": "wan2.2-i2v-low-oral-insertion-v1.0.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Hard cut to a clean shot of the same subject and setting. A penis enters from off frame and she sucks it while keeping her head steady; only jaw and lips move. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Penis enters from the left edge of frame and makes clear contact with the described target. Her head stays steady with only mouth motion. The camera stays fixed and stable."
+  },
+  "wan2_i2v_t2v_flatchested": {
+    "label": "wan2_i2v_t2v_flatchested",
+    "type": "pair",
+    "high_filename": "WAN2.2_I2V-T2V_Flatchested_High.safetensors",
+    "low_filename": "WAN2.2_I2V-T2V_Flatchested_Low.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Her top is already pulled down, revealing a flat chest; she holds still. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Define hand start position and the reveal path; keep framing stable. Use the simplest trigger-only prompt, close-up, neutral pose, no props. Her head stays mostly still during the reveal. The camera stays steady on her upper body."
+  },
+  "wan2_t2v_i2v_14b_invisiblegrope_v1_qqqq4413": {
+    "label": "wan2_t2v_i2v_14b_invisiblegrope_v1_qqqq4413",
+    "type": "pair",
+    "high_filename": "WAN2.2_T2V_I2V-14B_INVISIBLEGROPE-HIGH-epoch29_v1.1_qqqq4413.safetensors",
+    "low_filename": "WAN2.2_T2V_I2V-14B_INVISIBLEGROPE-LOW-epoch35_v1.1_qqqq4413.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "invisiblegrope. Both breasts are grabbed and alternately kneaded by invisible hands; invisible fingers dig in, creating visible indentations. She opens her mouth slightly while staying still. No hands are visible. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Lock head position; only jaw and lips move; no head turns. Define hand start position and the reveal path; keep framing stable. Prefer close-up or medium close-up; face fills frame. Use light clothing or already exposed area; avoid bulky layers. Her head stays mostly still while the invisible groping happens. The camera stays steady and close."
+  },
+  "wan22_bbcdeepthroat_k3nk": {
+    "label": "wan22_bbcdeepthroat_k3nk",
+    "type": "pair",
+    "high_filename": "wan22-bbcdeepthroat-115epoc-high-k3nk.safetensors",
+    "low_filename": "wan22-bbcdeepthroat-155epoc-low-720-k3nk.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Hard cut to a clean shot of the same subject and setting. A black man enters from the left; only his lower body is visible, with a large thick penis and prominent glans. Close-up focuses on the interaction between the penis and her mouth/throat as she deepthroats. He holds her head steady; her cheeks hollow from suction. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Penis enters from the left edge of frame and makes clear contact with the described target. Lock head position; only jaw and lips move; no head turns. Use a neutral upright pose; avoid prone/lying positions. Avoid extreme poses; add negatives for extra limbs. Her head stays steady during the deepthroat. The camera stays fixed on the side close-up."
+  },
+  "wan22_biggestcock_noise_v1": {
+    "label": "wan22_biggestcock_noise_v1",
+    "type": "pair",
+    "high_filename": "Wan22_BiggestCock_high_noise_V1.safetensors",
+    "low_filename": "Wan22_BiggestCock_low_noise_V1.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Hard cut to a clean shot of the same subject and setting. A woman kneels in front of a man with a giant penis. He thrusts while holding her head steady; her mouth stretches as she deepthroats, with cheeks and jaw moving while her head stays still. She gags slightly without moving her head. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Penis enters from the left edge of frame and makes clear contact with the described target. Lock head position; only jaw and lips move; no head turns. Use a neutral upright pose; avoid prone/lying positions. Her head stays mostly still with only mouth motion. The camera stays steady and fixed."
+  },
+  "wan22_cumshot_k3nk": {
+    "label": "wan22_cumshot_k3nk",
+    "type": "pair",
+    "high_filename": "wan22-cumshot-54epoc-high-k3nk.safetensors",
+    "low_filename": "wan22-cumshot-54epoc-low-k3nk.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "f4c3spl4sh. Hard cut to a clean shot of the same subject and setting. The woman stays still as a penis with round testicles slides in from the left and ejaculates on her face. Her eyes are open and her mouth is wide open with tongue out and a toothy smile. Thick, stringy semen lands on her tongue, lips, nose, chin, forehead, cheeks, and eyes. Same subject and face. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Either lock wide/full-body framing or explicitly limit to close/mid only. Penis enters from the left edge of frame and makes clear contact with the described target. Avoid wide shots; use close or medium framing only. Keep face centered and fully visible; minimal head movement. Her head stays still as the cumshot lands. The camera stays steady and close."
+  },
+  "wan22_f4c3cr34m_i2v_k3nk": {
+    "label": "wan22_f4c3cr34m_i2v_k3nk",
+    "type": "pair",
+    "high_filename": "wan22-f4c3cr34m-100epoc-i2v-high-k3nk.safetensors",
+    "low_filename": "wan22-f4c3cr34m-117epoc-i2v-low-k3nk.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "f4c3cr34m. Hard cut to a clean shot of the same subject and setting. A woman looks at the viewer as a man's hand holding a penis slides in from the left. He masturbates and ejaculates onto her forehead, creating a dense stream that spreads across her face. Her eyes are closed and her expression shifts slightly; his hand remains steady on her head. Same subject and face. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Either lock wide/full-body framing or explicitly limit to close/mid only. Penis enters from the left edge of frame and makes clear contact with the described target. Avoid wide shots; use close or medium framing only. Keep the man visible in frame (hips/penis present). Her head stays mostly still as the ejaculation hits. The camera stays fixed on her face."
+  },
+  "wan22_i2v_feetup_v3_noise": {
+    "label": "wan22_i2v_feetup_v3_noise",
+    "type": "pair",
+    "high_filename": "wan22_i2v_feetup_V3_high_noise.safetensors",
+    "low_filename": "wan22_i2v_feetup_V3_low_noise.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Her feet are already up on the table; a wide framing keeps her face visible while she flexes her toes, revealing bare soles with deep wrinkles. Only feet and toes move. Same subject and face. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Lock ankle and foot positions; only small toe motion. Prefer close-up or medium close-up; face fills frame. Use a neutral upright pose; avoid prone/lying positions. Her head stays mostly still while her toes move. The camera stays steady on her face and feet."
+  },
+  "wan22_mouthfull_k3nk": {
+    "label": "wan22_mouthfull_k3nk",
+    "type": "pair",
+    "high_filename": "wan22-mouthfull-140epoc-high-k3nk.safetensors",
+    "low_filename": "wan22-mouthfull-152epoc-low-k3nk.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "m0u7hfu11. Hard cut to a clean shot of the same subject and setting. Extreme close-up of her face and mouth. The man's hand holds his penis near her open mouth; ejaculation fills her mouth, drips from her lips, and pools on her tongue. She keeps her head steady. Same subject and face. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Either lock wide/full-body framing or explicitly limit to close/mid only. Penis enters from the left edge of frame and makes clear contact with the described target. Avoid wide shots; use close or medium framing only. Hands must be empty; no objects or hair blocking the action. Her head stays steady as her mouth fills. The camera stays fixed in the close-up."
+  },
+  "wan22_side_deepthroat_k3nk": {
+    "label": "wan22_side_deepthroat_k3nk",
+    "type": "pair",
+    "high_filename": "wan22-side-deepthroat-54epoc-high-k3nk.safetensors",
+    "low_filename": "wan22-side-deepthroat-12epoc-low-k3nk.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Hard cut to a clean shot of the same subject and setting. Side view. A woman deepthroats a penis while kneeling; her chin touches the testicles. The man grabs her hair to keep her head steady; only jaw and throat move. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Penis enters from the left edge of frame and makes clear contact with the described target. Ensure penis is fully visible before the action starts. Keep the man visible in frame (hips/penis present). Her head stays steady in the side view. The camera stays fixed and stable."
+  },
+  "wan22_ultimatedeepthroat_i2v_k3nk": {
+    "label": "wan22_ultimatedeepthroat_i2v_k3nk",
+    "type": "pair",
+    "high_filename": "wan22-ultimatedeepthroat-i2v-102epoc-high-k3nk.safetensors",
+    "low_filename": "wan22-ultimatedeepthroat-I2V-101epoc-low-k3nk.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Hard cut to a clean shot of the same subject and setting. Cinematic side view with the woman in frame; a man enters from the side with only his lower body visible. A gigantic erect penis appears and she deepthroats; her nose presses against his hips. Her head remains steady; only jaw and throat move. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Either lock wide/full-body framing or explicitly limit to close/mid only. Penis enters from the left edge of frame and makes clear contact with the described target. Avoid wide shots; use close or medium framing only. Keep face centered and fully visible; minimal head movement. Her head stays steady with only jaw and throat motion. The camera stays fixed on the side view."
+  },
+  "igoon_blink_back_doggystyle": {
+    "label": "igoon_blink_back_doggystyle",
+    "type": "pair",
+    "high_filename": "iGoon - Blink_Back_Doggystyle_HIGH.safetensors",
+    "low_filename": "iGoon - Blink_Back_Doggystyle_LOW.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Blink-style hard cut: the woman is in a neutral pose, then the same woman is in doggystyle, shot from behind. She looks back at the camera with a soft open-mouth expression. He penetrates her vagina from behind; her body moves subtly with the thrusts while her head stays still. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Trigger the blink/hard-cut at the very start; pre/post frames must match in pose and framing. Lock head position; only jaw and lips move; no head turns. Use a neutral upright pose; avoid prone/lying positions. Avoid extreme poses; add negatives for extra limbs. Use a clean blink/hard cut; the framing before and after matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "igoon_blink_missionary_i2v_v2": {
+    "label": "igoon_blink_missionary_i2v_v2",
+    "type": "pair",
+    "high_filename": "iGoon_Blink_Missionary_I2V_HIGH v2.safetensors",
+    "low_filename": "iGoon - Blink_Missionary_I2V_LOW v2.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Blink-style hard cut to missionary on a bed. She lies on her back with legs spread; a man kneels between her legs and thrusts. She holds a calm, minimal expression; hands rest on her thighs. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Trigger the blink/hard-cut at the very start; pre/post frames must match in pose and framing. Lock hand start pose; only wrist/finger motion. Start with a hard cut/blink; pre/post frames must match. Keep face centered and fully visible; minimal head movement. Use a clean blink/hard cut; the framing before and after matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "igoon_blink_titjob_i2v": {
+    "label": "igoon_blink_titjob_i2v",
+    "type": "pair",
+    "high_filename": "iGoon_Blink_Titjob_I2V_HIGH.safetensors",
+    "low_filename": "iGoon_Blink_Titjob_I2V_LOW.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Blink-style hard cut to the same woman lying on a tiled floor; her breasts are positioned around the man's erect penis as he thrusts between them. She keeps a steady, neutral expression with minimal facial movement. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Trigger the blink/hard-cut at the very start; pre/post frames must match in pose and framing. Either lock wide/full-body framing or explicitly limit to close/mid only. Avoid wide shots; use close or medium framing only. Keep face centered and fully visible; minimal head movement. Use a clean blink/hard cut; the framing before and after matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "igoon_blink_facial_i2v": {
+    "label": "igoon_blink_facial_i2v",
+    "type": "pair",
+    "high_filename": "iGoon - Blink_Facial_I2V_HIGH.safetensors",
+    "low_filename": "iGoon - Blink_Facial_I2V_LOW.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Blink-style hard cut to the same woman kneeling and looking up with an open mouth. A man's hand holds his erect penis and ejaculates thick semen onto her face, forehead, eyes, cheeks, and mouth; the semen slowly drips down. She looks at the camera with a steady expression. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Trigger the blink/hard-cut at the very start; pre/post frames must match in pose and framing. Penis enters from the left edge of frame and makes clear contact with the described target. Start with a hard cut/blink; pre/post frames must match. Ensure penis is fully visible before the action starts. Use a clean blink/hard cut; the framing before and after matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "igoon_blink_handjob_i2v": {
+    "label": "igoon_blink_handjob_i2v",
+    "type": "pair",
+    "high_filename": "iGoon - Blink_Handjob_I2V_HIGH.safetensors",
+    "low_filename": "iGoon - Blink_Handjob_I2V_LOW.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Blink-style hard cut to the same woman on her stomach with her head low in frame on a man's thigh; his penis is at the left of frame. With her right hand she gives a steady handjob. She looks at the camera with only slow, subtle expression changes. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Trigger the blink/hard-cut at the very start; pre/post frames must match in pose and framing. Either lock wide/full-body framing or explicitly limit to close/mid only. Start with a hard cut/blink; pre/post frames must match. Keep face centered and fully visible; minimal head movement. Use a clean blink/hard cut; the framing before and after matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "blink_squatting_cowgirl_position_i2v": {
+    "label": "blink_squatting_cowgirl_position_i2v",
+    "type": "pair",
+    "high_filename": "Blink_Squatting_Cowgirl_Position_I2V_HIGH.safetensors",
+    "low_filename": "Blink_Squatting_Cowgirl_Position_I2V_LOW.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Blink-style hard cut to squatting cowgirl. Her face fills the frame as she leans forward; she moves up and down in a slow, controlled rhythm while his penis stays inside her. Shot from above looking down. Same subject and face. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Trigger the blink/hard-cut at the very start; pre/post frames must match in pose and framing. Either lock wide/full-body framing or explicitly limit to close/mid only. Start with a hard cut/blink; pre/post frames must match. Use a hard cut at the start; the framing before and after matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "igoon_blink_blowjob_i2v_1": {
+    "label": "igoon_blink_blowjob_i2v_1",
+    "type": "pair",
+    "high_filename": "iGOON_Blink_Blowjob_I2V_HIGH(1).safetensors",
+    "low_filename": "iGOON_Blink_Blowjob_I2V_LOW(1).safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Blink-style hard cut to the same woman kneeling and giving a blowjob to a man standing in the same location. She holds his penis with both hands, looks at the camera, and performs a slow deep insertion while keeping her head steady. Keep face visible. Head mostly still; only required parts move. Locked- off camera, fixed lens; no pan/tilt/zoom/reframe. Trigger the blink/hard-cut at the very start; pre/post frames must match in pose and framing. Either lock wide/full-body framing or explicitly limit to close/mid only. Use a neutral upright pose; avoid prone/lying positions. Use a clean blink/hard cut; the framing before and after matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "igoon_blink_front_doggystyle_i2v": {
+    "label": "igoon_blink_front_doggystyle_i2v",
+    "type": "pair",
+    "high_filename": "iGoon - Blink_Front_Doggystyle_I2V_HIGH.safetensors",
+    "low_filename": "iGoon - Blink_Front_Doggystyle_I2V_LOW.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Blink-style hard cut to the same woman in front doggystyle. She lies on her stomach facing forward with her head turned slightly to the side. Her facial expression stays minimal and slow while intercourse continues. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Trigger the blink/hard-cut at the very start; pre/post frames must match in pose and framing. Use the simplest trigger-only prompt, close-up, neutral pose, no props. Start with a hard cut/blink; pre/post frames must match. Use a clean blink/hard cut; the framing before and after matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "w22_i2v_stranger_man_body_v1": {
+    "label": "w22_i2v_stranger_man_body_v1",
+    "type": "pair",
+    "high_filename": "w22_i2v_Stranger-man-body-v1_H.safetensors",
+    "low_filename": "w22_i2v_Stranger-man-body-v1_L.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Hard cut to a clean shot of the same subject and setting. A naked man with an erect penis walks in from the left edge of the frame while the woman remains still and in frame. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Penis enters from the left edge of frame and makes clear contact with the described target. Man enters on a fixed path; keep the woman fully in frame. Prefer close-up or medium close-up; face fills frame. Keep the man visible in frame (hips/penis present). Her head stays mostly still as he enters. The camera stays fixed and steady on both subjects."
+  },
+  "sid3l3g_transition_v2_0": {
+    "label": "sid3l3g_transition_v2_0",
+    "type": "pair",
+    "high_filename": "sid3l3g_transition_v2.0_H.safetensors",
+    "low_filename": "sid3l3g_transition_v2.0_L.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Single hard cut to the woman having sex with one leg set to the side; same framing before and after the cut. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Use an explicit hard cut; pre/post frames must match in pose and framing. Either lock wide/full-body framing or explicitly limit to close/mid only. Start with a hard cut/blink; pre/post frames must match. Avoid extreme poses; add negatives for extra limbs. Use a single hard cut; the framing before and after matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "wan2_2_i2v_sex_fov_slider_v1_0": {
+    "label": "wan2_2_i2v_sex_fov_slider_v1_0",
+    "type": "pair",
+    "high_filename": "wan2.2-i2v-high-sex-fov-slider-v1.0.safetensors",
+    "low_filename": "wan2.2-i2v-low-sex-fov-slider-v1.0.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Extremely slow, subtle zoom out while she has sex; otherwise keep the framing fixed. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. If any zoom is used, keep it extremely slow and never reframe. Either lock wide/full-body framing or explicitly limit to close/mid only. Avoid wide shots; use close or medium framing only. Keep face centered and fully visible; minimal head movement. Keep the camera steady while the field of view slowly widens; no other camera movement. Her head stays mostly still."
+  },
+  "mql_casting_sex_reverse_cowgirl_lie_front_vagina_wan22_i2v_v1_noise": {
+    "label": "mql_casting_sex_reverse_cowgirl_lie_front_vagina_wan22_i2v_v1_noise",
+    "type": "pair",
+    "high_filename": "mql_casting_sex_reverse_cowgirl_lie_front_vagina_wan22_i2v_v1_high_noise.safetensors",
+    "low_filename": "mql_casting_sex_reverse_cowgirl_lie_front_vagina_wan22_i2v_v1_low_noise.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Brief fade to black, then return to the same framing: reverse_cowgirl_lie_front_vagina. She lies forward while a man has sex with her from behind. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Use a short fade-to-black and return to identical framing. Keep face centered and fully visible; minimal head movement. Make orgasm expression explicit (open mouth, tense brow). Use a brief fade to black and return to the exact same framing. Her head stays mostly still and the camera stays steady before and after the fade."
+  },
+  "mql_casting_sex_spoon_wan22_i2v_v1_noise": {
+    "label": "mql_casting_sex_spoon_wan22_i2v_v1_noise",
+    "type": "pair",
+    "high_filename": "mql_casting_sex_spoon_wan22_i2v_v1_high_noise.safetensors",
+    "low_filename": "mql_casting_sex_spoon_wan22_i2v_v1_low_noise.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Single cut to spooning sex: spn_lie_diagonally_behind_vagina. The couple lies diagonally; motion is steady and slow. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Use an explicit hard cut; pre/post frames must match in pose and framing. Avoid extreme poses; add negatives for extra limbs. Use a single hard cut to the new pose; the framing matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "w_contextual_nsfw_multiscene_trigger_i2v_14b_v1": {
+    "label": "w_contextual_nsfw_multiscene_trigger_i2v_14b_v1",
+    "type": "single",
+    "filename": "W_Contextual_NSFW_Multiscene_Trigger_i2v_14b_v1.safetensors",
+    "strength": 0.7,
+    "positive": "Multi-scene sequence with the same woman: she slowly removes clothes; hard cut to fully nude posing; hard cut to legs open revealing her genitals. Keep framing and face visibility consistent across cuts. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Use an explicit hard cut; pre/post frames must match in pose and framing. Either lock wide/full-body framing or explicitly limit to close/mid only. Avoid wide shots; use close or medium framing only. Keep face centered and fully visible; minimal head movement. Use hard cuts between scenes while keeping the framing consistent. Her head stays mostly still and the camera stays steady throughout."
+  },
+  "mql_casting_noise": {
+    "label": "mql_casting_noise",
+    "type": "pair",
+    "high_filename": "mql_casting-high_noise.safetensors",
+    "low_filename": "mql_casting_low_noise.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Brief fade to black, then return to the same framing: doggy_kneel_diagonally_behind_vagina. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Use a short fade-to-black and return to identical framing. Keep face centered and fully visible; minimal head movement. Hands must be empty; no objects or hair blocking the action. Avoid extreme poses; add negatives for extra limbs. Use a short fade to black and return to the same framing. Her head stays mostly still and the camera stays steady before and after the fade."
+  },
+  "wan2_2_i2v_sex_smashcut_v1_0": {
+    "label": "wan2_2_i2v_sex_smashcut_v1_0",
+    "type": "pair",
+    "high_filename": "wan2.2-i2v-high-sex-smashcut-v1.0.safetensors",
+    "low_filename": "wan2.2-i2v-low-sex-smashcut-v1.0.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "<SM4SHCUT> Single smash cut to a man thrusting his penis into and out of her vagina. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Start with <SM4SHCUT>. Only one action in this shot. Penis enters from the left edge of frame and makes clear contact with the described target. Start with a hard cut/blink; pre/post frames must match. Use a sharp smash cut; the framing before and after matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "69blowjob": {
+    "label": "69blowjob",
+    "type": "pair",
+    "high_filename": "69blowjob-high.safetensors",
+    "low_filename": "69blowjob-low.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Brief black screen, then hard cut to a close-up of her face in a 69 deepthroat position. She is on top; his penis and testicles face the camera with his legs spread. She keeps one hand gripping his penis; his buttocks are visible. Same subject and face. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Use an explicit hard cut; pre/post frames must match in pose and framing. Either lock wide/full-body framing or explicitly limit to close/mid only. Prefer close-up or medium close-up; face fills frame. Keep face centered and fully visible; minimal head movement. Use a clean hard cut after the brief black; the framing matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "69blowjob2": {
+    "label": "69blowjob2",
+    "type": "pair",
+    "high_filename": "69blowjob-high.safetensors",
+    "low_filename": "69blowjob-low.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Brief black screen, then hard cut to a close-up of her face in a 69 deepthroat position. Ruined makeup is clearly visible: smeared lipstick, running mascara/eyeliner, and makeup streaks down her cheeks. Her face is heavily covered in cum with thick streaks and drips on cheeks, chin, lips, and nose. She is on top; his penis and testicles face the camera with his legs spread. Her hands are out of frame; no hands visible. His buttocks are visible. Same subject and face. The only motion source is the penis: very fast, short thrusts that visibly push and pull her head; she does not move independently. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Use an explicit hard cut; pre/post frames must match in pose and framing. Either lock wide/full-body framing or explicitly limit to close/mid only. Prefer close-up or medium close-up; face fills frame. Keep face centered and fully visible; minimal head movement except the thrust-driven motion. Use a clean hard cut after the brief black; the framing matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "wan2_2_i2v_boob_flash": {
+    "label": "wan2_2_i2v_boob_flash",
+    "type": "pair",
+    "high_filename": "WAN2.2_I2V_Boob_Flash_HIGH.safetensors",
+    "low_filename": "WAN2.2_I2V_Boob_Flash_LOW.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "The woman flashes her breasts by lifting her shirt to expose nipples; movement is limited to her hands and arms. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Either lock wide/full-body framing or explicitly limit to close/mid only. Define hand start position and the reveal path; keep framing stable. Avoid wide shots; use close or medium framing only. Use light clothing or already exposed area; avoid bulky layers. Her head stays mostly still while she lifts the shirt. The camera stays steady on her upper body."
+  },
+  "squirt": {
+    "label": "squirt",
+    "type": "pair",
+    "high_filename": "Squirt_high.safetensors",
+    "low_filename": "Squirt_low.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Very slow, subtle zoom out (only if required) to reveal her genitalia. She spreads her legs wide, showing a shaved vulva and labia, and squirts fluid upward in short bursts. She looks at the viewer with a calm, minimal expression. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. If any zoom is used, keep it extremely slow and never reframe. Either lock wide/full-body framing or explicitly limit to close/mid only. Avoid wide shots; use close or medium framing only. Avoid extreme poses; add negatives for extra limbs. Keep the camera steady; if it zooms out, make it extremely slow and straight with no panning. Her head stays mostly still."
+  },
+  "doggy_anal_cut": {
+    "label": "doggy_anal_cut",
+    "type": "pair",
+    "high_filename": "Doggy_anal_cut_high.safetensors",
+    "low_filename": "Doggy_anal_cut_low.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Hard cut to the same woman on all fours {on a red chair|with her head against a bed|with her head on the floor} while a {black|} man is {roughly|} fucking her ass. She is {completely naked with her jeans and panties down her thighs|completely naked|naked from the waist down with her tanktop|naked with her black lingerie panties down her thighs}. The man is {behind|straddling above} her. {Back|Side} view. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Use an explicit hard cut; pre/post frames must match in pose and framing. Use the simplest trigger-only prompt, close-up, neutral pose, no props. Avoid extreme poses; add negatives for extra limbs. Use a clear hard cut; the framing before and after matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "scanner_convert": {
+    "label": "scanner_convert",
+    "type": "pair",
+    "high_filename": "scanner_high_convert.safetensors",
+    "low_filename": "scanner_low_convert.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "A scanning light passes over the woman; her clothes dissolve and she becomes nude. Single continuous shot. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked- off camera, fixed lens; no pan/tilt/zoom/reframe. Specify effect direction/speed and add negatives for extra limbs or morphing. Her head stays mostly still as the scan passes. The camera stays steady on her during the effect."
+  },
+  "sudden_outfit_change_v4": {
+    "label": "sudden_outfit_change_v4",
+    "type": "pair",
+    "high_filename": "SuddenOutfitChangeHigh4.safetensors",
+    "low_filename": "SuddenOutfitChangeLow4.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Sudden outfit change into (describe lingerie set/cosplay/etc.). The change is instant with the same framing. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Specify effect direction/speed and add negatives for extra limbs or morphing. Use light clothing or already exposed area; avoid bulky layers. Her head stays mostly still as the outfit changes. The camera stays steady and the framing does not shift."
+  },
+  "succubus_transform": {
+    "label": "succubus_transform",
+    "type": "pair",
+    "high_filename": "Succubus_Transform_high.safetensors",
+    "low_filename": "Succubus_Transform_low.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "She transforms into a succubus; the transformation is slow and subtle while her face remains consistent. Same subject and face. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Specify effect direction/speed and add negatives for extra limbs or morphing. Use light clothing or already exposed area; avoid bulky layers. Use a neutral upright pose; avoid prone/lying positions. Her head stays mostly still while the transformation happens. The camera stays fixed and steady."
+  },
+  "wan22_i2v_suddenly_stroking": {
+    "label": "wan22_i2v_suddenly_stroking",
+    "type": "pair",
+    "high_filename": "wan22_i2v_suddenly_stroking_HIGH.safetensors",
+    "low_filename": "wan22_i2v_suddenly_stroking_LOW.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Blink-style hard cut to the same person masturbating in the same location and clothing. They rapidly stroke their penis up and down, then ejaculate; facial expression remains minimal and slow. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Trigger the blink/hard-cut at the very start; pre/post frames must match in pose and framing. Either lock wide/full-body framing or explicitly limit to close/mid only. Avoid wide shots; use close or medium framing only. Use a neutral upright pose; avoid prone/lying positions. Use a hard cut at the start; the framing before and after matches. The head stays mostly still and the camera stays steady after the cut."
+  },
+  "2114754_z123": {
+    "label": "2114754_z123",
+    "type": "single",
+    "filename": "2114754_z123.safetensors",
+    "strength": 0.7,
+    "positive": "A man removes her clothes while she stays still. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Name the clothing item and hand path; body remains still. Use wide full-body framing; keep face in frame. Her head stays mostly still while the clothes are removed. The camera stays steady and keeps her in frame."
+  },
+  "fn_sm4shcut_000004250_noise": {
+    "label": "fn_sm4shcut_000004250_noise",
+    "type": "pair",
+    "high_filename": "fn_sm4shcut_000004250_high_noise.safetensors",
+    "low_filename": "fn_sm4shcut_000004250_low_noise.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "fn_sm4shcut. The woman is standing and smiling; a smash cut transitions to the same woman being fucked in a full nelson position. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Start with <SM4SHCUT>. Only one action in this shot. Start with a hard cut/blink; pre/post frames must match. Keep face centered and fully visible; minimal head movement. Hands must be empty; no objects or hair blocking the action. Start with a smash cut; the framing before and after matches. Her head stays mostly still and the camera stays steady after the cut."
+  },
+  "i2v_reveal_penis_000003000_noise": {
+    "label": "i2v_reveal_penis_000003000_noise",
+    "type": "pair",
+    "high_filename": "2.2-I2V Reveal Penis_000003000_high_noise.safetensors",
+    "low_filename": "2.2-I2V Reveal Penis_000003000_low_noise.safetensors",
+    "high_strength": 0.7,
+    "low_strength": 0.9,
+    "positive": "Base trigger: reveals a [small/large] penis and testicles. Clothing-removal setup: pull aside the [underwear/shorts/panties], pull down [pants/underwear/panties/shorts], lift [skirt/dress], and spread legs while sitting to reveal a tucked hidden penis and testicles. Motion: the stiff penis catches during removal and flops out or flicks up. Angles: from below, from side, from behind; a slight turn of the body only (no camera tilt). Follow-up: touch and gently stroke the penis, then a small hip sway that moves it side to side. Optional descriptors: foreskin, flaccid and small, downward pointing, upward curving, erect, floppy, soft, stiff. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Penis enters from the left edge of frame and makes clear contact with the described target. The head stays mostly still while the reveal happens. The camera stays steady and does not reframe."
+  }
+}
