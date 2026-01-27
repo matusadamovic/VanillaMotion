@@ -168,6 +168,7 @@ rate_limit_cache: Dict[int, float] = {}
 dedup_cache: Dict[int, float] = {}  # update_id -> timestamp
 EXTENDED_SESSION_TTL_SECONDS = int(os.environ.get("EXTENDED_SESSION_TTL_SECONDS", "3600"))
 extended_sessions: Dict[str, Dict[str, Any]] = {}
+MIX_MAX_LORAS = 6
 WORKFLOW4_PARTS = 4
 workflow4_sessions: Dict[str, Dict[str, Any]] = {}
 test5s_album_sessions: Dict[str, Dict[str, Any]] = {}
@@ -864,7 +865,7 @@ def build_mode_keyboard(job_id: str) -> str:
     rows = [
         [
             {"text": "Standard 5s", "callback_data": f"mode:std:{job_id}"},
-            {"text": "Extended10s", "callback_data": f"mode:ext:{job_id}"},
+            {"text": "MIX", "callback_data": f"mode:mix:{job_id}"},
         ]
     ]
     rows.append(
@@ -936,7 +937,14 @@ def build_lora_group_keyboard(job_id: str, page: int = 0, *, tag_prefix: str = "
     return json.dumps({"inline_keyboard": rows})
 
 
-def build_lora_keyboard_ext(job_id: str, page: int = 0, *, tag_prefix: str = "e") -> str:
+def build_lora_keyboard_ext(
+    job_id: str,
+    page: int = 0,
+    *,
+    tag_prefix: str = "e",
+    include_finish: bool = False,
+    finish_tag: str = "ef",
+) -> str:
     total = len(LORA_KEYS)
     if total == 0:
         return json.dumps({"inline_keyboard": []})
@@ -970,6 +978,9 @@ def build_lora_keyboard_ext(job_id: str, page: int = 0, *, tag_prefix: str = "e"
     if page < max_page:
         nav.append({"text": "›", "callback_data": f"{tag_prefix}p:{page+1}:{job_id}"})
     rows.append(nav)
+
+    if include_finish:
+        rows.append([{"text": "Finish", "callback_data": f"{finish_tag}:{job_id}"}])
 
     return json.dumps({"inline_keyboard": rows})
 
@@ -1590,11 +1601,16 @@ def _model_type_label(use_gguf: bool) -> str:
 
 
 def _extended_combo_label(sess: Dict[str, Any]) -> str:
-    l1 = (sess.get("lora1") or {}).get("label")
-    l2 = (sess.get("lora2") or {}).get("label")
-    if l1 and l2:
-        return f"{l1} + {l2}"
-    return l1 or l2 or "Extended10s"
+    labels = []
+    for i in range(1, MIX_MAX_LORAS + 1):
+        label = (sess.get(f"lora{i}") or {}).get("label")
+        if label:
+            labels.append(label)
+        else:
+            break
+    if labels:
+        return " + ".join(labels)
+    return "MIX"
 
 
 def _workflow4_combo_label(sess: Dict[str, Any]) -> str:
@@ -1867,22 +1883,16 @@ async def _submit_batch_job(
         await edit_message_text(chat_id, message_id, "Batch 5s: spustené", json.dumps({"inline_keyboard": []}))
 
 
-async def _submit_extended_job(
+async def _submit_mix_job(
     *,
     job_id: str,
-    lora1_key: str,
-    lora1_cfg: Dict[str, Any],
-    lora1_weights: Dict[str, float],
-    lora2_key: str,
-    lora2_cfg: Dict[str, Any],
-    lora2_weights: Dict[str, float],
+    loras: List[Dict[str, Any]],
+    positive_prompts: List[Optional[str]],
     use_gguf: bool,
     use_last_frame: bool,
     video_width: Optional[int],
     video_height: Optional[int],
     total_steps: Optional[int],
-    positive_prompt_1: Optional[str],
-    positive_prompt_2: Optional[str],
     rife_multiplier: Optional[int],
     model_label: Optional[str],
     model_high_filename: Optional[str],
@@ -1890,27 +1900,14 @@ async def _submit_extended_job(
     chat_id: int,
     message_id: int,
 ) -> None:
-    combined_key = f"{lora1_key}+{lora2_key}"
+    combined_key = "+".join(str(lora.get("key") or "") for lora in loras)
     row = set_queue(job_id, combined_key)
 
-    label1 = str(lora1_cfg.get("label") or lora1_key)
-    label2 = str(lora2_cfg.get("label") or lora2_key)
-    lora1_type = str(lora1_cfg.get("type") or "single")
-    lora2_type = str(lora2_cfg.get("type") or "single")
-
     payload: Dict[str, Any] = {
-        "mode": "extended10s",
+        "mode": "mix",
         "job_id": job_id,
         "chat_id": int(row["chat_id"]),
         "input_file_id": row["input_file_id"],
-        "lora_key": lora1_key,
-        "lora_label": label1,
-        "lora_type": lora1_type,
-        "lora2_key": lora2_key,
-        "lora2_label": label2,
-        "lora2_type": lora2_type,
-        "positive_prompt": positive_prompt_1,
-        "positive_prompt_2": positive_prompt_2 or positive_prompt_1,
         "use_gguf": use_gguf,
         "use_last_frame": use_last_frame,
         "video_width": video_width,
@@ -1920,23 +1917,34 @@ async def _submit_extended_job(
     if rife_multiplier is not None:
         payload["rife_multiplier"] = int(rife_multiplier)
 
-    if lora1_type.lower() == "pair":
-        payload["lora_high_filename"] = lora1_cfg.get("high_filename")
-        payload["lora_high_strength"] = lora1_weights.get("high_weight")
-        payload["lora_low_filename"] = lora1_cfg.get("low_filename")
-        payload["lora_low_strength"] = lora1_weights.get("low_weight")
-    else:
-        payload["lora_filename"] = lora1_cfg.get("filename")
-        payload["lora_strength"] = lora1_weights.get("weight")
+    for idx, lora in enumerate(loras, start=1):
+        key = str(lora.get("key") or "")
+        cfg = lora.get("cfg") or {}
+        label = str(lora.get("label") or key)
+        lora_type = str(cfg.get("type") or "single")
+        prefix = "lora" if idx == 1 else f"lora{idx}"
 
-    if lora2_type.lower() == "pair":
-        payload["lora2_high_filename"] = lora2_cfg.get("high_filename")
-        payload["lora2_high_strength"] = lora2_weights.get("high_weight")
-        payload["lora2_low_filename"] = lora2_cfg.get("low_filename")
-        payload["lora2_low_strength"] = lora2_weights.get("low_weight")
-    else:
-        payload["lora2_filename"] = lora2_cfg.get("filename")
-        payload["lora2_strength"] = lora2_weights.get("weight")
+        key_field = "lora_key" if idx == 1 else f"{prefix}_key"
+        label_field = "lora_label" if idx == 1 else f"{prefix}_label"
+        type_field = "lora_type" if idx == 1 else f"{prefix}_type"
+        payload[key_field] = key
+        payload[label_field] = label
+        payload[type_field] = lora_type
+
+        prompt = positive_prompts[idx - 1] if idx - 1 < len(positive_prompts) else None
+        if idx == 1:
+            payload["positive_prompt"] = prompt
+        else:
+            payload[f"positive_prompt_{idx}"] = prompt
+
+        if lora_type.lower() == "pair":
+            payload[f"{prefix}_high_filename"] = cfg.get("high_filename")
+            payload[f"{prefix}_high_strength"] = lora.get("high_weight")
+            payload[f"{prefix}_low_filename"] = cfg.get("low_filename")
+            payload[f"{prefix}_low_strength"] = lora.get("low_weight")
+        else:
+            payload[f"{prefix}_filename"] = cfg.get("filename")
+            payload[f"{prefix}_strength"] = lora.get("weight")
 
     if model_label:
         payload["model_label"] = model_label
@@ -1951,10 +1959,12 @@ async def _submit_extended_job(
 
     model_type_label = _model_type_label(use_gguf)
     suffix = f": {model_label}" if model_label else ""
+    labels = [str(l.get("label") or l.get("key") or "") for l in loras]
+    combo_label = " + ".join([l for l in labels if l])
     await edit_placeholder(
         int(row["chat_id"]),
         int(row["placeholder_message_id"]),
-        f"Renderujem ({label1} + {label2}, {model_type_label}{suffix})…",
+        f"Renderujem ({combo_label}, {model_type_label}{suffix})…",
     )
     if chat_id and message_id:
         await edit_keyboard(chat_id, message_id, json.dumps({"inline_keyboard": []}))
@@ -2370,20 +2380,21 @@ async def process_callback(update: Dict[str, Any]) -> None:
     message_id = int(msg.get("message_id") or 0)
 
     # Supported:
-    # - mode:<std|ext|new|batch|test5s>:<job_id> (select mode)
+    # - mode:<std|mix|ext|new|batch|test5s>:<job_id> (select mode)
     # - bw:<idx>:<job_id>                      (batch weight)
-    # - el:<idx>:<job_id>                      (select LoRA, extended)
-    # - ep:<page>:<job_id>                     (LoRA page, extended)
-    # - ews:<w_idx>:<job_id>                   (single weight, extended)
-    # - ewh:<h_idx>:<job_id>                   (pair high, extended)
-    # - ewl:<l_idx>:<job_id>                   (pair low, extended)
-    # - emt:<model>:<job_id>                   (select model type, extended)
-    # - epm:<model>:<page>:<job_id>            (model page, extended)
-    # - emm:<model>:<m_idx>:<job_id>           (select model, extended)
-    # - elf:<on>:<job_id>                      (last frame, extended)
-    # - ers:<r_idx>:<job_id>                   (resolution, extended)
-    # - est:<s_idx>:<job_id>                   (steps, extended)
-    # - epu:<p>:<job_id>                       (prompt, extended)
+    # - el:<idx>:<job_id>                      (select LoRA, mix)
+    # - ep:<page>:<job_id>                     (LoRA page, mix)
+    # - ews:<w_idx>:<job_id>                   (single weight, mix)
+    # - ewh:<h_idx>:<job_id>                   (pair high, mix)
+    # - ewl:<l_idx>:<job_id>                   (pair low, mix)
+    # - ef:<job_id>                            (finish LoRA selection, mix)
+    # - emt:<model>:<job_id>                   (select model type, mix)
+    # - epm:<model>:<page>:<job_id>            (model page, mix)
+    # - emm:<model>:<m_idx>:<job_id>           (select model, mix)
+    # - elf:<on>:<job_id>                      (last frame, mix)
+    # - ers:<r_idx>:<job_id>                   (resolution, mix)
+    # - est:<s_idx>:<job_id>                   (steps, mix)
+    # - epu:<p>:<job_id>                       (prompt, mix)
     # - ng:<idx>:<job_id>                      (select LoRA group, workflow4)
     # - ngp:<page>:<job_id>                    (group page, workflow4)
     # - nl:<idx>:<job_id>                      (select LoRA, workflow4)
@@ -2422,7 +2433,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
     # - pu:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (prompt, pair)
     # - ri:<interp>:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (interpolation, single)
     # - ri:<interp>:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (interpolation, pair)
-    # - eri:<interp>:<job_id>                  (interpolation, extended)
+    # - eri:<interp>:<job_id>                  (interpolation, mix)
     # - t5l:<idx>:<job_id>                     (select LoRA, test5s)
     # - t5p:<page>:<job_id>                    (LoRA page, test5s)
     # - noop:<job_id>                          (do nothing)
@@ -2457,14 +2468,19 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 build_lora_keyboard_ext(job_id, page=0, tag_prefix="t5"),
             )
             return
-        if choice == "ext":
+        if choice in ("ext", "mix"):
             _wf4_session_clear(job_id)
-            extended_sessions[job_id] = {"mode": "extended10s", "current_lora": 1, "rife_multiplier": None}
+            extended_sessions[job_id] = {
+                "mode": "mix",
+                "current_lora": 1,
+                "rife_multiplier": None,
+                "max_loras": MIX_MAX_LORAS,
+            }
             _ext_session_touch(extended_sessions[job_id])
             await edit_message_text(
                 chat_id,
                 message_id,
-                "Extended10s: vyber 1. LoRA",
+                "MIX: vyber 1. LoRA",
                 build_lora_keyboard_ext(job_id, page=0),
             )
             return
@@ -3044,10 +3060,17 @@ async def process_callback(update: Dict[str, Any]) -> None:
             job_id = parts[2]
         except Exception:
             return
-        if not _ext_session_get(job_id):
+        sess = _ext_session_get(job_id)
+        if not sess:
             return
         if chat_id and message_id:
-            await edit_keyboard(chat_id, message_id, build_lora_keyboard_ext(job_id, page=page))
+            current = int(sess.get("current_lora") or 1)
+            include_finish = current > 1
+            await edit_keyboard(
+                chat_id,
+                message_id,
+                build_lora_keyboard_ext(job_id, page=page, include_finish=include_finish),
+            )
         return
 
     if tag == "el":
@@ -3107,14 +3130,15 @@ async def process_callback(update: Dict[str, Any]) -> None:
 
         if not (chat_id and message_id):
             return
-        if current == 1:
-            sess["current_lora"] = 2
+        max_loras = int(sess.get("max_loras") or MIX_MAX_LORAS)
+        if current < max_loras:
+            sess["current_lora"] = current + 1
             _ext_session_touch(sess)
             await edit_message_text(
                 chat_id,
                 message_id,
-                "Extended10s: vyber 2. LoRA",
-                build_lora_keyboard_ext(job_id, page=0),
+                f"MIX: vyber {current + 1}. LoRA",
+                build_lora_keyboard_ext(job_id, page=0, include_finish=True),
             )
             return
 
@@ -3179,19 +3203,34 @@ async def process_callback(update: Dict[str, Any]) -> None:
 
         if not (chat_id and message_id):
             return
-        if current == 1:
-            sess["current_lora"] = 2
+        max_loras = int(sess.get("max_loras") or MIX_MAX_LORAS)
+        if current < max_loras:
+            sess["current_lora"] = current + 1
             _ext_session_touch(sess)
             await edit_message_text(
                 chat_id,
                 message_id,
-                "Extended10s: vyber 2. LoRA",
-                build_lora_keyboard_ext(job_id, page=0),
+                f"MIX: vyber {current + 1}. LoRA",
+                build_lora_keyboard_ext(job_id, page=0, include_finish=True),
             )
             return
 
         label = _extended_combo_label(sess)
         await prompt_extended_model(chat_id=chat_id, message_id=message_id, label=label, job_id=job_id)
+        return
+
+    if tag == "ef":
+        if len(parts) != 2:
+            return
+        job_id = parts[1]
+        sess = _ext_session_get(job_id)
+        if not sess:
+            return
+        if not (sess.get("lora1") or {}).get("cfg"):
+            return
+        if chat_id and message_id:
+            label = _extended_combo_label(sess)
+            await prompt_extended_model(chat_id=chat_id, message_id=message_id, label=label, job_id=job_id)
         return
 
     if tag == "emt":
@@ -3352,13 +3391,23 @@ async def process_callback(update: Dict[str, Any]) -> None:
         sess["rife_multiplier"] = rife_multiplier
         _ext_session_touch(sess)
 
-        lora1 = sess.get("lora1") or {}
-        lora2 = sess.get("lora2") or {}
-        if not lora1 or not lora2:
-            return
-        cfg1 = lora1.get("cfg")
-        cfg2 = lora2.get("cfg")
-        if not isinstance(cfg1, dict) or not isinstance(cfg2, dict):
+        selected_loras: List[Dict[str, Any]] = []
+        for i in range(1, MIX_MAX_LORAS + 1):
+            lora = sess.get(f"lora{i}") or {}
+            if not lora:
+                break
+            cfg = lora.get("cfg")
+            if not isinstance(cfg, dict):
+                return
+            lora_type = str(lora.get("type") or cfg.get("type") or "single").lower()
+            if lora_type == "pair":
+                if lora.get("high_weight") is None or lora.get("low_weight") is None:
+                    return
+            else:
+                if lora.get("weight") is None:
+                    return
+            selected_loras.append(lora)
+        if not selected_loras:
             return
 
         if sess.get("resolution_idx") is None:
@@ -3392,35 +3441,21 @@ async def process_callback(update: Dict[str, Any]) -> None:
             model_low_filename = model_cfg.get("low_filename")
 
         use_prompt = bool(sess.get("use_prompt"))
-        prompt_text_1 = (cfg1.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
-        prompt_text_2 = (cfg2.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
+        prompts: List[Optional[str]] = []
+        for lora in selected_loras:
+            cfg = lora.get("cfg") or {}
+            prompt = (cfg.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
+            prompts.append(prompt)
 
-        weights1 = {
-            "weight": lora1.get("weight"),
-            "high_weight": lora1.get("high_weight"),
-            "low_weight": lora1.get("low_weight"),
-        }
-        weights2 = {
-            "weight": lora2.get("weight"),
-            "high_weight": lora2.get("high_weight"),
-            "low_weight": lora2.get("low_weight"),
-        }
-
-        await _submit_extended_job(
+        await _submit_mix_job(
             job_id=job_id,
-            lora1_key=str(lora1.get("key")),
-            lora1_cfg=cfg1,
-            lora1_weights=weights1,
-            lora2_key=str(lora2.get("key")),
-            lora2_cfg=cfg2,
-            lora2_weights=weights2,
+            loras=selected_loras,
+            positive_prompts=prompts,
             use_gguf=(model_type == "gguf"),
             use_last_frame=bool(sess.get("use_last_frame")),
             video_width=int(resolution["width"]),
             video_height=int(resolution["height"]),
             total_steps=int(steps),
-            positive_prompt_1=prompt_text_1,
-            positive_prompt_2=prompt_text_2,
             rife_multiplier=rife_multiplier,
             model_label=model_label,
             model_high_filename=model_high_filename,

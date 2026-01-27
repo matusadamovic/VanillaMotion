@@ -2196,7 +2196,7 @@ def build_caption_extended(
     video_height: Optional[int],
     total_steps: Optional[int],
 ) -> str:
-    lines = ["Hotovo (extended10s)"]
+    lines = ["Hotovo (MIX)"]
     lines.append(
         _format_model_line(
             use_gguf=use_gguf,
@@ -2233,6 +2233,51 @@ def build_caption_extended(
             lora_low_strength=lora2_low_strength,
         )
     )
+    lines.append(
+        _format_render_line(
+            video_width=video_width,
+            video_height=video_height,
+            total_steps=total_steps,
+        )
+    )
+    return "\n".join(lines)
+
+
+def build_caption_mix(
+    *,
+    use_gguf: Optional[bool],
+    model_label: Optional[str],
+    model_high_filename: Optional[str],
+    model_low_filename: Optional[str],
+    loras: list[Dict[str, Any]],
+    video_width: Optional[int],
+    video_height: Optional[int],
+    total_steps: Optional[int],
+) -> str:
+    lines = ["Hotovo (MIX)"]
+    lines.append(
+        _format_model_line(
+            use_gguf=use_gguf,
+            model_label=model_label,
+            model_high_filename=model_high_filename,
+            model_low_filename=model_low_filename,
+        )
+    )
+    for idx, lora in enumerate(loras, start=1):
+        lines.append(
+            _format_lora_line_named(
+                f"LoRA {idx}",
+                lora_type=str(lora.get("type") or "single"),
+                lora_label=lora.get("label"),
+                lora_key=lora.get("key"),
+                lora_filename=lora.get("filename"),
+                lora_strength=lora.get("strength"),
+                lora_high_filename=lora.get("high_filename"),
+                lora_high_strength=lora.get("high_strength"),
+                lora_low_filename=lora.get("low_filename"),
+                lora_low_strength=lora.get("low_strength"),
+            )
+        )
     lines.append(
         _format_render_line(
             video_width=video_width,
@@ -2473,7 +2518,8 @@ def handler(event):
 
     workflow_key = payload.get("workflow_key")
     mode = str(payload.get("mode") or "").strip().lower()
-    is_extended = mode == "extended10s"
+    is_mix = mode in ("extended10s", "mix")
+    is_extended = is_mix
     is_workflow4 = mode == "workflow4"
     is_batch = mode == "batch5s"
     mode_key = _mode_key(is_batch=is_batch, is_extended=is_extended, is_workflow4=is_workflow4)
@@ -2513,19 +2559,32 @@ def handler(event):
     lora4_low_strength = payload.get("lora4_low_strength")
     positive_prompt_4 = payload.get("positive_prompt_4")
 
+    lora5_key = payload.get("lora5_key")
+    lora5_label = payload.get("lora5_label")
+    lora5_type = (payload.get("lora5_type") or "single")
+    lora5_filename = payload.get("lora5_filename")
+    lora5_strength = payload.get("lora5_strength")
+    lora5_high_filename = payload.get("lora5_high_filename")
+    lora5_high_strength = payload.get("lora5_high_strength")
+    lora5_low_filename = payload.get("lora5_low_filename")
+    lora5_low_strength = payload.get("lora5_low_strength")
+    positive_prompt_5 = payload.get("positive_prompt_5")
+
+    lora6_key = payload.get("lora6_key")
+    lora6_label = payload.get("lora6_label")
+    lora6_type = (payload.get("lora6_type") or "single")
+    lora6_filename = payload.get("lora6_filename")
+    lora6_strength = payload.get("lora6_strength")
+    lora6_high_filename = payload.get("lora6_high_filename")
+    lora6_high_strength = payload.get("lora6_high_strength")
+    lora6_low_filename = payload.get("lora6_low_filename")
+    lora6_low_strength = payload.get("lora6_low_strength")
+    positive_prompt_6 = payload.get("positive_prompt_6")
+
     batch_loras = payload.get("batch_loras")
     batch_weights = payload.get("batch_weights")
     batch_default_prompt = payload.get("batch_default_prompt")
     batch_use_prompt = payload.get("batch_use_prompt")
-
-    if is_extended:
-        lora2_type_l = str(lora2_type or "single").lower()
-        if lora2_type_l == "pair":
-            if not lora2_high_filename or not lora2_low_filename:
-                raise ValueError("extended10s requires lora2 high/low filenames")
-        else:
-            if not lora2_filename:
-                raise ValueError("extended10s requires lora2 filename")
 
     def _require_lora_payload(
         name: str,
@@ -2585,6 +2644,110 @@ def handler(event):
     model_label = payload.get("model_label")
 
     positive_prompt = payload.get("positive_prompt")
+    mix_segments: Optional[list[Dict[str, Any]]] = None
+    if is_mix:
+        def _segment_prompt(raw: Any) -> Optional[str]:
+            if isinstance(raw, str) and raw.strip():
+                return raw
+            if isinstance(positive_prompt, str) and positive_prompt.strip():
+                return positive_prompt
+            return raw if isinstance(raw, str) else None
+
+        mix_candidates = [
+            {
+                "key": lora_key,
+                "label": lora_label,
+                "type": lora_type,
+                "filename": lora_filename,
+                "strength": lora_strength,
+                "high_filename": lora_high_filename,
+                "high_strength": lora_high_strength,
+                "low_filename": lora_low_filename,
+                "low_strength": lora_low_strength,
+                "prompt": _segment_prompt(positive_prompt),
+            },
+            {
+                "key": lora2_key,
+                "label": lora2_label,
+                "type": lora2_type,
+                "filename": lora2_filename,
+                "strength": lora2_strength,
+                "high_filename": lora2_high_filename,
+                "high_strength": lora2_high_strength,
+                "low_filename": lora2_low_filename,
+                "low_strength": lora2_low_strength,
+                "prompt": _segment_prompt(positive_prompt_2),
+            },
+            {
+                "key": lora3_key,
+                "label": lora3_label,
+                "type": lora3_type,
+                "filename": lora3_filename,
+                "strength": lora3_strength,
+                "high_filename": lora3_high_filename,
+                "high_strength": lora3_high_strength,
+                "low_filename": lora3_low_filename,
+                "low_strength": lora3_low_strength,
+                "prompt": _segment_prompt(positive_prompt_3),
+            },
+            {
+                "key": lora4_key,
+                "label": lora4_label,
+                "type": lora4_type,
+                "filename": lora4_filename,
+                "strength": lora4_strength,
+                "high_filename": lora4_high_filename,
+                "high_strength": lora4_high_strength,
+                "low_filename": lora4_low_filename,
+                "low_strength": lora4_low_strength,
+                "prompt": _segment_prompt(positive_prompt_4),
+            },
+            {
+                "key": lora5_key,
+                "label": lora5_label,
+                "type": lora5_type,
+                "filename": lora5_filename,
+                "strength": lora5_strength,
+                "high_filename": lora5_high_filename,
+                "high_strength": lora5_high_strength,
+                "low_filename": lora5_low_filename,
+                "low_strength": lora5_low_strength,
+                "prompt": _segment_prompt(positive_prompt_5),
+            },
+            {
+                "key": lora6_key,
+                "label": lora6_label,
+                "type": lora6_type,
+                "filename": lora6_filename,
+                "strength": lora6_strength,
+                "high_filename": lora6_high_filename,
+                "high_strength": lora6_high_strength,
+                "low_filename": lora6_low_filename,
+                "low_strength": lora6_low_strength,
+                "prompt": _segment_prompt(positive_prompt_6),
+            },
+        ]
+
+        mix_segments = []
+        for seg in mix_candidates:
+            key = str(seg.get("key") or "").strip()
+            if not key:
+                break
+            seg["key"] = key
+            if not seg.get("label"):
+                seg["label"] = key
+            mix_segments.append(seg)
+        if not mix_segments:
+            raise ValueError("mix requires at least one LoRA")
+        if use_lora:
+            for i, seg in enumerate(mix_segments, start=1):
+                _require_lora_payload(
+                    f"mix lora{i}",
+                    seg.get("type"),
+                    seg.get("filename"),
+                    seg.get("high_filename"),
+                    seg.get("low_filename"),
+                )
     use_gguf = payload.get("use_gguf")
     if isinstance(use_gguf, str):
         use_gguf = use_gguf.strip().lower() in ("1", "true", "yes", "y", "on")
@@ -2922,74 +3085,66 @@ def handler(event):
                                 f"Batch 5s: {processed}/{total} ({lora_label}, w={weight_label})",
                             )
                 video_path = last_video_path
-            elif is_extended:
-                prompt1 = _compose_prompt(positive_prompt, image_caption) or positive_prompt
+            elif is_mix:
+                if not mix_segments:
+                    raise ValueError("mix requires at least one LoRA")
 
-                history1, video1 = run_comfy_prompt(
-                    label="seg1",
-                    input_filename=input_filename,
-                    lora_type=lora_type,
-                    lora_filename=lora_filename,
-                    lora_strength=lora_strength,
-                    lora_high_filename=lora_high_filename,
-                    lora_high_strength=lora_high_strength,
-                    lora_low_filename=lora_low_filename,
-                    lora_low_strength=lora_low_strength,
-                    model_high_filename=model_high_filename,
-                    model_low_filename=model_low_filename,
-                    positive_prompt=prompt1,
-                    use_lora=use_lora,
-                    use_gguf=use_gguf,
-                    use_last_frame=use_last_frame,
-                    video_width=video_width,
-                    video_height=video_height,
-                    total_steps=total_steps,
-                    rife_multiplier=rife_multiplier,
-                    output_dir=output_dir,
-                )
+                video_paths: list[pathlib.Path] = []
+                current_input_filename = input_filename
+                last_frame_path: Optional[pathlib.Path] = None
 
-                last_frame_path = job_dir / f"{job_id}_last.png"
-                extract_last_frame(video1, last_frame_path)
-                input2_filename = last_frame_path.name
-                target2 = comfy_input_dir / input2_filename
-                shutil.copy(last_frame_path, target2)
-                targets.append(target2)
+                for idx, seg in enumerate(mix_segments, start=1):
+                    seg_caption: Optional[str] = None
+                    if _should_caption(mode_key):
+                        if idx == 1:
+                            seg_caption = image_caption
+                        elif last_frame_path is not None:
+                            seg_caption = _run_captioner(last_frame_path)
+                            if seg_caption:
+                                logging.info("CAPTION(%s, seg%s)=%s", mode_key, idx, seg_caption)
 
-                image_caption2: Optional[str] = None
-                if _should_caption(mode_key):
-                    image_caption2 = _run_captioner(last_frame_path)
-                    if image_caption2:
-                        logging.info("CAPTION(%s, seg2)=%s", mode_key, image_caption2)
+                    prompt_raw = seg.get("prompt")
+                    prompt_text = _compose_prompt(prompt_raw, seg_caption) or prompt_raw
 
-                prompt2_raw = positive_prompt_2 if isinstance(positive_prompt_2, str) else positive_prompt
-                prompt2 = _compose_prompt(prompt2_raw, image_caption2) or prompt2_raw
+                    history_seg, video_seg = run_comfy_prompt(
+                        label=f"seg{idx}",
+                        input_filename=current_input_filename,
+                        lora_type=seg.get("type"),
+                        lora_filename=seg.get("filename"),
+                        lora_strength=seg.get("strength"),
+                        lora_high_filename=seg.get("high_filename"),
+                        lora_high_strength=seg.get("high_strength"),
+                        lora_low_filename=seg.get("low_filename"),
+                        lora_low_strength=seg.get("low_strength"),
+                        model_high_filename=model_high_filename,
+                        model_low_filename=model_low_filename,
+                        positive_prompt=prompt_text,
+                        use_lora=use_lora,
+                        use_gguf=use_gguf,
+                        use_last_frame=use_last_frame,
+                        video_width=video_width,
+                        video_height=video_height,
+                        total_steps=total_steps,
+                        rife_multiplier=rife_multiplier,
+                        output_dir=output_dir,
+                    )
+                    video_paths.append(video_seg)
 
-                history2, video2 = run_comfy_prompt(
-                    label="seg2",
-                    input_filename=input2_filename,
-                    lora_type=lora2_type,
-                    lora_filename=lora2_filename,
-                    lora_strength=lora2_strength,
-                    lora_high_filename=lora2_high_filename,
-                    lora_high_strength=lora2_high_strength,
-                    lora_low_filename=lora2_low_filename,
-                    lora_low_strength=lora2_low_strength,
-                    model_high_filename=model_high_filename,
-                    model_low_filename=model_low_filename,
-                    positive_prompt=prompt2,
-                    use_lora=use_lora,
-                    use_gguf=use_gguf,
-                    use_last_frame=use_last_frame,
-                    video_width=video_width,
-                    video_height=video_height,
-                    total_steps=total_steps,
-                    rife_multiplier=rife_multiplier,
-                    output_dir=output_dir,
-                )
+                    if idx < len(mix_segments):
+                        last_frame_path = job_dir / f"{job_id}_last_{idx}.png"
+                        extract_last_frame(video_seg, last_frame_path)
+                        next_input_filename = last_frame_path.name
+                        target_next = comfy_input_dir / next_input_filename
+                        shutil.copy(last_frame_path, target_next)
+                        targets.append(target_next)
+                        current_input_filename = next_input_filename
 
-                final_video_path = output_dir / "extended10s.mp4"
-                concat_videos([video1, video2], final_video_path)
-                video_path = final_video_path
+                if len(video_paths) == 1:
+                    video_path = video_paths[0]
+                else:
+                    final_video_path = output_dir / "mix.mp4"
+                    concat_videos(video_paths, final_video_path)
+                    video_path = final_video_path
             elif is_workflow4:
                 prompt1 = _compose_prompt(positive_prompt, image_caption) or positive_prompt
                 prompt2 = _compose_prompt(positive_prompt_2, image_caption) or positive_prompt_2
@@ -3102,30 +3257,13 @@ def handler(event):
 
         finalize_info = finalize(job_id, "COMPLETED")
         if finalize_info:
-            if is_extended:
-                caption = build_caption_extended(
+            if is_mix:
+                caption = build_caption_mix(
                     use_gguf=use_gguf,
                     model_label=model_label,
                     model_high_filename=model_high_filename,
                     model_low_filename=model_low_filename,
-                    lora_type=lora_type,
-                    lora_label=lora_label,
-                    lora_key=lora_key,
-                    lora_filename=lora_filename,
-                    lora_strength=lora_strength,
-                    lora_high_filename=lora_high_filename,
-                    lora_high_strength=lora_high_strength,
-                    lora_low_filename=lora_low_filename,
-                    lora_low_strength=lora_low_strength,
-                    lora2_type=lora2_type,
-                    lora2_label=lora2_label,
-                    lora2_key=lora2_key,
-                    lora2_filename=lora2_filename,
-                    lora2_strength=lora2_strength,
-                    lora2_high_filename=lora2_high_filename,
-                    lora2_high_strength=lora2_high_strength,
-                    lora2_low_filename=lora2_low_filename,
-                    lora2_low_strength=lora2_low_strength,
+                    loras=mix_segments or [],
                     video_width=video_width,
                     video_height=video_height,
                     total_steps=total_steps,
