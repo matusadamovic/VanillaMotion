@@ -1217,5 +1217,35 @@
     "_meta": {
       "title": "Anything Everywhere"
     }
+  },
+  "150": {
+    "inputs": {
+      "batch_index": [
+        "93",
+        0
+      ],
+      "length": 1,
+      "image": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "ImageFromBatch",
+    "_meta": {
+      "title": "getLastFrame (RIFE)"
+    }
+  },
+  "151": {
+    "inputs": {
+      "filename_prefix": "last_frame",
+      "images": [
+        "150",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Last Frame (PNG)"
+    }
   }
 }

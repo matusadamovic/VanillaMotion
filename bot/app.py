@@ -829,6 +829,16 @@ def build_prompt_keyboard(
     return json.dumps({"inline_keyboard": rows})
 
 
+def build_enhancer_keyboard(yes_data: str, no_data: str) -> str:
+    rows = [
+        [
+            {"text": "Enhancer: ON", "callback_data": yes_data},
+            {"text": "Enhancer: OFF", "callback_data": no_data},
+        ]
+    ]
+    return json.dumps({"inline_keyboard": rows})
+
+
 def build_interpolation_keyboard(
     job_id: str,
     *,
@@ -838,6 +848,7 @@ def build_interpolation_keyboard(
     model_type: str,
     model_idx: int,
     use_last_frame: bool,
+    use_enhancer: bool,
     resolution_idx: int,
     steps_idx: int,
     weight_idx: Optional[int] = None,
@@ -855,12 +866,12 @@ def build_interpolation_keyboard(
             if is_pair:
                 data = (
                     f"ri:{value}:{prompt_mode}:{steps_idx}:{resolution_idx}:{int(use_last_frame)}:"
-                    f"{lora_idx}:{high_idx}:{low_idx}:{model_type}:{model_idx}:{job_id}"
+                    f"{lora_idx}:{high_idx}:{low_idx}:{model_type}:{model_idx}:{int(use_enhancer)}:{job_id}"
                 )
             else:
                 data = (
                     f"ri:{value}:{prompt_mode}:{steps_idx}:{resolution_idx}:{int(use_last_frame)}:"
-                    f"{lora_idx}:{weight_idx}:{model_type}:{model_idx}:{job_id}"
+                    f"{lora_idx}:{weight_idx}:{model_type}:{model_idx}:{int(use_enhancer)}:{job_id}"
                 )
             row.append({"text": label, "callback_data": data})
         rows.append(row)
@@ -1333,7 +1344,7 @@ async def prompt_use_prompt(
     await edit_message_text(chat_id, message_id, f"{label}: pouzit LoRA prompt?", reply_markup)
 
 
-async def prompt_interpolation(
+async def prompt_enhancer(
     *,
     chat_id: int,
     message_id: int,
@@ -1353,6 +1364,49 @@ async def prompt_interpolation(
 ) -> None:
     if not (chat_id and message_id):
         return
+    if is_pair:
+        yes_data = (
+            f"ue:1:{prompt_mode}:{steps_idx}:{resolution_idx}:{int(use_last_frame)}:"
+            f"{lora_idx}:{high_idx}:{low_idx}:{model_type}:{model_idx}:{job_id}"
+        )
+        no_data = (
+            f"ue:0:{prompt_mode}:{steps_idx}:{resolution_idx}:{int(use_last_frame)}:"
+            f"{lora_idx}:{high_idx}:{low_idx}:{model_type}:{model_idx}:{job_id}"
+        )
+    else:
+        yes_data = (
+            f"ue:1:{prompt_mode}:{steps_idx}:{resolution_idx}:{int(use_last_frame)}:"
+            f"{lora_idx}:{weight_idx}:{model_type}:{model_idx}:{job_id}"
+        )
+        no_data = (
+            f"ue:0:{prompt_mode}:{steps_idx}:{resolution_idx}:{int(use_last_frame)}:"
+            f"{lora_idx}:{weight_idx}:{model_type}:{model_idx}:{job_id}"
+        )
+    reply_markup = build_enhancer_keyboard(yes_data, no_data)
+    await edit_message_text(chat_id, message_id, f"{label}: pouzit enhancer?", reply_markup)
+
+
+async def prompt_interpolation(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+    prompt_mode: int,
+    is_pair: bool,
+    lora_idx: int,
+    model_type: str,
+    model_idx: int,
+    use_last_frame: bool,
+    use_enhancer: bool,
+    resolution_idx: int,
+    steps_idx: int,
+    weight_idx: Optional[int] = None,
+    high_idx: Optional[int] = None,
+    low_idx: Optional[int] = None,
+) -> None:
+    if not (chat_id and message_id):
+        return
     reply_markup = build_interpolation_keyboard(
         job_id,
         prompt_mode=prompt_mode,
@@ -1361,6 +1415,7 @@ async def prompt_interpolation(
         model_type=model_type,
         model_idx=model_idx,
         use_last_frame=use_last_frame,
+        use_enhancer=use_enhancer,
         resolution_idx=resolution_idx,
         steps_idx=steps_idx,
         weight_idx=weight_idx,
@@ -1489,6 +1544,32 @@ async def prompt_extended_prompt(
     if tag_prefix == "n":
         text = f"{label}: vyber prompt rezim"
     await edit_message_text(chat_id, message_id, text, reply_markup)
+
+
+async def prompt_extended_enhancer(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+) -> None:
+    if not (chat_id and message_id):
+        return
+    reply_markup = build_enhancer_keyboard(f"ee:1:{job_id}", f"ee:0:{job_id}")
+    await edit_message_text(chat_id, message_id, f"{label}: pouzit enhancer?", reply_markup)
+
+
+async def prompt_workflow4_enhancer(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+) -> None:
+    if not (chat_id and message_id):
+        return
+    reply_markup = build_enhancer_keyboard(f"ne:1:{job_id}", f"ne:0:{job_id}")
+    await edit_message_text(chat_id, message_id, f"{label}: pouzit enhancer?", reply_markup)
 
 
 async def prompt_workflow4_drift(
@@ -1702,6 +1783,7 @@ async def _submit_single_job(
     model_label: Optional[str],
     model_high_filename: Optional[str],
     model_low_filename: Optional[str],
+    use_enhancer: bool = False,
     chat_id: int,
     message_id: int,
 ) -> None:
@@ -1716,6 +1798,7 @@ async def _submit_single_job(
         "lora_label": label,
         "lora_type": (cfg.get("type") or "single"),
         "positive_prompt": prompt_text,
+        "use_enhancer": bool(use_enhancer),
         "use_gguf": use_gguf,
         "use_last_frame": use_last_frame,
         "video_width": video_width,
@@ -1765,6 +1848,7 @@ async def _submit_pair_job(
     model_label: Optional[str],
     model_high_filename: Optional[str],
     model_low_filename: Optional[str],
+    use_enhancer: bool = False,
     chat_id: int,
     message_id: int,
 ) -> None:
@@ -1779,6 +1863,7 @@ async def _submit_pair_job(
         "lora_label": label,
         "lora_type": (cfg.get("type") or "single"),
         "positive_prompt": prompt_text,
+        "use_enhancer": bool(use_enhancer),
         "use_gguf": use_gguf,
         "use_last_frame": use_last_frame,
         "video_width": video_width,
@@ -1819,6 +1904,7 @@ async def _submit_batch_job(
     chat_id: int,
     message_id: int,
     weight: float,
+    use_enhancer: bool = False,
 ) -> None:
     row = set_queue(job_id, "batch5s")
 
@@ -1882,6 +1968,7 @@ async def _submit_batch_job(
         "batch_weights": weights,
         "batch_default_prompt": DEFAULT_PROMPT,
         "batch_use_prompt": bool(BATCH_TEST_USE_PROMPT),
+        "use_enhancer": bool(use_enhancer),
         "use_gguf": (model_type == "gguf"),
         "use_last_frame": bool(BATCH_TEST_USE_LAST_FRAME),
         "video_width": BATCH_TEST_VIDEO_WIDTH,
@@ -1922,6 +2009,7 @@ async def _submit_mix_job(
     model_label: Optional[str],
     model_high_filename: Optional[str],
     model_low_filename: Optional[str],
+    use_enhancer: bool = False,
     chat_id: int,
     message_id: int,
 ) -> None:
@@ -1933,6 +2021,7 @@ async def _submit_mix_job(
         "job_id": job_id,
         "chat_id": int(row["chat_id"]),
         "input_file_id": row["input_file_id"],
+        "use_enhancer": bool(use_enhancer),
         "use_gguf": use_gguf,
         "use_last_frame": use_last_frame,
         "video_width": video_width,
@@ -2013,6 +2102,7 @@ async def _submit_workflow4_job(
     use_lora: bool,
     use_gguf: bool,
     use_last_frame: bool,
+    use_enhancer: bool = False,
     video_width: Optional[int],
     video_height: Optional[int],
     total_steps: Optional[int],
@@ -2066,6 +2156,7 @@ async def _submit_workflow4_job(
         "positive_prompt_3": positive_prompt_3 or positive_prompt_1,
         "positive_prompt_4": positive_prompt_4 or positive_prompt_1,
         "use_lora": use_lora,
+        "use_enhancer": bool(use_enhancer),
         "use_gguf": use_gguf,
         "use_last_frame": use_last_frame,
         "anchor_mode": anchor_mode,
@@ -2198,6 +2289,7 @@ async def _workflow4_submit_from_session(
 
     use_prompt = bool(sess.get("use_prompt"))
     use_lora = bool(sess.get("use_lora"))
+    use_enhancer = bool(sess.get("use_enhancer"))
     prompt_text_1 = _workflow4_prompt_for(cfg1, lora1, use_prompt)
     prompt_text_2 = _workflow4_prompt_for(cfg2, lora2, use_prompt)
     prompt_text_3 = _workflow4_prompt_for(cfg3, lora3, use_prompt)
@@ -2252,6 +2344,7 @@ async def _workflow4_submit_from_session(
         use_lora=use_lora,
         use_gguf=(model_type == "gguf"),
         use_last_frame=bool(sess.get("use_last_frame")),
+        use_enhancer=use_enhancer,
         video_width=int(resolution["width"]),
         video_height=int(resolution["height"]),
         total_steps=int(steps),
@@ -2456,11 +2549,17 @@ async def process_callback(update: Dict[str, Any]) -> None:
     # - st:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (steps, pair)
     # - pu:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (prompt, single)
     # - pu:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (prompt, pair)
-    # - ri:<interp>:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (interpolation, single)
-    # - ri:<interp>:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (interpolation, pair)
+    # - ue:<on>:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<w_idx>:<model>:<m_idx>:<job_id> (enhancer, single)
+    # - ue:<on>:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<job_id> (enhancer, pair)
+    # - ri:<interp>:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<w_idx>:<model>:<m_idx>:<enh>:<job_id> (interpolation, single)
+    # - ri:<interp>:<p>:<s_idx>:<r_idx>:<on>:<lora_idx>:<h_idx>:<l_idx>:<model>:<m_idx>:<enh>:<job_id> (interpolation, pair)
     # - eri:<interp>:<job_id>                  (interpolation, mix)
     # - t5l:<idx>:<job_id>                     (select LoRA, test5s)
+    # - t5e:<on>:<idx>:<job_id>                (enhancer, test5s)
     # - t5p:<page>:<job_id>                    (LoRA page, test5s)
+    # - be:<on>:<idx>:<job_id>                 (enhancer, batch)
+    # - ee:<on>:<job_id>                       (enhancer, mix)
+    # - ne:<on>:<job_id>                       (enhancer, workflow4)
     # - noop:<job_id>                          (do nothing)
     parts = data.split(":")
     if len(parts) < 2:
@@ -2500,6 +2599,8 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 "current_lora": 1,
                 "rife_multiplier": None,
                 "max_loras": MIX_MAX_LORAS,
+                "use_prompt": True,
+                "use_enhancer": False,
             }
             _ext_session_touch(extended_sessions[job_id])
             await edit_message_text(
@@ -2538,6 +2639,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 "use_prompt": True,
                 "use_lora": True,
                 "use_last_frame": False,
+                "use_enhancer": False,
             }
             _wf4_session_touch(workflow4_sessions[job_id])
             if LORA_GROUP_KEYS:
@@ -2567,9 +2669,31 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         if idx < 0 or idx >= len(BATCH_TEST_WEIGHTS):
             return
+        if chat_id and message_id:
+            reply_markup = build_enhancer_keyboard(f"be:1:{idx}:{job_id}", f"be:0:{idx}:{job_id}")
+            await edit_message_text(chat_id, message_id, "Batch 5s: pouzit enhancer?", reply_markup)
+        return
+
+    if tag == "be":
+        if len(parts) != 4:
+            return
+        use_enhancer = str(parts[1]).strip().lower() in ("1", "true", "yes", "y", "on")
+        try:
+            idx = int(parts[2])
+            job_id = parts[3]
+        except Exception:
+            return
+        if idx < 0 or idx >= len(BATCH_TEST_WEIGHTS):
+            return
         weight = BATCH_TEST_WEIGHTS[idx]
         try:
-            await _submit_batch_job(job_id=job_id, chat_id=chat_id, message_id=message_id, weight=weight)
+            await _submit_batch_job(
+                job_id=job_id,
+                chat_id=chat_id,
+                message_id=message_id,
+                weight=weight,
+                use_enhancer=use_enhancer,
+            )
         except Exception as exc:
             await edit_message_text(
                 chat_id,
@@ -2994,7 +3118,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
         _wf4_session_touch(sess)
         if chat_id and message_id:
             label = _workflow4_combo_label(sess)
-            await prompt_workflow4_interpolation(
+            await prompt_workflow4_enhancer(
                 chat_id=chat_id,
                 message_id=message_id,
                 label=label,
@@ -3015,6 +3139,28 @@ async def process_callback(update: Dict[str, Any]) -> None:
             return
         sess["use_prompt"] = use_prompt
         sess["use_lora"] = use_lora
+        sess["drift_key"] = None
+        sess["rife_multiplier"] = None
+        _wf4_session_touch(sess)
+        if chat_id and message_id:
+            label = _workflow4_combo_label(sess)
+            await prompt_workflow4_enhancer(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+            )
+        return
+
+    if tag == "ne":
+        if len(parts) != 3:
+            return
+        use_enhancer = str(parts[1]).strip().lower() in ("1", "true", "yes", "y", "on")
+        job_id = parts[2]
+        sess = _wf4_session_get(job_id)
+        if not sess:
+            return
+        sess["use_enhancer"] = use_enhancer
         sess["drift_key"] = None
         sess["rife_multiplier"] = None
         _wf4_session_touch(sess)
@@ -3374,10 +3520,11 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if not sess:
             return
         sess["steps_idx"] = steps_idx
+        sess["use_prompt"] = True
         _ext_session_touch(sess)
         if chat_id and message_id:
             label = _extended_combo_label(sess)
-            await prompt_extended_prompt(chat_id=chat_id, message_id=message_id, label=label, job_id=job_id)
+            await prompt_extended_enhancer(chat_id=chat_id, message_id=message_id, label=label, job_id=job_id)
         return
 
     if tag == "epu":
@@ -3389,6 +3536,27 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if not sess:
             return
         sess["use_prompt"] = use_prompt
+        sess["rife_multiplier"] = None
+        _ext_session_touch(sess)
+        if chat_id and message_id:
+            label = _extended_combo_label(sess)
+            await prompt_extended_enhancer(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+            )
+        return
+
+    if tag == "ee":
+        if len(parts) != 3:
+            return
+        use_enhancer = str(parts[1]).strip().lower() in ("1", "true", "yes", "y", "on")
+        job_id = parts[2]
+        sess = _ext_session_get(job_id)
+        if not sess:
+            return
+        sess["use_enhancer"] = use_enhancer
         sess["rife_multiplier"] = None
         _ext_session_touch(sess)
         if chat_id and message_id:
@@ -3487,6 +3655,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             model_label=model_label,
             model_high_filename=model_high_filename,
             model_low_filename=model_low_filename,
+            use_enhancer=bool(sess.get("use_enhancer")),
             chat_id=chat_id,
             message_id=message_id,
         )
@@ -3511,6 +3680,26 @@ async def process_callback(update: Dict[str, Any]) -> None:
         try:
             idx = int(parts[1])
             job_id = parts[2]
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(idx)
+        if not cfg:
+            return
+
+        label = str(cfg.get("label") or lora_key)
+        if chat_id and message_id:
+            reply_markup = build_enhancer_keyboard(f"t5e:1:{idx}:{job_id}", f"t5e:0:{idx}:{job_id}")
+            await edit_message_text(chat_id, message_id, f"Test5s ({label}): pouzit enhancer?", reply_markup)
+        return
+
+    if tag == "t5e":
+        if len(parts) != 4:
+            return
+        use_enhancer = str(parts[1]).strip().lower() in ("1", "true", "yes", "y", "on")
+        try:
+            idx = int(parts[2])
+            job_id = parts[3]
         except Exception:
             return
 
@@ -3555,6 +3744,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
                     model_label=model_label,
                     model_high_filename=model_high_filename,
                     model_low_filename=model_low_filename,
+                    use_enhancer=use_enhancer,
                     chat_id=chat_id if i == 0 else 0,
                     message_id=message_id if i == 0 else 0,
                 )
@@ -3578,6 +3768,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 model_label=model_label,
                 model_high_filename=model_high_filename,
                 model_low_filename=model_low_filename,
+                use_enhancer=use_enhancer,
                 chat_id=chat_id if i == 0 else 0,
                 message_id=message_id if i == 0 else 0,
             )
@@ -4156,11 +4347,12 @@ async def process_callback(update: Dict[str, Any]) -> None:
             if weight_idx < 0 or weight_idx >= len(options):
                 return
 
-            await prompt_use_prompt(
+            await prompt_enhancer(
                 chat_id=chat_id,
                 message_id=message_id,
                 label=label,
                 job_id=job_id,
+                prompt_mode=1,
                 is_pair=False,
                 lora_idx=lora_idx,
                 weight_idx=weight_idx,
@@ -4193,11 +4385,12 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if low_idx < 0 or low_idx >= len(options_low):
             return
 
-        await prompt_use_prompt(
+        await prompt_enhancer(
             chat_id=chat_id,
             message_id=message_id,
             label=label,
             job_id=job_id,
+            prompt_mode=1,
             is_pair=True,
             lora_idx=lora_idx,
             high_idx=high_idx,
@@ -4262,7 +4455,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             if weight_idx < 0 or weight_idx >= len(options):
                 return
 
-            await prompt_interpolation(
+            await prompt_enhancer(
                 chat_id=chat_id,
                 message_id=message_id,
                 label=label,
@@ -4300,7 +4493,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
         if low_idx < 0 or low_idx >= len(options_low):
             return
 
-        await prompt_interpolation(
+        await prompt_enhancer(
             chat_id=chat_id,
             message_id=message_id,
             label=label,
@@ -4318,8 +4511,112 @@ async def process_callback(update: Dict[str, Any]) -> None:
         )
         return
 
-    if tag == "ri":
+    if tag == "ue":
         if len(parts) not in (11, 12):
+            return
+        use_enhancer = str(parts[1]).strip().lower() in ("1", "true", "yes", "y", "on")
+        try:
+            prompt_mode = int(parts[2])
+            steps_idx = int(parts[3])
+            resolution_idx = int(parts[4])
+        except Exception:
+            return
+        if _resolution_by_index(resolution_idx) is None:
+            return
+        if _steps_by_index(steps_idx) is None:
+            return
+
+        use_last_frame = str(parts[5]).strip().lower() in ("1", "true", "yes", "y", "on")
+
+        try:
+            lora_idx = int(parts[6])
+        except Exception:
+            return
+
+        lora_key, cfg = _get_lora_cfg_by_index(lora_idx)
+        if not cfg:
+            return
+        lora_type = str(cfg.get("type") or "single").lower()
+        label = str(cfg.get("label") or lora_key)
+
+        if len(parts) == 11:
+            if lora_type == "pair":
+                return
+            try:
+                weight_idx = int(parts[7])
+                model_type = parts[8]
+                model_idx = int(parts[9])
+                job_id = parts[10]
+            except Exception:
+                return
+
+            if model_type not in ("wan", "gguf"):
+                return
+
+            options, _ = _weight_options_for(cfg, "single")
+            if weight_idx < 0 or weight_idx >= len(options):
+                return
+
+            await prompt_interpolation(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+                prompt_mode=prompt_mode,
+                is_pair=False,
+                lora_idx=lora_idx,
+                weight_idx=weight_idx,
+                model_type=model_type,
+                model_idx=model_idx,
+                use_last_frame=use_last_frame,
+                use_enhancer=use_enhancer,
+                resolution_idx=resolution_idx,
+                steps_idx=steps_idx,
+            )
+            return
+
+        if lora_type != "pair":
+            return
+        try:
+            high_idx = int(parts[7])
+            low_idx = int(parts[8])
+            model_type = parts[9]
+            model_idx = int(parts[10])
+            job_id = parts[11]
+        except Exception:
+            return
+
+        if model_type not in ("wan", "gguf"):
+            return
+
+        options_high, _ = _weight_options_for(cfg, "high")
+        options_low, _ = _weight_options_for(cfg, "low")
+        if high_idx < 0 or high_idx >= len(options_high):
+            return
+        if low_idx < 0 or low_idx >= len(options_low):
+            return
+
+        await prompt_interpolation(
+            chat_id=chat_id,
+            message_id=message_id,
+            label=label,
+            job_id=job_id,
+            prompt_mode=prompt_mode,
+            is_pair=True,
+            lora_idx=lora_idx,
+            high_idx=high_idx,
+            low_idx=low_idx,
+            model_type=model_type,
+            model_idx=model_idx,
+            use_last_frame=use_last_frame,
+            use_enhancer=use_enhancer,
+            resolution_idx=resolution_idx,
+            steps_idx=steps_idx,
+        )
+        return
+
+    if tag == "ri":
+        if len(parts) not in (11, 12, 13):
             return
         try:
             rife_multiplier = int(parts[1])
@@ -4359,14 +4656,20 @@ async def process_callback(update: Dict[str, Any]) -> None:
         video_height = int(resolution["height"])
         prompt_text = (cfg.get("positive") or DEFAULT_PROMPT) if use_prompt else DEFAULT_PROMPT
 
-        if len(parts) == 11:
-            if lora_type == "pair":
+        if lora_type != "pair":
+            has_enhancer = len(parts) == 12
+            if len(parts) not in (11, 12):
                 return
             try:
                 weight_idx = int(parts[7])
                 model_type = parts[8]
                 model_idx = int(parts[9])
-                job_id = parts[10]
+                if has_enhancer:
+                    use_enhancer = str(parts[10]).strip().lower() in ("1", "true", "yes", "y", "on")
+                    job_id = parts[11]
+                else:
+                    use_enhancer = False
+                    job_id = parts[10]
             except Exception:
                 return
 
@@ -4403,19 +4706,26 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 model_label=model_label,
                 model_high_filename=model_high_filename,
                 model_low_filename=model_low_filename,
+                use_enhancer=use_enhancer,
                 chat_id=chat_id,
                 message_id=message_id,
             )
             return
 
-        if lora_type != "pair":
+        if len(parts) not in (12, 13):
             return
+        has_enhancer = len(parts) == 13
         try:
             high_idx = int(parts[7])
             low_idx = int(parts[8])
             model_type = parts[9]
             model_idx = int(parts[10])
-            job_id = parts[11]
+            if has_enhancer:
+                use_enhancer = str(parts[11]).strip().lower() in ("1", "true", "yes", "y", "on")
+                job_id = parts[12]
+            else:
+                use_enhancer = False
+                job_id = parts[11]
         except Exception:
             return
 
@@ -4456,6 +4766,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             model_label=model_label,
             model_high_filename=model_high_filename,
             model_low_filename=model_low_filename,
+            use_enhancer=use_enhancer,
             chat_id=chat_id,
             message_id=message_id,
         )

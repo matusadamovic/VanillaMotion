@@ -74,6 +74,11 @@ UPLOAD_MAX_RETRIES = _env_int("UPLOAD_MAX_RETRIES", 3)
 UPLOAD_RETRY_DELAY = _env_float("UPLOAD_RETRY_DELAY", 3.0)
 DEQUANT_FP8_MODELS = _env_bool("DEQUANT_FP8_MODELS", True)
 
+ENHANCER_LORA_HIGH = os.environ.get("ENHANCER_LORA_HIGH", "NSFW-22-H-e8.safetensors").strip()
+ENHANCER_LORA_LOW = os.environ.get("ENHANCER_LORA_LOW", "NSFW-22-L-e8.safetensors").strip()
+ENHANCER_PROMPT_TOKEN = os.environ.get("ENHANCER_PROMPT_TOKEN", "nsfwsks").strip()
+ENHANCER_WEIGHT = _env_float("ENHANCER_WEIGHT", 0.8)
+
 CAPTION_BACKEND = os.environ.get("CAPTION_BACKEND", "florence2").strip().lower()
 CAPTION_MODES_RAW = os.environ.get("CAPTION_MODES", "all")
 CAPTION_MODES = {m.strip().lower() for m in CAPTION_MODES_RAW.split(",") if m.strip()}
@@ -85,7 +90,7 @@ CAPTION_CAMERA_TAIL = os.environ.get(
     "Camera is locked-off with fixed focal length; no pan, tilt, roll, dolly, truck, or pedestal; no shake or drift.",
 ).strip()
 CAPTION_TIMEOUT = _env_int("CAPTION_TIMEOUT", 120)
-CAPTION_MAX_NEW_TOKENS = _env_int("CAPTION_MAX_NEW_TOKENS", 256)
+CAPTION_MAX_NEW_TOKENS = _env_int("CAPTION_MAX_NEW_TOKENS", 512)
 CAPTION_DEVICE = os.environ.get("CAPTION_DEVICE", "").strip()
 CAPTION_DTYPE = os.environ.get("CAPTION_DTYPE", "float16").strip()
 CAPTION_CACHE_DIR = os.environ.get("CAPTION_CACHE_DIR", "/runpod-volume/huggingface-cache")
@@ -176,6 +181,38 @@ def _compose_prompt(base_prompt: Optional[str], caption: Optional[str]) -> Optio
     if camera_tail and _should_append_camera_tail(base_text):
         parts.append(camera_tail)
     return _join_prompt_parts(parts) or base_text or caption_text
+
+
+def _format_enhancer_weight(value: Any) -> str:
+    try:
+        v = float(value)
+    except Exception:
+        return str(value).strip()
+    s = f"{v:.2f}".rstrip("0").rstrip(".")
+    return s or "0"
+
+
+def _enhancer_prompt_tag() -> str:
+    if not ENHANCER_PROMPT_TOKEN:
+        return ""
+    weight = _format_enhancer_weight(ENHANCER_WEIGHT)
+    if weight:
+        return f"({ENHANCER_PROMPT_TOKEN}:{weight})"
+    return ENHANCER_PROMPT_TOKEN
+
+
+def _apply_enhancer_prompt(prompt: Optional[str]) -> Optional[str]:
+    if not ENHANCER_PROMPT_TOKEN:
+        return prompt
+    tag = _enhancer_prompt_tag()
+    if not tag:
+        return prompt
+    base = _normalize_prompt_segment(prompt)
+    if not base:
+        return tag
+    if ENHANCER_PROMPT_TOKEN.lower() in base.lower():
+        return base
+    return f"{tag} {base}"
 
 
 def _run_captioner(image_path: pathlib.Path) -> Optional[str]:
@@ -992,8 +1029,10 @@ def load_and_patch_workflow(
     model_high_filename: Optional[str],
     model_low_filename: Optional[str],
     positive_prompt: Optional[str],
+    last_frame_prefix: Optional[str],
     use_gguf: Optional[bool],
     use_last_frame: Optional[bool],
+    use_enhancer: Optional[bool],
     video_width: Optional[int],
     video_height: Optional[int],
     total_steps: Optional[int],
@@ -1039,6 +1078,15 @@ def load_and_patch_workflow(
             title = ((node.get("_meta") or {}).get("title") or "").lower()
             if "use last frame" in title:
                 node.setdefault("inputs", {})["value"] = bool(use_last_frame)
+
+    # Patch last-frame image saver prefix if present
+    if last_frame_prefix:
+        for node in prompt.values():
+            if node.get("class_type") != "SaveImage":
+                continue
+            title = _get_title(node).lower()
+            if "last frame" in title:
+                node.setdefault("inputs", {})["filename_prefix"] = last_frame_prefix
 
     # Patch Video Width/Height if provided
     if video_width is not None or video_height is not None:
@@ -1123,6 +1171,10 @@ def load_and_patch_workflow(
             v["on"] = False
 
     lt = (lora_type or "single").lower()
+    apply_enhancer = bool(use_enhancer)
+    enhancer_high = ENHANCER_LORA_HIGH
+    enhancer_low = ENHANCER_LORA_LOW
+    enhancer_strength = float(ENHANCER_WEIGHT)
 
     # Fail-fast validate files
     if lt == "pair":
@@ -1134,9 +1186,17 @@ def load_and_patch_workflow(
         if lora_filename:
             _assert_lora_exists(lora_filename)
 
+    if apply_enhancer:
+        if not enhancer_high or not enhancer_low:
+            raise ValueError("Enhancer LoRA filenames not configured")
+        _assert_lora_exists(enhancer_high)
+        _assert_lora_exists(enhancer_low)
+
     # Apply:
-    # - single: Step1.lora_1 = file, Step3.lora_2 = file (keep Step3.lora_1 reserved/off)
-    # - pair:   Step1.lora_1 = high, Step3.lora_2 = low  (keep Step3.lora_1 reserved/off)
+    # - single: Step1.lora_1 = user, Step1.lora_2 = enhancer (optional)
+    #           Step3.lora_2 = user, Step3.lora_1 = enhancer (optional)
+    # - pair:   Step1.lora_1 = high, Step1.lora_2 = enhancer (optional)
+    #           Step3.lora_2 = low,  Step3.lora_1 = enhancer (optional)
     for node in prompt.values():
         if node.get("class_type") != "Power Lora Loader (rgthree)":
             continue
@@ -1152,22 +1212,33 @@ def load_and_patch_workflow(
             low_s = float(lora_low_strength) if lora_low_strength is not None else 1.0
 
             if "step 1 lora" in title:
-                # Step 1 has only lora_1 in your workflow
                 _set_lora(inputs, "lora_1", lora_high_filename, high_s)
+                if apply_enhancer:
+                    _set_lora(inputs, "lora_2", enhancer_high, enhancer_strength)
+                else:
+                    _set_off(inputs, "lora_2")
 
             if "step 3 lora" in title:
-                # Keep lora_1 reserved/off (in your workflow it holds a lightning low-noise filename)
-                _set_off(inputs, "lora_1")
+                if apply_enhancer:
+                    _set_lora(inputs, "lora_1", enhancer_low, enhancer_strength)
+                else:
+                    _set_off(inputs, "lora_1")
                 _set_lora(inputs, "lora_2", lora_low_filename, low_s)
 
         else:
             # single
             if not lora_filename:
-                # nothing selected -> keep off (also avoids any accidental previous state)
                 if "step 1 lora" in title:
                     _set_off(inputs, "lora_1")
+                    if apply_enhancer:
+                        _set_lora(inputs, "lora_2", enhancer_high, enhancer_strength)
+                    else:
+                        _set_off(inputs, "lora_2")
                 if "step 3 lora" in title:
-                    _set_off(inputs, "lora_1")
+                    if apply_enhancer:
+                        _set_lora(inputs, "lora_1", enhancer_low, enhancer_strength)
+                    else:
+                        _set_off(inputs, "lora_1")
                     _set_off(inputs, "lora_2")
                 continue
 
@@ -1175,10 +1246,16 @@ def load_and_patch_workflow(
 
             if "step 1 lora" in title:
                 _set_lora(inputs, "lora_1", lora_filename, s)
+                if apply_enhancer:
+                    _set_lora(inputs, "lora_2", enhancer_high, enhancer_strength)
+                else:
+                    _set_off(inputs, "lora_2")
 
             if "step 3 lora" in title:
-                # Keep lora_1 reserved/off; apply user lora into lora_2
-                _set_off(inputs, "lora_1")
+                if apply_enhancer:
+                    _set_lora(inputs, "lora_1", enhancer_low, enhancer_strength)
+                else:
+                    _set_off(inputs, "lora_1")
                 _set_lora(inputs, "lora_2", lora_filename, s)
 
     _patch_video_combine_outputs(prompt)
@@ -1222,7 +1299,9 @@ def load_and_patch_workflow_new(
     positive_prompt_2: Optional[str],
     positive_prompt_3: Optional[str],
     positive_prompt_4: Optional[str],
+    last_frame_prefix: Optional[str],
     use_lora: Optional[bool],
+    use_enhancer: Optional[bool],
     use_gguf: Optional[bool],
     last_frame_mode: Optional[str],
     video_width: Optional[int],
@@ -1346,6 +1425,7 @@ def load_and_patch_workflow_new(
     _apply_workflow4_last_frame_mode(prompt, last_frame_mode)
 
     apply_loras = True if use_lora is None else bool(use_lora)
+    apply_enhancer = apply_loras and bool(use_enhancer)
 
     def _assert_lora_exists(filename: str) -> None:
         p = pathlib.Path("/runpod-volume/models/loras") / filename
@@ -1433,6 +1513,12 @@ def load_and_patch_workflow_new(
             ),
         }
 
+    if apply_enhancer:
+        if not ENHANCER_LORA_HIGH or not ENHANCER_LORA_LOW:
+            raise ValueError("Enhancer LoRA filenames not configured")
+        _assert_lora_exists(ENHANCER_LORA_HIGH)
+        _assert_lora_exists(ENHANCER_LORA_LOW)
+
     def _get_lora_name(node: Dict[str, Any], slot: str) -> str:
         inputs = node.get("inputs") or {}
         v = inputs.get(slot)
@@ -1464,6 +1550,7 @@ def load_and_patch_workflow_new(
             continue
         if not apply_loras:
             _disable_lora_slot(node, "lora_2")
+            _disable_lora_slot(node, "lora_3")
             continue
         part_idx = _extract_part_index(title)
         if not part_idx:
@@ -1473,8 +1560,16 @@ def load_and_patch_workflow_new(
             continue
         if "lora high noise" in title_l:
             _set_lora_slot(node, "lora_2", cfg["high_filename"], cfg["high_strength"])
+            if apply_enhancer:
+                _set_lora_slot(node, "lora_3", ENHANCER_LORA_HIGH, ENHANCER_WEIGHT)
+            else:
+                _disable_lora_slot(node, "lora_3")
         else:
             _set_lora_slot(node, "lora_2", cfg["low_filename"], cfg["low_strength"])
+            if apply_enhancer:
+                _set_lora_slot(node, "lora_3", ENHANCER_LORA_LOW, ENHANCER_WEIGHT)
+            else:
+                _disable_lora_slot(node, "lora_3")
 
     def _resolve_node(ref: Any) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
         if not isinstance(ref, list) or not ref:
@@ -1566,6 +1661,15 @@ def load_and_patch_workflow_new(
                 for k, v in inputs.items():
                     if isinstance(v, list) and v and str(v[0]) == info["switch_id"]:
                         inputs[k] = list(replacement)
+
+    # Patch last-frame image saver prefix if present
+    if last_frame_prefix:
+        for node in prompt.values():
+            if node.get("class_type") != "SaveImage":
+                continue
+            title = _get_title(node).lower()
+            if "last frame" in title:
+                node.setdefault("inputs", {})["filename_prefix"] = last_frame_prefix
 
     _patch_video_combine_outputs(prompt)
 
@@ -1718,7 +1822,9 @@ def run_comfy_prompt(
     positive_prompt_2: Optional[str] = None,
     positive_prompt_3: Optional[str] = None,
     positive_prompt_4: Optional[str] = None,
+    last_frame_prefix: Optional[str] = None,
     use_lora: Optional[bool] = None,
+    use_enhancer: Optional[bool] = None,
     use_gguf: Optional[bool],
     use_last_frame: Optional[bool],
     last_frame_mode: Optional[str] = None,
@@ -1769,7 +1875,9 @@ def run_comfy_prompt(
             positive_prompt_2=positive_prompt_2,
             positive_prompt_3=positive_prompt_3,
             positive_prompt_4=positive_prompt_4,
+            last_frame_prefix=last_frame_prefix,
             use_lora=use_lora,
+            use_enhancer=use_enhancer,
             use_gguf=use_gguf,
             last_frame_mode=last_frame_mode,
             video_width=video_width,
@@ -1794,8 +1902,10 @@ def run_comfy_prompt(
             model_high_filename=model_high_filename,
             model_low_filename=model_low_filename,
             positive_prompt=positive_prompt,
+            last_frame_prefix=last_frame_prefix,
             use_gguf=use_gguf,
             use_last_frame=use_last_frame,
+            use_enhancer=use_enhancer,
             video_width=video_width,
             video_height=video_height,
             total_steps=total_steps,
@@ -1806,7 +1916,7 @@ def run_comfy_prompt(
     summary = summarize_workflow(workflow)
     logging.info("WORKFLOW_SUMMARY %s %s", label_tag, json.dumps(summary, ensure_ascii=False))
     logging.info(
-        "JOB_PARAMS %s lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s model_high=%s model_low=%s use_gguf=%s use_last_frame=%s last_frame_mode=%s video=%sx%s steps=%s rife_multiplier=%s positive_prompt=%s",
+        "JOB_PARAMS %s lora_type=%s lora=%s s=%s high=%s hs=%s low=%s ls=%s model_high=%s model_low=%s use_gguf=%s use_last_frame=%s use_enhancer=%s last_frame_mode=%s video=%sx%s steps=%s rife_multiplier=%s positive_prompt=%s",
         label_tag,
         lora_type,
         lora_filename,
@@ -1819,6 +1929,7 @@ def run_comfy_prompt(
         model_low_filename,
         use_gguf,
         use_last_frame,
+        use_enhancer,
         last_frame_mode,
         video_width,
         video_height,
@@ -1934,6 +2045,43 @@ def resolve_output_video(
         time.sleep(1)
 
     raise RuntimeError(f"No output video produced. output_dir={output_dir}")
+
+
+def resolve_output_image(
+    history: Dict[str, Any],
+    output_dir: pathlib.Path,
+    *,
+    prefix: Optional[str] = None,
+) -> Optional[pathlib.Path]:
+    outputs = history.get("outputs") or {}
+    candidates: list[pathlib.Path] = []
+
+    def _maybe_add(item: Dict[str, Any]) -> None:
+        fn = str(item.get("filename") or "")
+        if not fn:
+            return
+        if prefix and not fn.startswith(prefix):
+            return
+        sub = str(item.get("subfolder") or "")
+        candidates.append(output_dir / sub / fn)
+
+    if isinstance(outputs, dict):
+        for v in outputs.values():
+            if not isinstance(v, dict):
+                continue
+            images = v.get("images")
+            if isinstance(images, list):
+                for item in images:
+                    if isinstance(item, dict):
+                        _maybe_add(item)
+
+    if not candidates and prefix:
+        candidates.extend(output_dir.rglob(f\"{prefix}*.png\"))
+
+    candidates = [p for p in candidates if p.exists()]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
 def _run_ffmpeg(cmd: list[str]) -> None:
@@ -2645,6 +2793,14 @@ def handler(event):
     elif isinstance(use_lora, (int, float)) and not isinstance(use_lora, bool):
         use_lora = bool(use_lora)
 
+    use_enhancer = payload.get("use_enhancer")
+    if use_enhancer is None:
+        use_enhancer = False
+    elif isinstance(use_enhancer, str):
+        use_enhancer = use_enhancer.strip().lower() in ("1", "true", "yes", "y", "on")
+    elif isinstance(use_enhancer, (int, float)) and not isinstance(use_enhancer, bool):
+        use_enhancer = bool(use_enhancer)
+
     if is_workflow4 and use_lora:
         _require_lora_payload(
             "workflow4 lora1",
@@ -3004,6 +3160,8 @@ def handler(event):
                         prompt_text = positive
                     else:
                         prompt_text = default_prompt_text
+                    if use_enhancer:
+                        prompt_text = _apply_enhancer_prompt(prompt_text)
                     prompt_text = _compose_prompt(prompt_text, image_caption) or prompt_text
 
                     for weight in weights:
@@ -3026,6 +3184,7 @@ def handler(event):
                                     model_low_filename=model_low_filename,
                                     positive_prompt=prompt_text,
                                     use_lora=True,
+                                    use_enhancer=use_enhancer,
                                     use_gguf=use_gguf,
                                     use_last_frame=use_last_frame,
                                     video_width=video_width,
@@ -3143,8 +3302,11 @@ def handler(event):
                                 logging.info("CAPTION(%s, seg%s)=%s", mode_key, idx, seg_caption)
 
                     prompt_raw = seg.get("prompt")
+                    if use_enhancer:
+                        prompt_raw = _apply_enhancer_prompt(prompt_raw)
                     prompt_text = _compose_prompt(prompt_raw, seg_caption) or prompt_raw
 
+                    last_frame_prefix = f"last_frame_{job_id}_seg{idx}"
                     history_seg, video_seg = run_comfy_prompt(
                         label=f"seg{idx}",
                         input_filename=current_input_filename,
@@ -3158,7 +3320,9 @@ def handler(event):
                         model_high_filename=model_high_filename,
                         model_low_filename=model_low_filename,
                         positive_prompt=prompt_text,
+                        last_frame_prefix=last_frame_prefix,
                         use_lora=use_lora,
+                        use_enhancer=use_enhancer,
                         use_gguf=use_gguf,
                         use_last_frame=use_last_frame,
                         video_width=video_width,
@@ -3170,8 +3334,13 @@ def handler(event):
                     video_paths.append(video_seg)
 
                     if idx < len(mix_segments):
+                        saved_last = resolve_output_image(history_seg, output_dir, prefix=last_frame_prefix)
                         last_frame_path = job_dir / f"{job_id}_last_{idx}.png"
-                        extract_last_frame(video_seg, last_frame_path)
+                        if saved_last and saved_last.exists():
+                            if saved_last.resolve() != last_frame_path.resolve():
+                                shutil.copy(saved_last, last_frame_path)
+                        else:
+                            extract_last_frame(video_seg, last_frame_path)
                         next_input_filename = last_frame_path.name
                         target_next = comfy_input_dir / next_input_filename
                         shutil.copy(last_frame_path, target_next)
@@ -3187,10 +3356,14 @@ def handler(event):
                     concat_videos(video_paths, final_video_path)
                     video_path = final_video_path
             elif is_workflow4:
-                prompt1 = _compose_prompt(positive_prompt, image_caption) or positive_prompt
-                prompt2 = _compose_prompt(positive_prompt_2, image_caption) or positive_prompt_2
-                prompt3 = _compose_prompt(positive_prompt_3, image_caption) or positive_prompt_3
-                prompt4 = _compose_prompt(positive_prompt_4, image_caption) or positive_prompt_4
+                prompt_base_1 = _apply_enhancer_prompt(positive_prompt) if use_enhancer else positive_prompt
+                prompt_base_2 = _apply_enhancer_prompt(positive_prompt_2) if use_enhancer else positive_prompt_2
+                prompt_base_3 = _apply_enhancer_prompt(positive_prompt_3) if use_enhancer else positive_prompt_3
+                prompt_base_4 = _apply_enhancer_prompt(positive_prompt_4) if use_enhancer else positive_prompt_4
+                prompt1 = _compose_prompt(prompt_base_1, image_caption) or prompt_base_1
+                prompt2 = _compose_prompt(prompt_base_2, image_caption) or prompt_base_2
+                prompt3 = _compose_prompt(prompt_base_3, image_caption) or prompt_base_3
+                prompt4 = _compose_prompt(prompt_base_4, image_caption) or prompt_base_4
                 history, video_path = run_comfy_prompt(
                     label=None,
                     workflow_key=workflow_key,
@@ -3230,6 +3403,7 @@ def handler(event):
                     positive_prompt_3=prompt3,
                     positive_prompt_4=prompt4,
                     use_lora=use_lora,
+                    use_enhancer=use_enhancer,
                     use_gguf=use_gguf,
                     use_last_frame=use_last_frame,
                     last_frame_mode=last_frame_mode,
@@ -3244,7 +3418,8 @@ def handler(event):
                     output_dir=output_dir,
                 )
             else:
-                prompt_text = _compose_prompt(positive_prompt, image_caption) or positive_prompt
+                prompt_base = _apply_enhancer_prompt(positive_prompt) if use_enhancer else positive_prompt
+                prompt_text = _compose_prompt(prompt_base, image_caption) or prompt_base
                 history, video_path = run_comfy_prompt(
                     label=None,
                     input_filename=input_filename,
@@ -3259,6 +3434,7 @@ def handler(event):
                     model_low_filename=model_low_filename,
                     positive_prompt=prompt_text,
                     use_lora=use_lora,
+                    use_enhancer=use_enhancer,
                     use_gguf=use_gguf,
                     use_last_frame=use_last_frame,
                     video_width=video_width,
