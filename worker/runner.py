@@ -2076,7 +2076,7 @@ def resolve_output_image(
                         _maybe_add(item)
 
     if not candidates and prefix:
-        candidates.extend(output_dir.rglob(f\"{prefix}*.png\"))
+        candidates.extend(output_dir.rglob(f"{prefix}*.png"))
 
     candidates = [p for p in candidates if p.exists()]
     if not candidates:
