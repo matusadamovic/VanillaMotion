@@ -2496,6 +2496,41 @@ def send_text_lines(chat_id: int, lines: list[str], max_len: int = 3500) -> None
         send_text_message(chat_id, "\n".join(buf))
 
 
+def _format_failure_reason(exc: Exception) -> str:
+    msg = str(exc).strip()
+    if not msg:
+        msg = exc.__class__.__name__
+    if msg.startswith("No output video produced"):
+        msg = "ComfyUI nevyprodukoval mp4 output (finished bez videa)."
+    elif msg.startswith("ComfyUI prompt timeout"):
+        msg = "ComfyUI timeout (prekročený čas)."
+    elif msg.startswith("ComfyUI prompt failed:"):
+        msg = msg.replace("ComfyUI prompt failed:", "ComfyUI zlyhalo:")
+    elif msg.startswith("ffmpeg failed"):
+        msg = "ffmpeg zlyhal pri spracovaní videa."
+    if len(msg) > 500:
+        msg = msg[:500] + "…"
+    return msg
+
+
+def notify_job_failure(chat_id: int, message_id: int, job_id: str, exc: Exception) -> None:
+    reason = _format_failure_reason(exc)
+    text = f"Zlyhalo generovanie videa (job {job_id}). Dôvod: {reason}"
+    if message_id:
+        update_placeholder_text(chat_id, message_id, text)
+    send_text_message(chat_id, text)
+
+
+def notify_upload_failure(chat_id: int, message_id: int, job_id: str) -> None:
+    text = (
+        "Video sa vygenerovalo, ale odoslanie do Telegramu zlyhalo po "
+        f"{UPLOAD_MAX_RETRIES} pokusoch. Job {job_id}."
+    )
+    if message_id:
+        update_placeholder_text(chat_id, message_id, text)
+    send_text_message(chat_id, text)
+
+
 def handler(event):
     payload = (event.get("input") or {})
 
@@ -3351,11 +3386,22 @@ def handler(event):
                     int(finalize_info["placeholder_message_id"]),
                     "Hotovo. Video je v novej sprave.",
                 )
+            else:
+                target_chat_id = int(finalize_info.get("chat_id") or placeholder_chat_id)
+                target_message_id = int(finalize_info.get("placeholder_message_id") or placeholder_message_id or 0)
+                notify_upload_failure(target_chat_id, target_message_id, job_id)
 
         return {"status": "completed", "video": str(video_path)}
     except Exception as exc:
         logging.exception("Job %s failed", job_id)
         finalize_info = finalize(job_id, "FAILED", error=str(exc))
+        target_chat_id = placeholder_chat_id
+        target_message_id = placeholder_message_id
+        if finalize_info:
+            target_chat_id = int(finalize_info.get("chat_id") or target_chat_id or 0)
+            target_message_id = int(finalize_info.get("placeholder_message_id") or target_message_id or 0)
+        if target_chat_id:
+            notify_job_failure(int(target_chat_id), int(target_message_id or 0), job_id, exc)
         if is_batch and (batch_skipped_items or upload_failed_items):
             target_chat_id = None
             if finalize_info:
