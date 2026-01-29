@@ -166,13 +166,29 @@ for d in checkpoints loras vae clip controlnet upscale_models embeddings checkpo
 done
 
 ln -s "$MODEL_BUNDLE/checkpoints"      "$COMFY_ROOT/models/checkpoints"
-ln -s "$MODEL_BUNDLE/loras"            "$COMFY_ROOT/models/loras"
 ln -s "$MODEL_BUNDLE/vae"              "$COMFY_ROOT/models/vae"
 ln -s "$MODEL_BUNDLE/clip"             "$COMFY_ROOT/models/clip"
 ln -s "$MODEL_BUNDLE/controlnet"       "$COMFY_ROOT/models/controlnet"
 ln -s "$MODEL_BUNDLE/upscale_models"   "$COMFY_ROOT/models/upscale_models"
 ln -s "$MODEL_BUNDLE/embeddings"       "$COMFY_ROOT/models/embeddings"
 ln -s "$MODEL_BUNDLE/checkpoints_gguf" "$COMFY_ROOT/models/checkpoints_gguf"
+
+# Build /models/loras as a real directory so downloads can be written alongside cached LoRAs.
+mkdir -p "$COMFY_ROOT/models/loras"
+if [ -d "$MODEL_BUNDLE/loras" ]; then
+  (cd "$MODEL_BUNDLE/loras" && find . -mindepth 1 -type d -print0) | while IFS= read -r -d '' d; do
+    d="${d#./}"
+    [ -z "$d" ] && continue
+    mkdir -p "$COMFY_ROOT/models/loras/$d"
+  done
+  (cd "$MODEL_BUNDLE/loras" && find . -mindepth 1 -type f -print0) | while IFS= read -r -d '' f; do
+    f="${f#./}"
+    [ -z "$f" ] && continue
+    dst="$COMFY_ROOT/models/loras/$f"
+    mkdir -p "$(dirname "$dst")"
+    [ -e "$dst" ] || ln -s "$MODEL_BUNDLE/loras/$f" "$dst"
+  done
+fi
 
 # Build /models/unet as a real directory that contains both .safetensors and .gguf
 rm -rf "$COMFY_ROOT/models/unet"

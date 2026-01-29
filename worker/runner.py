@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import urllib.parse
 from typing import Any, Dict, List, Optional
 
 import psycopg2
@@ -85,6 +86,31 @@ HF_MODEL_NAME = os.environ.get("HF_MODEL_NAME", "").strip()
 HF_MODEL_REVISION = os.environ.get("HF_MODEL_REVISION", "").strip()
 LORA_REPO_ID = os.environ.get("LORA_REPO_ID", "").strip()
 _LORA_RESOLVED: Dict[str, pathlib.Path] = {}
+_LORA_DOWNLOAD_LOCK = threading.Lock()
+LORA_DOWNLOAD_TIMEOUT = _env_int("LORA_DOWNLOAD_TIMEOUT", 600)
+LORA_DOWNLOAD_CONNECT_TIMEOUT = _env_int("LORA_DOWNLOAD_CONNECT_TIMEOUT", 10)
+
+def _normalize_lora_filename(filename: str) -> str:
+    cleaned = str(filename or "").strip().lstrip("/").replace("\\", "/")
+    if cleaned.startswith("loras/"):
+        cleaned = cleaned[len("loras/") :]
+    return cleaned
+
+
+def _get_hf_token() -> str:
+    for key in ("HF_TOKEN", "HUGGINGFACE_HUB_TOKEN", "HUGGINGFACE_TOKEN", "HF_ACCESS_TOKEN"):
+        value = os.environ.get(key, "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _build_hf_resolve_url(repo_id: str, revision: str, hf_filename: str) -> str:
+    safe_repo = urllib.parse.quote(repo_id, safe="/")
+    safe_rev = urllib.parse.quote(revision, safe="")
+    safe_path = urllib.parse.quote(hf_filename, safe="/")
+    return f"https://huggingface.co/{safe_repo}/resolve/{safe_rev}/{safe_path}"
+
 
 def _safe_resolve(path: pathlib.Path) -> pathlib.Path:
     try:
@@ -178,6 +204,46 @@ def _link_lora_into_root(target: pathlib.Path, filename: str) -> pathlib.Path:
             return target
 
 
+def _download_lora_via_requests(repo_id: str, hf_filename: str, dest: pathlib.Path, revision: str) -> Optional[pathlib.Path]:
+    url = _build_hf_resolve_url(repo_id, revision, hf_filename)
+    headers: Dict[str, str] = {}
+    token = _get_hf_token()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    tmp_path: Optional[str] = None
+    try:
+        with requests.get(
+            url,
+            headers=headers,
+            stream=True,
+            timeout=(LORA_DOWNLOAD_CONNECT_TIMEOUT, LORA_DOWNLOAD_TIMEOUT),
+        ) as resp:
+            if resp.status_code == 404:
+                logging.warning("LoRA not found on HF (%s): %s", repo_id, hf_filename)
+                return None
+            resp.raise_for_status()
+
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp_path = tempfile.mkstemp(prefix=".lora.", suffix=".tmp", dir=str(dest.parent))
+            with os.fdopen(fd, "wb") as handle:
+                for chunk in resp.iter_content(chunk_size=8 * 1024 * 1024):
+                    if chunk:
+                        handle.write(chunk)
+            os.replace(tmp_path, dest)
+            tmp_path = None
+            return dest
+    except Exception as exc:
+        logging.warning("LoRA direct download failed for %s: %s", hf_filename, exc)
+        return None
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
+
 def _download_lora_from_hf(filename: str) -> Optional[pathlib.Path]:
     repo_id = LORA_REPO_ID or HF_MODEL_NAME
     if not repo_id:
@@ -185,30 +251,38 @@ def _download_lora_from_hf(filename: str) -> Optional[pathlib.Path]:
         repo_id = inferred or ""
     if not repo_id:
         return None
+    hf_filename = filename if filename.startswith("loras/") else f"loras/{filename}"
+    rel_path = pathlib.Path(hf_filename).relative_to("loras")
+    dest = LORA_ROOT / rel_path
+    revision = HF_MODEL_REVISION or "main"
+    token = _get_hf_token()
 
     try:
         from huggingface_hub import hf_hub_download
     except Exception as exc:
         logging.warning("huggingface_hub not available for LoRA download: %s", exc)
-        return None
+    else:
+        try:
+            path = hf_hub_download(
+                repo_id=repo_id,
+                filename=hf_filename,
+                revision=HF_MODEL_REVISION or None,
+                local_dir=str(LORA_ROOT.parent),
+                local_dir_use_symlinks=False,
+                token=token or None,
+            )
+            downloaded = pathlib.Path(path)
+            if not str(downloaded).startswith(str(LORA_ROOT)):
+                return _link_lora_into_root(downloaded, str(rel_path))
+            return downloaded
+        except Exception as exc:
+            logging.warning("LoRA download via huggingface_hub failed for %s: %s", filename, exc)
 
-    hf_filename = filename if filename.startswith("loras/") else f"loras/{filename}"
-    try:
-        path = hf_hub_download(
-            repo_id=repo_id,
-            filename=hf_filename,
-            revision=HF_MODEL_REVISION or None,
-            local_dir=str(LORA_ROOT),
-            local_dir_use_symlinks=False,
-        )
-    except Exception as exc:
-        logging.warning("LoRA download failed for %s: %s", filename, exc)
-        return None
-
-    return pathlib.Path(path)
+    return _download_lora_via_requests(repo_id, hf_filename, dest, revision)
 
 
 def _ensure_lora_file(filename: str) -> pathlib.Path:
+    filename = _normalize_lora_filename(filename)
     cached = _LORA_RESOLVED.get(filename)
     if cached and cached.exists():
         return cached
@@ -218,18 +292,27 @@ def _ensure_lora_file(filename: str) -> pathlib.Path:
         _LORA_RESOLVED[filename] = direct
         return direct
 
-    found = _find_lora_in_cache(filename)
-    if found is not None:
-        resolved = _link_lora_into_root(found, filename)
-        _LORA_RESOLVED[filename] = resolved
-        return resolved
+    with _LORA_DOWNLOAD_LOCK:
+        cached = _LORA_RESOLVED.get(filename)
+        if cached and cached.exists():
+            return cached
+        if direct.exists():
+            _LORA_RESOLVED[filename] = direct
+            return direct
 
-    downloaded = _download_lora_from_hf(filename)
-    if downloaded is not None:
-        _LORA_RESOLVED[filename] = downloaded
-        return downloaded
+        found = _find_lora_in_cache(filename)
+        if found is not None:
+            resolved = _link_lora_into_root(found, filename)
+            _LORA_RESOLVED[filename] = resolved
+            return resolved
 
-    raise FileNotFoundError(f"LoRA file not found: {direct}")
+        downloaded = _download_lora_from_hf(filename)
+        if downloaded is not None:
+            resolved = _link_lora_into_root(downloaded, filename)
+            _LORA_RESOLVED[filename] = resolved
+            return resolved
+
+        raise FileNotFoundError(f"LoRA file not found: {direct}")
 
 CAPTION_BACKEND = os.environ.get("CAPTION_BACKEND", "florence2").strip().lower()
 CAPTION_MODES_RAW = os.environ.get("CAPTION_MODES", "all")
