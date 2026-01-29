@@ -154,6 +154,17 @@ def _normalize_model_type(value: Any) -> Optional[str]:
     return None
 
 
+def _normalize_mix_caption_mode(value: Any) -> str:
+    raw = str(value or "").strip().lower()
+    if raw in {"segment", "segments", "per-segment", "per_segment", "each"}:
+        return "segment"
+    if raw in {"input", "original", "source", "base"}:
+        return "input"
+    if raw in {"first", "first-only", "first_only", "firstonly"}:
+        return "first"
+    return "segment"
+
+
 LORA_CATALOG = load_lora_catalog()
 LORA_UNSTACKED_CATALOG = load_lora_unstacked_catalog()
 LORA_RATINGS = load_lora_ratings()
@@ -194,6 +205,7 @@ dedup_cache: Dict[int, float] = {}  # update_id -> timestamp
 EXTENDED_SESSION_TTL_SECONDS = int(os.environ.get("EXTENDED_SESSION_TTL_SECONDS", "3600"))
 extended_sessions: Dict[str, Dict[str, Any]] = {}
 MIX_MAX_LORAS = 6
+MIX_CAPTION_MODE_DEFAULT = _normalize_mix_caption_mode(os.environ.get("MIX_CAPTION_MODE", "segment"))
 WORKFLOW4_PARTS = 4
 workflow4_sessions: Dict[str, Dict[str, Any]] = {}
 test5s_album_sessions: Dict[str, Dict[str, Any]] = {}
@@ -1169,6 +1181,17 @@ def build_prompt_keyboard_ext(job_id: str, *, tag_prefix: str = "e") -> str:
     return json.dumps({"inline_keyboard": rows})
 
 
+def build_caption_mode_keyboard_ext(job_id: str, *, tag_prefix: str = "e") -> str:
+    rows = [
+        [
+            {"text": "Caption: každý segment", "callback_data": f"{tag_prefix}cm:segment:{job_id}"},
+            {"text": "Caption: len vstup", "callback_data": f"{tag_prefix}cm:input:{job_id}"},
+        ],
+        [{"text": "Caption: len prvý", "callback_data": f"{tag_prefix}cm:first:{job_id}"}],
+    ]
+    return json.dumps({"inline_keyboard": rows})
+
+
 def build_drift_keyboard(job_id: str, *, tag_prefix: str = "n") -> str:
     rows = []
     row = []
@@ -1557,6 +1580,19 @@ async def prompt_extended_enhancer(
         return
     reply_markup = build_enhancer_keyboard(f"ee:1:{job_id}", f"ee:0:{job_id}")
     await edit_message_text(chat_id, message_id, f"{label}: pouzit enhancer?", reply_markup)
+
+
+async def prompt_extended_caption_mode(
+    *,
+    chat_id: int,
+    message_id: int,
+    label: str,
+    job_id: str,
+) -> None:
+    if not (chat_id and message_id):
+        return
+    reply_markup = build_caption_mode_keyboard_ext(job_id)
+    await edit_message_text(chat_id, message_id, f"{label}: caption režim", reply_markup)
 
 
 async def prompt_workflow4_enhancer(
@@ -2009,6 +2045,7 @@ async def _submit_mix_job(
     model_label: Optional[str],
     model_high_filename: Optional[str],
     model_low_filename: Optional[str],
+    mix_caption_mode: Optional[str] = None,
     use_enhancer: bool = False,
     chat_id: int,
     message_id: int,
@@ -2028,6 +2065,8 @@ async def _submit_mix_job(
         "video_height": video_height,
         "total_steps": total_steps,
     }
+    if mix_caption_mode:
+        payload["mix_caption_mode"] = mix_caption_mode
     if rife_multiplier is not None:
         payload["rife_multiplier"] = int(rife_multiplier)
 
@@ -2513,6 +2552,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
     # - ers:<r_idx>:<job_id>                   (resolution, mix)
     # - est:<s_idx>:<job_id>                   (steps, mix)
     # - epu:<p>:<job_id>                       (prompt, mix)
+    # - ecm:<mode>:<job_id>                    (caption mode, mix)
     # - ng:<idx>:<job_id>                      (select LoRA group, workflow4)
     # - ngp:<page>:<job_id>                    (group page, workflow4)
     # - nl:<idx>:<job_id>                      (select LoRA, workflow4)
@@ -2601,6 +2641,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
                 "max_loras": MIX_MAX_LORAS,
                 "use_prompt": True,
                 "use_enhancer": False,
+                "caption_mode": MIX_CAPTION_MODE_DEFAULT,
             }
             _ext_session_touch(extended_sessions[job_id])
             await edit_message_text(
@@ -3561,6 +3602,27 @@ async def process_callback(update: Dict[str, Any]) -> None:
         _ext_session_touch(sess)
         if chat_id and message_id:
             label = _extended_combo_label(sess)
+            await prompt_extended_caption_mode(
+                chat_id=chat_id,
+                message_id=message_id,
+                label=label,
+                job_id=job_id,
+            )
+        return
+
+    if tag == "ecm":
+        if len(parts) != 3:
+            return
+        caption_mode = _normalize_mix_caption_mode(parts[1])
+        job_id = parts[2]
+        sess = _ext_session_get(job_id)
+        if not sess:
+            return
+        sess["caption_mode"] = caption_mode
+        sess["rife_multiplier"] = None
+        _ext_session_touch(sess)
+        if chat_id and message_id:
+            label = _extended_combo_label(sess)
             await prompt_extended_interpolation(
                 chat_id=chat_id,
                 message_id=message_id,
@@ -3636,6 +3698,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             model_low_filename = model_cfg.get("low_filename")
 
         use_prompt = bool(sess.get("use_prompt"))
+        caption_mode = _normalize_mix_caption_mode(sess.get("caption_mode") or MIX_CAPTION_MODE_DEFAULT)
         prompts: List[Optional[str]] = []
         for lora in selected_loras:
             cfg = lora.get("cfg") or {}
@@ -3655,6 +3718,7 @@ async def process_callback(update: Dict[str, Any]) -> None:
             model_label=model_label,
             model_high_filename=model_high_filename,
             model_low_filename=model_low_filename,
+            mix_caption_mode=caption_mode,
             use_enhancer=bool(sess.get("use_enhancer")),
             chat_id=chat_id,
             message_id=message_id,

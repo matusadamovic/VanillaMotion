@@ -327,14 +327,14 @@ def _focus_caption(text: str) -> str:
         else:
             env.append(segment)
 
-    max_segments = _env_int("CAPTION_FOCUS_MAX_SEGMENTS", 10)
+    max_segments = _env_int("CAPTION_FOCUS_MAX_SEGMENTS", 6)
     if max_segments <= 0 or max_segments >= len(segments):
         focused = head + body + env + other
         return ". ".join(focused) or text
 
-    head_weight = _env_float("CAPTION_FOCUS_HEAD_WEIGHT", 0.7)
-    body_weight = _env_float("CAPTION_FOCUS_BODY_WEIGHT", 0.25)
-    env_weight = _env_float("CAPTION_FOCUS_ENV_WEIGHT", 0.05)
+    head_weight = _env_float("CAPTION_FOCUS_HEAD_WEIGHT", 0.92)
+    body_weight = _env_float("CAPTION_FOCUS_BODY_WEIGHT", 0.08)
+    env_weight = _env_float("CAPTION_FOCUS_ENV_WEIGHT", 0.0)
     other_weight = max(0.0, 1.0 - head_weight - body_weight - env_weight)
     weights = [
         ("head", head, head_weight),

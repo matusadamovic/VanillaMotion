@@ -73,6 +73,7 @@ BATCH_RESTART_ON_FAILURE = _env_bool("BATCH_RESTART_ON_FAILURE", True)
 MIX_RESTART_EVERY = _env_int("MIX_RESTART_EVERY", 4)
 UPLOAD_MAX_RETRIES = _env_int("UPLOAD_MAX_RETRIES", 3)
 UPLOAD_RETRY_DELAY = _env_float("UPLOAD_RETRY_DELAY", 3.0)
+MAX_TG_CAPTION = _env_int("MAX_TG_CAPTION", 1024)
 DEQUANT_FP8_MODELS = _env_bool("DEQUANT_FP8_MODELS", True)
 
 ENHANCER_LORA_HIGH = os.environ.get("ENHANCER_LORA_HIGH", "NSFW-22-H-e8.safetensors").strip()
@@ -357,6 +358,19 @@ def _should_caption(mode_key: str) -> bool:
     if "all" in CAPTION_MODES or "*" in CAPTION_MODES:
         return True
     return mode_key in CAPTION_MODES
+
+
+def _normalize_mix_caption_mode(value: Any) -> str:
+    raw = str(value or "").strip().lower()
+    if raw in {"segment", "segments", "per-segment", "per_segment", "each"}:
+        return "segment"
+    if raw in {"input", "original", "source", "base"}:
+        return "input"
+    if raw in {"first", "first-only", "first_only", "firstonly"}:
+        return "first"
+    if raw in {"off", "none", "no", "false", "0"}:
+        return "off"
+    return "segment"
 
 
 def _normalize_prompt_segment(text: Optional[str]) -> str:
@@ -2497,6 +2511,25 @@ def _format_render_line(
     return "Render: workflow default"
 
 
+def _clamp_caption(caption: str) -> str:
+    if not caption:
+        return ""
+    if len(caption) <= MAX_TG_CAPTION:
+        return caption
+    if MAX_TG_CAPTION <= 3:
+        return caption[:MAX_TG_CAPTION]
+    return caption[: MAX_TG_CAPTION - 3].rstrip() + "..."
+
+
+def _shorten_telegram_error(response: Optional[requests.Response]) -> str:
+    if response is None:
+        return ""
+    text = (response.text or "").strip()
+    if len(text) > 400:
+        return text[:397] + "..."
+    return text
+
+
 def build_caption(
     *,
     use_gguf: Optional[bool],
@@ -2791,12 +2824,16 @@ def build_caption_workflow4(
 
 def upload_video(chat_id: int, message_id: int, video_path: pathlib.Path, caption: str = "Hotovo") -> bool:
     api = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+    safe_caption = _clamp_caption(caption)
+    if safe_caption != caption:
+        logging.info("Caption truncated for Telegram: %s -> %s", len(caption), len(safe_caption))
     last_exc: Optional[Exception] = None
     for attempt in range(1, max(1, UPLOAD_MAX_RETRIES) + 1):
         try:
             with open(video_path, "rb") as f:
+                r2: Optional[requests.Response] = None
                 files = {"video": ("video.mp4", f, "video/mp4")}
-                data = {"chat_id": chat_id, "caption": caption}
+                data = {"chat_id": chat_id, "caption": safe_caption}
                 r = requests.post(f"{api}/sendVideo", data=data, files=files, timeout=120)
                 if r.ok:
                     return True
@@ -2806,17 +2843,28 @@ def upload_video(chat_id: int, message_id: int, video_path: pathlib.Path, captio
                     data2 = {
                         "chat_id": chat_id,
                         "message_id": message_id,
-                        "media": json.dumps({"type": "video", "media": "attach://media", "caption": caption}),
+                        "media": json.dumps(
+                            {"type": "video", "media": "attach://media", "caption": safe_caption}
+                        ),
                     }
                     r2 = requests.post(f"{api}/editMessageMedia", data=data2, files=files2, timeout=120)
                     if r2.ok:
                         return True
                 logging.warning(
-                    "Upload failed (attempt %s/%s): sendVideo=%s",
+                    "Upload failed (attempt %s/%s): sendVideo=%s err=%s",
                     attempt,
                     UPLOAD_MAX_RETRIES,
                     r.status_code,
+                    _shorten_telegram_error(r),
                 )
+                if r2 is not None:
+                    logging.warning(
+                        "Upload failed (attempt %s/%s): editMessageMedia=%s err=%s",
+                        attempt,
+                        UPLOAD_MAX_RETRIES,
+                        r2.status_code,
+                        _shorten_telegram_error(r2),
+                    )
         except Exception as exc:
             last_exc = exc
             logging.warning(
@@ -3521,16 +3569,26 @@ def handler(event):
                 mix_restart_every = max(0, MIX_RESTART_EVERY)
                 if mix_restart_every:
                     logging.info("MIX restart every %s segments", mix_restart_every)
+                mix_caption_mode = _normalize_mix_caption_mode(
+                    payload.get("mix_caption_mode") or os.environ.get("MIX_CAPTION_MODE")
+                )
+                logging.info("MIX caption mode=%s", mix_caption_mode)
 
                 for idx, seg in enumerate(mix_segments, start=1):
                     seg_caption: Optional[str] = None
                     if _should_caption(mode_key):
-                        if idx == 1:
+                        if mix_caption_mode == "segment":
+                            if idx == 1:
+                                seg_caption = image_caption
+                            elif last_frame_path is not None:
+                                seg_caption = _run_captioner(last_frame_path)
+                                if seg_caption:
+                                    logging.info("CAPTION(%s, seg%s)=%s", mode_key, idx, seg_caption)
+                        elif mix_caption_mode == "input":
                             seg_caption = image_caption
-                        elif last_frame_path is not None:
-                            seg_caption = _run_captioner(last_frame_path)
-                            if seg_caption:
-                                logging.info("CAPTION(%s, seg%s)=%s", mode_key, idx, seg_caption)
+                        elif mix_caption_mode == "first":
+                            if idx == 1:
+                                seg_caption = image_caption
 
                     prompt_raw = seg.get("prompt")
                     if use_enhancer:
