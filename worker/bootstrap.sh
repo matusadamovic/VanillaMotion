@@ -10,8 +10,10 @@ HF_CACHE_ROOT="/runpod-volume/huggingface-cache/hub"  # :contentReference[oaicit
 # Odporúčam nastaviť v endpoint env presne:
 # HF_MODEL_NAME=matadamovic/vanillamotionbbotmodels
 HF_MODEL_NAME="${HF_MODEL_NAME:-matadamovic/vanillamotionbotmodels}"
+HF_MODEL_REVISION="${HF_MODEL_REVISION:-}"
 export HF_CACHE_ROOT
 export HF_MODEL_NAME
+export HF_MODEL_REVISION
 
 # Lokálne testovanie / fallback (na RunPod to nechaj prázdne)
 MODEL_BUNDLE="${MODEL_BUNDLE_PATH:-}"
@@ -23,6 +25,7 @@ python3 -c "import sys; print('BOOT: python3 sys.executable=', sys.executable)" 
 python3 -c "import transformers; print('BOOT: python3 transformers=', transformers.__version__)" || true
 echo "BOOT: HF_CACHE_ROOT=$HF_CACHE_ROOT"
 echo "BOOT: HF_MODEL_NAME=$HF_MODEL_NAME"
+echo "BOOT: HF_MODEL_REVISION=${HF_MODEL_REVISION:-<empty>}"
 echo "BOOT: MODEL_BUNDLE_PATH=${MODEL_BUNDLE_PATH:-<empty>}"
 
 # Best-effort cleanup
@@ -55,17 +58,65 @@ pick_latest_complete_snapshot() {
   return 1
 }
 
+read_refs_main_hash() {
+  local snapshots_dir="$1"
+  local refs_main="$snapshots_dir/../refs/main"
+  if [ -f "$refs_main" ]; then
+    head -n1 "$refs_main" 2>/dev/null | tr -d '[:space:]'
+  fi
+}
+
+select_snapshot() {
+  local snapshots_dir="$1"
+  local snap=""
+  local reason=""
+  local ref_hash=""
+
+  if [ -n "$HF_MODEL_REVISION" ] && [ -d "$snapshots_dir/$HF_MODEL_REVISION" ]; then
+    snap="$snapshots_dir/$HF_MODEL_REVISION"
+    reason="revision"
+    if is_complete_snapshot "$snap"; then
+      echo "${snap}|${reason}"
+      return 0
+    fi
+    echo "BOOT: snapshot $HF_MODEL_REVISION exists but incomplete; waiting..."
+    return 1
+  fi
+
+  ref_hash="$(read_refs_main_hash "$snapshots_dir")"
+  if [ -n "$ref_hash" ] && [ -d "$snapshots_dir/$ref_hash" ]; then
+    snap="$snapshots_dir/$ref_hash"
+    reason="refs/main"
+    if is_complete_snapshot "$snap"; then
+      echo "${snap}|${reason}"
+      return 0
+    fi
+    echo "BOOT: snapshot $ref_hash from refs/main exists but incomplete; waiting..."
+    return 1
+  fi
+
+  snap="$(pick_latest_complete_snapshot "$snapshots_dir" || true)"
+  if [ -n "$snap" ]; then
+    reason="mtime"
+    echo "${snap}|${reason}"
+    return 0
+  fi
+  return 1
+}
+
 if [ -z "$MODEL_BUNDLE" ]; then
   cache_name="models--${HF_MODEL_NAME//\//--}"
   snapshots_dir="$HF_CACHE_ROOT/$cache_name/snapshots"
 
   echo "BOOT: snapshots_dir=$snapshots_dir"
   deadline=$(( $(date +%s) + WAIT_FOR_CACHE_SECONDS ))
+  MODEL_BUNDLE_REASON=""
 
   while [ "$(date +%s)" -lt "$deadline" ]; do
     if [ -d "$snapshots_dir" ]; then
-      MODEL_BUNDLE="$(pick_latest_complete_snapshot "$snapshots_dir" || true)"
-      if [ -n "$MODEL_BUNDLE" ]; then
+      selection="$(select_snapshot "$snapshots_dir" || true)"
+      if [ -n "$selection" ]; then
+        IFS='|' read -r MODEL_BUNDLE MODEL_BUNDLE_REASON <<< "$selection"
         break
       fi
       echo "BOOT: snapshots exist but none complete yet; waiting..."
@@ -84,6 +135,11 @@ if [ -z "$MODEL_BUNDLE" ] || [ ! -d "$MODEL_BUNDLE" ]; then
   ls -lah "$HF_CACHE_ROOT" || true
   [ -n "${snapshots_dir:-}" ] && ls -lah "$snapshots_dir" || true
   exit 1
+fi
+
+if [ -n "${MODEL_BUNDLE_REASON:-}" ]; then
+  MODEL_BUNDLE_COMMIT="$(basename "$MODEL_BUNDLE")"
+  echo "BOOT: Selected snapshot commit=$MODEL_BUNDLE_COMMIT (source=$MODEL_BUNDLE_REASON)"
 fi
 
 echo "BOOT: Using MODEL_BUNDLE=$MODEL_BUNDLE"

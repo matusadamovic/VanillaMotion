@@ -1,0 +1,27 @@
+REPO=matadamovic/vanillamotionbotmodels
+REV=0051fef704bbb21a09c1bf067a4d6d6005beb6ad   # zmeň na 9e13f1b ak chceš
+
+curl -s -H "Authorization: Bearer $HF_TOKEN" \
+  "https://huggingface.co/api/models/$REPO?revision=$REV" | \
+python - <<'PY'
+import json, sys
+data = json.load(sys.stdin)
+targets = {
+    "loras/NSFW-22-H-e8.safetensors",
+    "loras/NSFW-22-L-e8.safetensors",
+}
+print("sha:", data.get("sha"))
+siblings = {f.get("rfilename"): f for f in data.get("siblings", [])}
+for t in sorted(targets):
+    print(t, "FOUND" if t in siblings else "MISSING")
+    if t in siblings:
+        f = siblings[t]
+        print(" size:", f.get("size"))
+        print(" lfs:", f.get("lfs"))
+PY
+
+for f in NSFW-22-H-e8.safetensors NSFW-22-L-e8.safetensors; do
+  url="https://huggingface.co/$REPO/resolve/$REV/loras/$f"
+  echo "== $url =="
+  curl -s -I -H "Authorization: Bearer $HF_TOKEN" -L "$url" | head -n 5
+done

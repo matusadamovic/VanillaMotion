@@ -125,12 +125,21 @@ def _iter_snapshot_dirs() -> List[pathlib.Path]:
 
 
 def _find_lora_in_cache(filename: str) -> Optional[pathlib.Path]:
-    for snapshots_dir in _iter_snapshot_dirs():
+    snapshot_dirs = _iter_snapshot_dirs()
+    if HF_MODEL_REVISION:
+        for snapshots_dir in snapshot_dirs:
+            candidate = snapshots_dir / HF_MODEL_REVISION / "loras" / filename
+            if candidate.exists():
+                return candidate
+
+    for snapshots_dir in snapshot_dirs:
         try:
-            snaps = sorted(snapshots_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+            snaps = sorted(snapshots_dir.iterdir(), key=lambda p: p.name)
         except Exception:
             continue
         for snap in snaps:
+            if HF_MODEL_REVISION and snap.name == HF_MODEL_REVISION:
+                continue
             candidate = snap / "loras" / filename
             if candidate.exists():
                 return candidate
