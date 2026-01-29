@@ -481,5 +481,14 @@
     "high_strength": 0.7,
     "low_strength": 0.9,
     "positive": "Base trigger: reveals a [small/large] penis and testicles. Clothing-removal setup: pull aside the [underwear/shorts/panties], pull down [pants/underwear/panties/shorts], lift [skirt/dress], and spread legs while sitting to reveal a tucked hidden penis and testicles. Motion: the stiff penis catches during removal and flops out or flicks up. Angles: from below, from side, from behind; a slight turn of the body only (no camera tilt). Follow-up: touch and gently stroke the penis, then a small hip sway that moves it side to side. Optional descriptors: foreskin, flaccid and small, downward pointing, upward curving, erect, floppy, soft, stiff. Same subject and face. Keep face visible. Head mostly still; only required parts move. Locked-off camera, fixed lens; no pan/tilt/zoom/reframe. Penis enters from the left edge of frame and makes clear contact with the described target. The head stays mostly still while the reveal happens. The camera stays steady and does not reframe."
+  },
+  "nsfw_22_e8": {
+    "label": "nsfw_22_e8",
+    "type": "pair",
+    "high_filename": "NSFW-22-H-e8.safetensors",
+    "low_filename": "NSFW-22-L-e8.safetensors",
+    "high_strength": 0.8,
+    "low_strength": 0.8,
+    "positive": "nsfwsks"
   }
 }

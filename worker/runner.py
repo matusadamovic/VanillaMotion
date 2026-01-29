@@ -79,6 +79,149 @@ ENHANCER_LORA_LOW = os.environ.get("ENHANCER_LORA_LOW", "NSFW-22-L-e8.safetensor
 ENHANCER_PROMPT_TOKEN = os.environ.get("ENHANCER_PROMPT_TOKEN", "nsfwsks").strip()
 ENHANCER_WEIGHT = _env_float("ENHANCER_WEIGHT", 0.8)
 
+LORA_ROOT = pathlib.Path(os.environ.get("LORA_ROOT", "/runpod-volume/models/loras"))
+HF_CACHE_ROOT = pathlib.Path(os.environ.get("HF_CACHE_ROOT", "/runpod-volume/huggingface-cache/hub"))
+HF_MODEL_NAME = os.environ.get("HF_MODEL_NAME", "").strip()
+HF_MODEL_REVISION = os.environ.get("HF_MODEL_REVISION", "").strip()
+LORA_REPO_ID = os.environ.get("LORA_REPO_ID", "").strip()
+_LORA_RESOLVED: Dict[str, pathlib.Path] = {}
+
+def _safe_resolve(path: pathlib.Path) -> pathlib.Path:
+    try:
+        return path.resolve()
+    except Exception:
+        return path
+
+
+def _infer_repo_id_from_cache_path(path: pathlib.Path) -> Optional[str]:
+    for part in path.parts:
+        if part.startswith("models--"):
+            bits = part.split("--")
+            if len(bits) >= 3:
+                owner = bits[1]
+                repo = "--".join(bits[2:])
+                return f"{owner}/{repo}"
+    return None
+
+
+def _iter_snapshot_dirs() -> List[pathlib.Path]:
+    seen: set[pathlib.Path] = set()
+    resolved_loras = _safe_resolve(LORA_ROOT)
+    if resolved_loras.name == "loras":
+        snap_root = resolved_loras.parent.parent
+        if snap_root.name == "snapshots":
+            seen.add(snap_root)
+
+    if HF_MODEL_NAME:
+        cache_name = f"models--{HF_MODEL_NAME.replace('/', '--')}"
+        seen.add(HF_CACHE_ROOT / cache_name / "snapshots")
+    else:
+        inferred = _infer_repo_id_from_cache_path(resolved_loras)
+        if inferred:
+            cache_name = f"models--{inferred.replace('/', '--')}"
+            seen.add(HF_CACHE_ROOT / cache_name / "snapshots")
+
+    return [d for d in seen if d.is_dir()]
+
+
+def _find_lora_in_cache(filename: str) -> Optional[pathlib.Path]:
+    for snapshots_dir in _iter_snapshot_dirs():
+        try:
+            snaps = sorted(snapshots_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+        except Exception:
+            continue
+        for snap in snaps:
+            candidate = snap / "loras" / filename
+            if candidate.exists():
+                return candidate
+
+    # Fallback: scan all cached repos for the file.
+    if HF_CACHE_ROOT.is_dir():
+        pattern = f"models--*/snapshots/*/loras/{filename}"
+        for candidate in HF_CACHE_ROOT.glob(pattern):
+            if candidate.exists():
+                return candidate
+    return None
+
+
+def _link_lora_into_root(target: pathlib.Path, filename: str) -> pathlib.Path:
+    dest = LORA_ROOT / filename
+    try:
+        if dest.is_symlink() and not dest.exists():
+            dest.unlink()
+    except Exception:
+        pass
+
+    if dest.exists():
+        return dest
+
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.symlink_to(target)
+        return dest
+    except Exception as exc:
+        logging.warning("Failed to symlink LoRA into %s: %s", dest, exc)
+        try:
+            shutil.copy2(target, dest)
+            return dest
+        except Exception as exc2:
+            logging.warning("Failed to copy LoRA into %s: %s", dest, exc2)
+            return target
+
+
+def _download_lora_from_hf(filename: str) -> Optional[pathlib.Path]:
+    repo_id = LORA_REPO_ID or HF_MODEL_NAME
+    if not repo_id:
+        inferred = _infer_repo_id_from_cache_path(_safe_resolve(LORA_ROOT))
+        repo_id = inferred or ""
+    if not repo_id:
+        return None
+
+    try:
+        from huggingface_hub import hf_hub_download
+    except Exception as exc:
+        logging.warning("huggingface_hub not available for LoRA download: %s", exc)
+        return None
+
+    hf_filename = filename if filename.startswith("loras/") else f"loras/{filename}"
+    try:
+        path = hf_hub_download(
+            repo_id=repo_id,
+            filename=hf_filename,
+            revision=HF_MODEL_REVISION or None,
+            local_dir=str(LORA_ROOT),
+            local_dir_use_symlinks=False,
+        )
+    except Exception as exc:
+        logging.warning("LoRA download failed for %s: %s", filename, exc)
+        return None
+
+    return pathlib.Path(path)
+
+
+def _ensure_lora_file(filename: str) -> pathlib.Path:
+    cached = _LORA_RESOLVED.get(filename)
+    if cached and cached.exists():
+        return cached
+
+    direct = LORA_ROOT / filename
+    if direct.exists():
+        _LORA_RESOLVED[filename] = direct
+        return direct
+
+    found = _find_lora_in_cache(filename)
+    if found is not None:
+        resolved = _link_lora_into_root(found, filename)
+        _LORA_RESOLVED[filename] = resolved
+        return resolved
+
+    downloaded = _download_lora_from_hf(filename)
+    if downloaded is not None:
+        _LORA_RESOLVED[filename] = downloaded
+        return downloaded
+
+    raise FileNotFoundError(f"LoRA file not found: {direct}")
+
 CAPTION_BACKEND = os.environ.get("CAPTION_BACKEND", "florence2").strip().lower()
 CAPTION_MODES_RAW = os.environ.get("CAPTION_MODES", "all")
 CAPTION_MODES = {m.strip().lower() for m in CAPTION_MODES_RAW.split(",") if m.strip()}
@@ -1158,9 +1301,7 @@ def load_and_patch_workflow(
 
     # ---- LoRA patching (TAILORED to your workflow: Step 1 + Step 3 only) ----
     def _assert_lora_exists(filename: str) -> None:
-        p = pathlib.Path("/runpod-volume/models/loras") / filename
-        if not p.exists():
-            raise FileNotFoundError(f"LoRA file not found: {p}")
+        _ensure_lora_file(filename)
 
     def _set_lora(inputs: Dict[str, Any], slot: str, filename: str, strength: float) -> None:
         inputs[slot] = {"on": True, "lora": filename, "strength": float(strength)}
@@ -1428,9 +1569,7 @@ def load_and_patch_workflow_new(
     apply_enhancer = apply_loras and bool(use_enhancer)
 
     def _assert_lora_exists(filename: str) -> None:
-        p = pathlib.Path("/runpod-volume/models/loras") / filename
-        if not p.exists():
-            raise FileNotFoundError(f"LoRA file not found: {p}")
+        _ensure_lora_file(filename)
 
     def _normalize_lora_part(
         name: str,

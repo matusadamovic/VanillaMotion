@@ -10,6 +10,8 @@ HF_CACHE_ROOT="/runpod-volume/huggingface-cache/hub"  # :contentReference[oaicit
 # Odporúčam nastaviť v endpoint env presne:
 # HF_MODEL_NAME=matadamovic/vanillamotionbbotmodels
 HF_MODEL_NAME="${HF_MODEL_NAME:-matadamovic/vanillamotionbotmodels}"
+export HF_CACHE_ROOT
+export HF_MODEL_NAME
 
 # Lokálne testovanie / fallback (na RunPod to nechaj prázdne)
 MODEL_BUNDLE="${MODEL_BUNDLE_PATH:-}"
